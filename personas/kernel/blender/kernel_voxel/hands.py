@@ -22,8 +22,8 @@ class HandBone:
 
 
 # Local Z follows the digit. The palm faces -Y; flexion rotates about +X.
-PALM_CENTER = (0, -0.022, 0.140)
-PALM_SIZE = (0.21, 0.085, 0.18)
+PALM_CENTER = (0, -0.032, 0.125)
+PALM_SIZE = (0.21, 0.065, 0.21)
 PALM_CONTACT = np.array([0, -0.066, 0.086])
 FINGER_BASE = 0.223
 KEYBOARD_DEPTH = 0.052

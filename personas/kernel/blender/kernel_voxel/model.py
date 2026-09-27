@@ -163,6 +163,30 @@ def shoulder_socket(builder, side):
     )
 
 
+def hinge_joint(builder, part):
+    """Shared knee and elbow hinge geometry in the local joint frame."""
+    builder.voxel(
+        part,
+        (0, 0, 0),
+        (0.25, 0.20, 0.20),
+        "joint",
+        0.035,
+        step=0.020,
+        shape="motor",
+    )
+    for side in (-1, 1):
+        builder.voxel(
+            part,
+            (side * 0.132, 0, 0),
+            (0.025, 0.122, 0.122),
+            "metal",
+            0.0,
+            step=0.017,
+            shape="motor",
+        )
+        builder.box(part, (side * 0.147, 0, 0), (0.015, 0.036, 0.037), "violet_dim")
+
+
 def build_model():
     b = Builder()
     b.voxel("body", (0, 0, 1.44), (1.04, 0.68, 0.39), "shell", 0.14)
@@ -191,8 +215,8 @@ def build_model():
     # Rounded contours are sampled on a fine cubic lattice, never chamfered.
     b.voxel(
         "head",
-        (0, 0, 0.33),
-        (1.47, 0.95, 0.97),
+        (0, -0.035, 0.33),
+        (1.47, 0.88, 0.97),
         "shell",
         0.22,
         cut=lambda p: abs(p[0]) < 0.597 and abs(p[2] - 0.33) < 0.334 and p[1] < -0.26,
@@ -228,9 +252,9 @@ def build_model():
     b.box("head", (0, 0.02, 0.827), (0.15, 0.18, 0.039), "joint")
     b.box("head", (0, 0.02, 0.861), (0.105, 0.13, 0.028), "cyan")
     # Crisp narrow seams across the crown and service hatch at the back.
-    b.box("head", (0, 0.452, 0.32), (0.69, 0.016, 0.40), "dark")
+    b.box("head", (0, 0.382, 0.32), (0.69, 0.016, 0.40), "dark")
     for z in (0.22, 0.31, 0.40):
-        b.box("head", (0, 0.466, z), (0.49, 0.014, 0.028), "joint")
+        b.box("head", (0, 0.396, z), (0.49, 0.014, 0.028), "joint")
     for side in (-1, 1):
         n = "L" if side < 0 else "R"
         shoulder_socket(b, side)
@@ -272,28 +296,7 @@ def build_model():
             elif part.startswith("thigh"):
                 b.voxel(part, (0, 0, 0), (0.22, 0.22, 0.22), "metal", 0.11, step=0.010)
             else:
-                b.voxel(
-                    part,
-                    (0, 0, 0),
-                    (0.25, 0.20, 0.20),
-                    "joint",
-                    0.035,
-                    step=0.005,
-                    shape="motor",
-                )
-                for side2 in (-1, 1):
-                    b.voxel(
-                        part,
-                        (side2 * 0.132, 0, 0),
-                        (0.025, 0.122, 0.122),
-                        "metal",
-                        0.0,
-                        step=0.005,
-                        shape="motor",
-                    )
-                    b.box(
-                        part, (side2 * 0.147, 0, 0), (0.015, 0.036, 0.037), "violet_dim"
-                    )
+                hinge_joint(b, part)
             b.box(
                 part,
                 (0, depth / 2 - 0.02, length * 0.48),
@@ -308,14 +311,6 @@ def build_model():
             0.05,
             step=0.005,
             cut=lambda p: p[2] < 0.275,
-        )
-        b.voxel(
-            f"forearm.{n}",
-            (0, 0, 0.3275),
-            (0.025, 0.025, 0.040),
-            "joint",
-            0.01,
-            step=0.005,
         )
         build_hand(b, n)
         b.voxel(
