@@ -101,7 +101,7 @@ def archive(path, root, files):
             output.writestr(entry, source.read_bytes())
 
 
-def bundle(build, site, destination, version):
+def bundle(build, site, destination, version, assets):
     manifest = validate_pet(build)
     if manifest["version"] != version:
         raise ValueError("Rendered assets have the wrong release version")
@@ -109,7 +109,6 @@ def bundle(build, site, destination, version):
     if not verification.get("ok"):
         raise ValueError("Blender scene verification did not pass")
     required = [build / "kernel.blend", build / "timeline.json", site / "index.html"]
-    assets = site / "assets"
     required.extend(
         assets / name for name in ("kernel.glb", "animations.json", "screens.png")
     )
@@ -147,6 +146,7 @@ def bundle(build, site, destination, version):
     }
     for name, (root, files) in packages.items():
         archive(destination / f"{prefix}-{name}.zip", root, files)
+    (destination / f"{prefix}.html").write_bytes((site / "index.html").read_bytes())
     commit = (
         os.environ.get("GITHUB_SHA")
         or subprocess.check_output(
@@ -159,7 +159,7 @@ def bundle(build, site, destination, version):
         "sprite_sha256": manifest["sha256"],
         "files": [
             {"name": path.name, "bytes": path.stat().st_size, "sha256": sha256(path)}
-            for path in sorted(destination.glob("*.zip"))
+            for path in sorted(destination.iterdir())
         ],
     }
     (destination / "release.json").write_text(json.dumps(metadata, indent=2) + "\n")
@@ -176,6 +176,7 @@ def main():
     parser.add_argument("--tag")
     parser.add_argument("--build", type=Path, default=Path("build"))
     parser.add_argument("--site", type=Path, default=Path("dist"))
+    parser.add_argument("--assets", type=Path, default=Path("web/public/assets"))
     parser.add_argument("--output", type=Path, default=Path("release"))
     args = parser.parse_args()
     version = release_version(args.tag)
@@ -190,7 +191,7 @@ def main():
                 stream.writelines(f"{key}={value}\n" for key, value in outputs.items())
         print(json.dumps(outputs))
     else:
-        bundle(args.build, args.site, args.output, version)
+        bundle(args.build, args.site, args.output, version, args.assets)
 
 
 if __name__ == "__main__":

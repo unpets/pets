@@ -31,6 +31,19 @@ DURATIONS = {
     "look": 130,
 }
 TAU = math.tau
+WRIST_PORT = np.array([0, 0.14, 0.055])
+SERVER_PORT = np.array([1.16, -0.427, 0.66])
+PARENTS = {"body": None, "head": "body"}
+for side in ("L", "R"):
+    for child, parent in (
+        ("upper_arm", "body"),
+        ("forearm", "upper_arm"),
+        ("hand", "forearm"),
+        ("thigh", "body"),
+        ("shin", "thigh"),
+        ("foot", "shin"),
+    ):
+        PARENTS[f"{child}.{side}"] = parent if parent == "body" else f"{parent}.{side}"
 
 
 def rotation(x=0.0, y=0.0, z=0.0):
@@ -247,8 +260,8 @@ def pose_at(state, t):
         ]:
             joints[f"{joint}.{name}"] = pos
     # The plug is mounted on the right wrist housing, so its cable follows the rig.
-    cable_start = point(matrices["hand.R"], (0.15, 0, 0.035))
-    cable_end = np.array([1.185, -0.386, 0.70])
+    cable_start = point(matrices["hand.R"], WRIST_PORT)
+    cable_end = SERVER_PORT.copy()
     return RigPose(matrices, joints, state, t, gaze, cable_start, cable_end)
 
 
@@ -260,8 +273,9 @@ def pose_for(state, index):
 def cable_points(pose, count=32):
     """Cubic slack cable; clears the server lid/front, exact physical plug anchors."""
     a, b = pose.cable_start, pose.cable_end
-    c1 = np.array([a[0] + 0.03, -0.65, a[2] + 0.08])
-    c2 = np.array([1.42, -0.65, 0.43])
+    direction = pose.matrices["hand.R"][:3, 1]
+    c1 = a + direction * 0.20
+    c2 = b + np.array([0, -0.36, 0])
     return np.array(
         [
             (1 - u) ** 3 * a

@@ -2,6 +2,12 @@
 
 ## 0.3.0
 
+- Embedded the complete viewer and model in one HTML file for offline opening and HTTP hosting.
+- Upgraded to Blender 5.2.2 with rigid bone parenting and ten reusable slotted actions.
+- Replaced world-space pose blending with continuous local joint transitions.
+- Aligned cable sockets and removed coplanar surface overlap.
+- Made every successful release run publish its versioned downloads.
+
 - Rebuilt shell and mechanics as fine voxel surface meshes with 82,688 occupied source voxels.
 - Added articulated fixed-length arms and legs, IK, physical joint housings, segmented hands, grounded idle/work poses, and a continuous gait.
 - Replaced inconsistent software projection with Blender's camera and CPU renderer.

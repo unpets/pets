@@ -4,18 +4,15 @@
 
 Bun manages the web workspace and runs Vite.  
 The viewer uses Svelte, Tailwind CSS, Lucide, and Three.js.  
-Its initial structure comes from the official Vite Svelte TypeScript generator.  
-Direct web dependencies use the latest stable releases selected during an update.  
 Exact dependency versions are recorded in `bun.lock`.  
 
-TypeScript 7 performs the project checks.  
-The current Svelte checker also requires TypeScript 6 for its source transformation API.  
-The native compiler is installed as `@typescript/native`, following the [Svelte checker documentation](https://github.com/sveltejs/language-tools/tree/master/packages/svelte-check).  
+Svelte source transformation uses the `typescript` dependency.  
+The `@typescript/native` compiler performs the type checks.  
+`bun run check` validates Svelte components and the Vite configuration.  
 
 uv manages the Python environment and dependencies.  
-The renderer uses Python 3.11 and Blender 4.3 through the `bpy` wheel.  
-These versions are pinned together for renderer compatibility.  
-CPU rendering works without a desktop Blender installation.  
+The renderer uses Blender through the `bpy` wheel.  
+Python requirements are declared in `pyproject.toml`.  
 Exact Python dependencies are recorded in `uv.lock`.  
 
 ## Local viewer
@@ -37,13 +34,14 @@ bun run check
 bun run format:check
 bun test
 bun run build
-bunx playwright install chromium
+bunx playwright install chromium firefox
 bun run test:viewer
 ```
 
-The production site is written to `dist/`.  
-Its relative asset paths support GitHub Pages project subpaths.  
-Three.js and all model assets are bundled locally.  
+The production build writes one self-contained `dist/index.html`.  
+Vite inlines scripts, styles, the GLB model, motion metadata, and display atlas.  
+The same file runs offline through `file://` and under HTTP project subpaths.  
+Browser checks open an isolated copy with external requests blocked and verify both downloads.  
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` optionally selects an existing Chromium installation for local browser checks.  
 
 ## Rendering
@@ -69,32 +67,36 @@ The complete atlas is assembled when every required frame exists.
 | `web/public/assets/` | GLB model, animation samples, and display sequence |
 
 Keep `blend-screens/` beside the Blender scene.  
-GIF and video previews are also written to the render directory.  
+GIF previews are also written to the render directory.  
 
 ## Architecture
 
 | Module | Responsibility |
 | --- | --- |
 | `kernel_voxel/model.py` | Voxel meshes, materials, display recess, server, camera, and lighting |
+| `kernel_voxel/armature.py` | Bone hierarchy, rigid attachments, and slotted animation actions |
+| `kernel_voxel/surfaces.py` | Coplanar face resolution and shared interface removal |
 | `kernel_voxel/rig.py` | Continuous poses, limb constraints, foot placement, and wrist cable |
 | `kernel_voxel/screen.py` | Deterministic expressions, terminal output, and digital rain |
 | `kernel_voxel/render.py` | Rendering, alpha reduction, previews, and asset export |
 | `web/src/components/` | Svelte viewport, playback controls, and display preview |
 | `web/src/lib/studio.ts` | Three.js scene and renderer lifecycle |
-| `web/src/lib/motion.ts` | Pose interpolation and cable geometry |
+| `web/src/lib/motion.ts` | AnimationMixer transitions and cable geometry |
 | `web/src/lib/screen.ts` | Shared framebuffer canvas and display texture |
 | `web/src/lib/assets.ts` | Model, animation, and framebuffer loading |
 
 Every view comes from the same model.  
-The geometry contains 82,688 occupied source voxels.  
-The principal grid spacing is 0.035 units, with finer mechanical details.  
 Only exposed cube faces are emitted.  
 The screen is parented to the head inside a fixed aperture.  
 Transparent renders are reduced in premultiplied alpha.  
 
 The mechanical rig uses fixed limb lengths and authored joint motion.  
 Stationary states keep both feet planted.  
-The viewer interpolates 120 pose intervals per cycle.  
+The GLB contains ten named clips and the complete bone hierarchy.  
+Rigid bone parenting preserves the mechanical parts and fixed limb lengths.  
+The viewer blends local bone transforms from the displayed pose, including interrupted transitions.  
+The cable is evaluated from the transformed wrist connector.  
+Blender stores editable slotted actions and a baked preview timeline.  
 The pet runtime uses fixed frame counts and 192 × 208 cells.  
 
 ## GitHub Actions

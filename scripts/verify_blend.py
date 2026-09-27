@@ -7,7 +7,7 @@ from pathlib import Path
 import bpy
 import numpy as np
 
-from kernel_voxel.rig import pose_at
+from kernel_voxel.rig import FRAMES, pose_at
 
 
 def verify(build):
@@ -16,6 +16,20 @@ def verify(build):
     timeline = json.loads((build / "timeline.json").read_text())
     parts = {obj["rig_part"]: obj for obj in scene.objects if "rig_part" in obj}
     display = next(obj for obj in scene.objects if obj.get("is_display"))
+    armature = next(obj for obj in scene.objects if obj.type == "ARMATURE")
+    for name, obj in parts.items():
+        if name == "server":
+            continue
+        if (
+            obj.parent != armature
+            or obj.parent_type != "BONE"
+            or obj.parent_bone != name
+        ):
+            raise ValueError(f"Mechanical part is not attached to its bone: {name}")
+    for name in [*FRAMES, "look"]:
+        action = bpy.data.actions.get(name)
+        if not action or not action.slots:
+            raise ValueError(f"Missing slotted animation action: {name}")
     if display.parent != parts["head"]:
         raise ValueError("Screen is not attached to the head")
     if (scene.frame_start, scene.frame_end) != (1, len(timeline)):

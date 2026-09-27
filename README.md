@@ -8,8 +8,8 @@ The Svelte studio uses Three.js to display the model and play its animations.
 
 Install [Bun](https://bun.sh/docs/installation) and [uv](https://docs.astral.sh/uv/getting-started/installation/).  
 The Bun version is declared in `package.json`.  
-uv manages Python 3.11 and the Blender 4.3 Python dependency.  
-A separate Blender desktop installation is not required to generate assets.  
+uv manages Python and the renderer dependencies.  
+Blender's Python module provides headless model generation and rendering.  
 
 ## Quick start
 
@@ -33,12 +33,12 @@ After installing dependencies, generate the model assets and build the viewer.
 ```sh
 bun run generate
 bun run build
-bun run preview
 ```
 
-The complete static site is written to `dist/`.  
-Deploy that directory to a static HTTP server.  
-Relative asset paths support GitHub Pages project URLs.  
+Open `dist/index.html` directly in a browser.  
+The single HTML file embeds the viewer, rigged model, animation clips, and display atlas.  
+It also works on static hosting, including GitHub Pages project URLs.  
+Use `bun run preview` to serve the production build locally.  
 
 ## Render the pet and Blender scene
 
@@ -58,7 +58,7 @@ Use `bun run generate` when only the web assets are needed.
 | `build/masters/` | High-resolution source frames |
 | `build/frames/` | Native pet animation frames |
 | `web/public/assets/` | GLB model, animation data, and display atlas |
-| `dist/` | Production static site |
+| `dist/index.html` | Self-contained viewer for direct opening or static hosting |
 
 Keep `blend-screens/` beside `kernel.blend` when opening or moving the scene.  
 
@@ -72,11 +72,11 @@ bun run check
 bun test
 ```
 
-Browser checks require a production build and Playwright's Chromium browser.  
+Browser checks require a production build and Playwright's browsers.  
 
 ```sh
 bun run build
-bunx playwright install --with-deps chromium
+bunx playwright install --with-deps chromium firefox
 bun run test:viewer
 ```
 
@@ -84,15 +84,13 @@ bun run test:viewer
 
 ## Releases
 
-Run **Release Kernel** from GitHub Actions to build and publish the current project version.  
-Manual runs publish by default and create the matching version tag when it is missing.  
-Disable the `publish` input for a build-only run.  
+Run **Release Kernel** from GitHub Actions to publish the version declared in the project manifests.  
 Pushing a matching `vMAJOR.MINOR.PATCH` tag also starts a release.  
 
-Releases include Blender, pet, model, and static site packages with SHA-256 checksums.  
+Releases include a standalone HTML viewer and Blender, pet, model, and site packages with SHA-256 checksums.  
 Publishing happens only after rendering, validation, and browser checks succeed.  
 Published release assets are never overwritten.  
+The released static site is deployed to GitHub Pages.  
 
-GitHub Pages deployment requires **Settings → Pages → GitHub Actions**.  
-The site remains available as a release download when Pages is disabled.  
+Use **Build Kernel model studio** for development builds and checks.  
 [Release documentation](docs/releasing.md) covers version changes, package contents, and deployment.  

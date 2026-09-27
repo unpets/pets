@@ -4,81 +4,97 @@ import {
   Mesh,
   MeshStandardMaterial,
   Object3D,
-  Quaternion,
+  AnimationMixer,
+  AnimationClip as ThreeAnimationClip,
+  type AnimationAction,
+  VectorKeyframeTrack,
+  QuaternionKeyframeTrack,
   Vector3,
 } from 'three';
-import type { AnimationClip, PoseSample } from './types';
+export function createMotion(model: Object3D, clips: ThreeAnimationClip[]) {
+  const mixer = new AnimationMixer(model);
+  const actions = new Map(
+    clips.map((clip) => [clip.name, mixer.clipAction(clip)]),
+  );
+  const initial = actions.get('running');
+  if (!initial) throw new Error('Active work animation is missing.');
+  let current: AnimationAction = initial;
+  current.play();
+  let transition: { action: AnimationAction; elapsed: number } | undefined;
 
-export function sampleClip(
-  clip: AnimationClip,
-  phase: number,
-): [PoseSample, PoseSample, number] {
-  const position = Math.max(0, Math.min(1, phase)) * (clip.samples.length - 1);
-  const index = Math.floor(position);
-  return [
-    clip.samples[index],
-    clip.samples[Math.min(index + 1, clip.samples.length - 1)],
-    position % 1,
-  ];
-}
-
-export function createMotion(parts: Record<string, Object3D>) {
-  const position = new Vector3();
-  const targetPosition = new Vector3();
-  const rotation = new Quaternion();
-  const targetRotation = new Quaternion();
-  let transition: {
-    started: number;
-    parts: Record<string, { p: Vector3; q: Quaternion }>;
-  } | null = null;
+  function stopTransition() {
+    transition?.action.stop();
+    transition = undefined;
+  }
 
   return {
-    beginTransition() {
-      transition = {
-        started: performance.now(),
-        parts: Object.fromEntries(
-          Object.entries(parts).map(([name, part]) => [
-            name,
-            {
-              p: part.position.clone(),
-              q: part.quaternion.clone(),
-            },
-          ]),
-        ),
-      };
+    setMode(mode: string) {
+      const next = actions.get(mode);
+      if (!next) throw new Error(`Animation ${mode} is missing.`);
+      // Capture the displayed pose so interrupted transitions remain continuous.
+      const tracks: (VectorKeyframeTrack | QuaternionKeyframeTrack)[] = [];
+      model.traverse((object) => {
+        if (!object.userData.joint) return;
+        tracks.push(
+          new VectorKeyframeTrack(
+            `${object.name}.position`,
+            [0],
+            object.position.toArray(),
+          ),
+        );
+        tracks.push(
+          new QuaternionKeyframeTrack(
+            `${object.name}.quaternion`,
+            [0],
+            object.quaternion.toArray(),
+          ),
+        );
+      });
+      const previousClip = transition?.action.getClip();
+      stopTransition();
+      if (previousClip) mixer.uncacheClip(previousClip);
+      mixer.stopAllAction();
+      const snapshot = new ThreeAnimationClip('transition', 1, tracks);
+      const source = mixer.clipAction(snapshot).play();
+      next.reset().setEffectiveWeight(0).play();
+      current = next;
+      transition = { action: source, elapsed: 0 };
+    },
+    update(elapsed: number, phase: number) {
+      current.time = phase * current.getClip().duration;
+      if (transition) {
+        transition.elapsed += elapsed;
+        const t = Math.min(1, transition.elapsed / 0.24);
+        const weight = t * t * (3 - 2 * t);
+        transition.action.setEffectiveWeight(1 - weight);
+        current.setEffectiveWeight(weight);
+        if (t === 1) {
+          const clip = transition.action.getClip();
+          stopTransition();
+          mixer.uncacheClip(clip);
+        }
+      }
+      mixer.update(0);
+      model.updateMatrixWorld(true);
     },
     cancelTransition() {
-      transition = null;
+      const clip = transition?.action.getClip();
+      stopTransition();
+      if (clip) mixer.uncacheClip(clip);
+      current.setEffectiveWeight(1);
     },
-    update(a: PoseSample, b: PoseSample, fraction: number, now: number) {
-      const blend = transition
-        ? Math.min(1, (now - transition.started) / 180)
-        : 1;
-      for (const [name, part] of Object.entries(parts)) {
-        const first = a.parts[name];
-        const second = b.parts[name];
-        if (!first || !second) continue;
-        position
-          .fromArray(first.p)
-          .lerp(targetPosition.fromArray(second.p), fraction);
-        rotation
-          .fromArray(first.q)
-          .slerp(targetRotation.fromArray(second.q), fraction);
-        const previous = transition?.parts[name];
-        if (previous) {
-          position.lerpVectors(previous.p, position, blend);
-          rotation.slerpQuaternions(previous.q, rotation, blend);
-        }
-        part.position.copy(position);
-        part.quaternion.copy(rotation);
-        part.updateMatrix();
-      }
-      if (blend === 1) transition = null;
+    dispose() {
+      mixer.stopAllAction();
+      mixer.uncacheRoot(model);
     },
   };
 }
 
-export function createCable() {
+export function createCable(
+  wrist: Object3D,
+  wristPort: Vector3,
+  serverPort: Vector3,
+) {
   const rings = 32;
   const segments = 8;
   const positions = new Float32Array(rings * segments * 3);
@@ -103,7 +119,9 @@ export function createCable() {
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
   const points = Array.from({ length: rings }, () => new Vector3());
-  const target = new Vector3();
+  const start = new Vector3();
+  const control1 = new Vector3();
+  const control2 = serverPort.clone().add(new Vector3(0, -0.36, 0));
   const tangent = new Vector3();
   const side = new Vector3();
   const normal = new Vector3();
@@ -111,12 +129,23 @@ export function createCable() {
 
   return {
     mesh,
-    update(a: PoseSample, b: PoseSample, fraction: number) {
-      points.forEach((point, index) =>
+    update() {
+      start.copy(wristPort).applyMatrix4(wrist.matrixWorld);
+      control1
+        .set(0, 1, 0)
+        .transformDirection(wrist.matrixWorld)
+        .multiplyScalar(0.2)
+        .add(start);
+      points.forEach((point, index) => {
+        const t = index / (rings - 1);
+        const u = 1 - t;
         point
-          .fromArray(a.cable[index])
-          .lerp(target.fromArray(b.cable[index]), fraction),
-      );
+          .copy(start)
+          .multiplyScalar(u ** 3)
+          .addScaledVector(control1, 3 * u * u * t)
+          .addScaledVector(control2, 3 * u * t * t)
+          .addScaledVector(serverPort, t ** 3);
+      });
       points.forEach((point, index) => {
         tangent
           .copy(points[Math.min(rings - 1, index + 1)])

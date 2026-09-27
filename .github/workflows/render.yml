@@ -46,8 +46,9 @@ jobs:
         run: bun run build
       - name: Browser checks
         run: |
-          bunx playwright install --with-deps chromium
+          bunx playwright install --with-deps chromium firefox
           bun run test:viewer
+          xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Save generated site
         uses: actions/upload-artifact@v7.0.1
         with:

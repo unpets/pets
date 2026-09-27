@@ -12,11 +12,11 @@
     "dev": "bun run --cwd web dev",
     "build": "bun run --cwd web build",
     "preview": "bun run --cwd web preview",
-    "test": "bun test tests/*.test.*",
+    "test": "bun test tests web/tests",
     "test:viewer": "bun tests/viewer.mjs",
     "check": "bun run --cwd web check",
-    "format": "prettier --write web/src web/*.json web/*.js web/*.ts web/index.html tests/*.ts tests/*.js tests/*.mjs package.json .prettierrc.json",
-    "format:check": "prettier --check web/src web/*.json web/*.js web/*.ts web/index.html tests/*.ts tests/*.js tests/*.mjs package.json .prettierrc.json"
+    "format": "prettier --write web/src web/*.json web/*.js web/*.ts web/index.html web/tests/*.ts tests/*.js tests/*.mjs package.json .prettierrc.json",
+    "format:check": "prettier --check web/src web/*.json web/*.js web/*.ts web/index.html web/tests/*.ts tests/*.js tests/*.mjs package.json .prettierrc.json"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

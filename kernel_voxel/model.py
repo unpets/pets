@@ -6,8 +6,9 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-from .rig import cable_points, pose_for
+from .rig import SERVER_PORT, WRIST_PORT, cable_points, pose_for
 from .screen import framebuffer
+from .surfaces import resolve_coplanar
 
 VOXEL = 0.035
 PALETTE = {
@@ -121,6 +122,7 @@ class Builder:
     def finish(self):
         nodes = {}
         for name, (verts, faces, mats) in self.buffers.items():
+            verts, faces, mats = resolve_coplanar(verts, faces, mats)
             mesh = bpy.data.meshes.new(name)
             mesh.from_pydata(verts, [], faces)
             mesh.update()
@@ -278,15 +280,18 @@ def build_model():
     b.voxel("server", (1.18, 0.0, 0.51), (0.47, 0.65, 0.99), "dark", 0.055, step=0.025)
     for z in (0.22, 0.44, 0.66):
         b.box("server", (1.18, -0.337, z), (0.375, 0.035, 0.17), "joint")
-        for j in range(5):
+        for j in range(5 if z < 0.6 else 0):
             b.box(
                 "server", (1.045 + j * 0.047, -0.360, z), (0.020, 0.019, 0.10), "shell"
             )
         b.box("server", (1.337, -0.362, z + 0.03), (0.030, 0.017, 0.023), "green")
     b.box("server", (1.185, -0.360, 0.85), (0.15, 0.025, 0.11), "screen")
-    b.box("server", (1.185, -0.379, 0.70), (0.074, 0.026, 0.074), "metal")
-    b.box("server", (1.185, -0.4, 0.70), (0.043, 0.025, 0.043), "cyan")
-    b.box("hand.R", (0.122, 0, 0.035), (0.055, 0.088, 0.084), "metal")
+    b.box("server", SERVER_PORT + (0, 0.055, 0), (0.11, 0.03, 0.11), "metal")
+    b.box("server", SERVER_PORT + (0, 0.034, 0), (0.078, 0.018, 0.078), "screen")
+    b.box("server", SERVER_PORT + (0, 0.016, 0), (0.060, 0.032, 0.060), "cyan_dim")
+    b.box("hand.R", WRIST_PORT + (0, -0.06, 0), (0.10, 0.06, 0.10), "metal")
+    b.box("hand.R", WRIST_PORT + (0, -0.027, 0), (0.078, 0.018, 0.078), "screen")
+    b.box("hand.R", WRIST_PORT + (0, -0.012, 0), (0.060, 0.024, 0.060), "cyan_dim")
     b.box("server", (1.18, -0.01, 1.017), (0.36, 0.52, 0.025), "shell")
     nodes = b.finish()
     # One screen plane with one local transform, packed texture and UVs.
@@ -348,12 +353,20 @@ def build_model():
         "voxel_count": b.voxels,
     }
     apply_pose(scene, pose_for("idle", 0))
+    from .armature import create_armature
+
+    create_armature(scene)
     return scene
 
 
 def apply_pose(model, pose):
-    for name, m in pose.matrices.items():
-        model["nodes"][name].matrix_world = Matrix(m.tolist())
+    if "armature" in model:
+        from .armature import apply_armature_pose
+
+        apply_armature_pose(model, pose)
+    else:
+        for name, m in pose.matrices.items():
+            model["nodes"][name].matrix_world = Matrix(m.tolist())
     work = pose.state == "running"
     model["nodes"]["server"].hide_render = not work
     model["nodes"]["server"].hide_viewport = not work
@@ -376,6 +389,7 @@ def setup_scene(scale=4, samples=32):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
+    scene.render.fps = 60
     scene.cycles.device = "CPU"
     scene.cycles.samples = samples
     scene.cycles.seed = 17

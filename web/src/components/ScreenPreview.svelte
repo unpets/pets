@@ -1,6 +1,7 @@
 <script lang="ts">
   import Terminal from '@lucide/svelte/icons/terminal';
   import Download from '@lucide/svelte/icons/download';
+  import { downloads } from '../lib/assets';
   import { animationModes, type AnimationMode } from '../lib/types';
   let {
     canvas = $bindable(),
@@ -30,12 +31,12 @@
 >
   <a
     class="flex items-center gap-2 hover:text-accent"
-    href="assets/kernel.glb"
-    download><Download size={13} />Download 3D model</a
+    href={downloads.model}
+    download="kernel.glb"><Download size={13} />Download 3D model</a
   >
   <a
     class="flex items-center gap-2 hover:text-accent"
-    href="assets/animations.json"
-    download><Download size={13} />Animation data</a
+    href={downloads.animations}
+    download="animations.json"><Download size={13} />Animation data</a
   >
 </div>

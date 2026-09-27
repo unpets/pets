@@ -4,11 +4,6 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      publish:
-        description: Publish release
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -22,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      publish: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       states: ${{ steps.version.outputs.states }}
@@ -90,11 +84,6 @@ jobs:
     needs: [check, render]
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
-      pages: read
-    outputs:
-      pages: ${{ steps.pages.outputs.enabled }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: astral-sh/setup-uv@v10.2.0
@@ -120,8 +109,9 @@ jobs:
         run: |
           bun test
           bun run build
-          bunx playwright install --with-deps chromium
+          bunx playwright install --with-deps chromium firefox
           bun run test:viewer
+          xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Package versioned downloads
         env:
           RELEASE_TAG: ${{ needs.check.outputs.tag }}
@@ -131,29 +121,12 @@ jobs:
           name: kernel-release-${{ needs.check.outputs.version }}
           path: release/
           if-no-files-found: error
-      - name: Check Pages configuration
-        id: pages
-        if: needs.check.outputs.publish == 'true'
-        uses: actions/github-script@v9.0.0
-        with:
-          script: |
-            try {
-              const {data} = await github.rest.repos.getPages(context.repo);
-              core.setOutput('enabled', data.build_type === 'workflow' ? 'true' : 'false');
-              if (data.build_type !== 'workflow') core.notice('Select GitHub Actions in Settings > Pages to publish release sites.');
-            } catch (error) {
-              if (![403,404].includes(error.status)) throw error;
-              core.setOutput('enabled', 'false');
-              core.notice('Release site is packaged. Enable Settings > Pages > GitHub Actions to deploy it.');
-            }
       - name: Upload the tested release site
-        if: steps.pages.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: dist/
 
   publish:
-    if: needs.check.outputs.publish == 'true'
     needs: [check, package]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -217,7 +190,6 @@ jobs:
 
   deploy:
     needs: [package, publish]
-    if: needs.package.outputs.pages == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:

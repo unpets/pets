@@ -12,7 +12,16 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from . import __version__
-from .rig import CELL, DURATIONS, FRAMES, cable_points, pose_at, pose_for
+from .rig import (
+    CELL,
+    DURATIONS,
+    FRAMES,
+    SERVER_PORT,
+    WRIST_PORT,
+    cable_points,
+    pose_at,
+    pose_for,
+)
 from .screen import framebuffer
 
 
@@ -104,12 +113,14 @@ def export_site(model, out, site_out):
     site_out.mkdir(parents=True, exist_ok=True)
     assets = site_out / "assets"
     assets.mkdir(exist_ok=True)
-    # Export static source geometry in Z-up coordinates. The viewer applies sampled rig transforms.
+    from .armature import bake_actions
+
+    bake_actions(model)
     apply = __import__("kernel_voxel.model", fromlist=["apply_pose"]).apply_pose
     apply(model, pose_for("idle", 0))
     model["texture"].pack()
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in [*model["nodes"].values(), model["display"]]:
+    for obj in [model["armature"], *model["nodes"].values(), model["display"]]:
         obj.hide_viewport = False
         obj.hide_set(False)
         obj.select_set(True)
@@ -118,7 +129,11 @@ def export_site(model, out, site_out):
         export_format="GLB",
         use_selection=True,
         export_yup=False,
-        export_animations=False,
+        export_animations=True,
+        export_animation_mode="ACTIONS",
+        export_anim_single_armature=True,
+        export_force_sampling=False,
+        export_frame_range=False,
         export_extras=True,
     )
     data = {
@@ -127,6 +142,7 @@ def export_site(model, out, site_out):
         "voxelSize": 0.035,
         "voxelCount": model["voxel_count"],
         "screenSize": [96, 64],
+        "ports": {"wrist": WRIST_PORT.tolist(), "server": SERVER_PORT.tolist()},
         "states": {},
     }
     screen_sheet = Image.new("RGB", (96 * 48, 64 * 10))
@@ -166,43 +182,33 @@ def export_blend(model, out):
     """Bake rigid transforms, cable vertices, and framebuffer sequence into the .blend."""
     import bpy
 
+    from .armature import key_pose, linear_keys
     from .model import apply_pose
 
     scene = bpy.context.scene
-    scene.render.fps = 24
+    armature = model["armature"]
+    timeline_action = bpy.data.actions.new("Preview timeline")
+    armature.animation_data.action = timeline_action
     frames_dir = (out / "blend-screens").resolve()
     frames_dir.mkdir(exist_ok=True)
     timeline = []
     frame = 1
-    for state in FRAMES:
+    for state, frame_count in {**FRAMES, "look": 16}.items():
         scene.timeline_markers.new(state, frame=frame)
-        count = round(FRAMES[state] * DURATIONS[state] / 1000 * 24)
+        count = round(frame_count * DURATIONS[state] / 1000 * scene.render.fps)
         for i in range(count):
             p = pose_at(state, i / (count - 1 if state == "jumping" else count))
             scene.frame_set(frame)
             apply_pose(model, p)
-            for name, obj in model["nodes"].items():
-                if name != "server":
-                    obj.rotation_mode = "QUATERNION"
-                    loc, q, _scale = obj.matrix_world.decompose()
-                    obj.location = loc
-                    obj.rotation_quaternion = q
-                    obj.keyframe_insert("location", frame=frame)
-                    obj.keyframe_insert("rotation_quaternion", frame=frame)
-                obj.keyframe_insert("hide_render", frame=frame)
+            key_pose(armature, frame)
+            model["nodes"]["server"].keyframe_insert("hide_render", frame=frame)
             model["cable"].keyframe_insert("hide_render", frame=frame)
             for pp in model["cable"].data.splines[0].points:
                 pp.keyframe_insert("co", frame=frame)
             framebuffer(state, p.t, p.gaze).save(frames_dir / f"screen-{frame:04d}.png")
             timeline.append({"frame": frame, "state": state, "t": p.t})
             frame += 1
-    for obj in model["nodes"].values():
-        if obj.animation_data and obj.animation_data.action:
-            for fc in obj.animation_data.action.fcurves:
-                for k in fc.keyframe_points:
-                    k.interpolation = (
-                        "LINEAR" if fc.data_path != "hide_render" else "CONSTANT"
-                    )
+    linear_keys(timeline_action)
     scene.frame_start = 1
     scene.frame_end = frame - 1
     img = bpy.data.images.load(str(frames_dir / "screen-0001.png"))

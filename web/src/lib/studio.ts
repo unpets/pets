@@ -12,11 +12,12 @@ import {
   SphereGeometry,
   SRGBColorSpace,
   WebGLRenderer,
+  Vector3,
   type Material,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadAssets } from './assets';
-import { createCable, createMotion, sampleClip } from './motion';
+import { createCable, createMotion } from './motion';
 import { createScreen } from './screen';
 import type {
   AnimationMode,
@@ -66,7 +67,7 @@ export async function createStudio(
   onPlayback: (state: PlaybackState) => void,
   onDetails: (voxelCount: number) => void,
 ): Promise<StudioController> {
-  const { model, data, screenImage } = await loadAssets();
+  const { model, clips, data, screenImage } = await loadAssets();
   const parts: Record<string, Object3D> = {};
   let display: Mesh | undefined;
   model.traverse((object) => {
@@ -119,8 +120,12 @@ export async function createStudio(
     material.dispose();
   }
   display.material = displayMaterial;
-  const motion = createMotion(parts);
-  const cable = createCable();
+  const motion = createMotion(model, clips);
+  const cable = createCable(
+    parts['hand.R'],
+    new Vector3(...data.ports.wrist),
+    new Vector3(...data.ports.server),
+  );
   scene.add(cable.mesh);
   const markers = new Group();
   const markerGeometry = new SphereGeometry(0.055, 12, 8);
@@ -149,16 +154,15 @@ export async function createStudio(
     controls.target.set(0.1, 0, 1.43);
     controls.update();
   }
-  function update(now: number) {
+  function update(elapsed: number) {
     const clip = data.states[mode];
-    const [a, b, fraction] = sampleClip(clip, phase);
-    motion.update(a, b, fraction, now);
+    motion.update(elapsed, phase);
     parts.server.visible = mode === 'running';
     cable.mesh.visible = mode === 'running';
-    if (cable.mesh.visible) cable.update(a, b, fraction);
+    if (cable.mesh.visible) cable.update();
     screen.update(clip.screenRow, phase);
     markers.children.forEach((marker, index) =>
-      marker.position.copy(parts[jointNames[index]].position),
+      parts[jointNames[index]].getWorldPosition(marker.position),
     );
     onPlayback({ mode, phase, playing, speed, seconds: phase * clip.duration });
   }
@@ -178,7 +182,7 @@ export async function createStudio(
     previousTime = now;
     if (playing)
       phase = (phase + (elapsed * speed) / data.states[mode].duration) % 1;
-    update(now);
+    update(elapsed);
     controls.update();
     renderer.render(scene, camera);
     animationFrame = requestAnimationFrame(animate);
@@ -187,14 +191,14 @@ export async function createStudio(
 
   return {
     setMode(next) {
-      motion.beginTransition();
+      motion.setMode(next);
       mode = next;
       phase = 0;
-      update(performance.now());
+      update(0);
     },
     setPlaying(value) {
       playing = value;
-      update(performance.now());
+      update(0);
     },
     setSpeed(value) {
       speed = value;
@@ -203,7 +207,7 @@ export async function createStudio(
       playing = false;
       phase = Math.max(0, Math.min(1, value));
       motion.cancelTransition();
-      update(performance.now());
+      update(0);
     },
     setCamera,
     setWireframe(visible) {
@@ -225,6 +229,7 @@ export async function createStudio(
       observer.disconnect();
       controls.dispose();
       cable.dispose();
+      motion.dispose();
       screen.dispose();
       markerGeometry.dispose();
       markerMaterial.dispose();

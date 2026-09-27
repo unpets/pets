@@ -65,6 +65,7 @@ export interface AnimationClip {
 export interface AnimationData {
   version: string;
   voxelCount: number;
+  ports: { wrist: VectorTuple; server: VectorTuple };
   states: Record<AnimationMode, AnimationClip>;
 }
 export interface PlaybackState {

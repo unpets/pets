@@ -1,25 +1,45 @@
 # Releases
 
-## Lifecycle
+## Release process
 
-Pushes and pull requests build a preview site and run source, rig, asset, and browser checks.  
-Preview sites are available as workflow artifacts.  
+**Release Kernel** validates, renders, packages, publishes, and deploys a versioned release.  
+Start it manually from GitHub Actions or push a `vMAJOR.MINOR.PATCH` tag.  
+The version must match `pyproject.toml`, `package.json`, and `web/package.json`.  
 
-Stable releases use tags in the form `vMAJOR.MINOR.PATCH`.  
-Manual runs publish by default and create the tag after the build passes validation.  
-The tag must match the versions in `pyproject.toml`, `package.json`, and `web/package.json`.  
-The release workflow rejects mismatched versions before rendering.  
+Animation states render in parallel from the Blender model.  
+The packaging job assembles the sprite sheet and exports the editable scene.  
+It verifies the baked animation, display references, generated assets, and web viewer.  
+The publish job uploads the packages and checksums, then publishes the GitHub Release.  
+The deploy job publishes the released site to GitHub Pages.  
 
-Each animation state renders from the Blender model in a separate job.  
-At most three render jobs run concurrently.  
-The packaging job assembles the atlas and exports the editable Blender scene.  
-It reopens that scene and checks every baked pose and relative display image reference.  
-It also validates the atlas, builds the static site, and runs browser checks.  
+Each version identifies one source commit and one set of release assets.  
+Version tags and published assets are immutable.  
+Publish changes under a new version.  
 
-The workflow creates a draft release after all checks pass.  
-It uploads every package before publishing the release.  
-Published releases cannot be overwritten by a workflow rerun.  
-Interrupted draft uploads can resume.  
+Use **Build Kernel model studio** for development builds and checks.  
+
+## Prepare a version
+
+Update the version in all three project manifests.  
+Refresh the lockfiles and validate the version.  
+
+```sh
+uv lock
+bun install
+uv run python scripts/release.py check
+```
+
+Commit and push the version changes.  
+Open **Actions → Release Kernel → Run workflow** and select the release branch.  
+The workflow creates the matching tag from the verified build commit.  
+
+Alternatively, create and push the version tag.  
+
+```sh
+release_version=$(bun -p "require('./package.json').version")
+git tag -a "v${release_version}" -m "Kernel ${release_version}"
+git push origin "v${release_version}"
+```
 
 ## Packages
 
@@ -28,49 +48,29 @@ Interrupted draft uploads can resume.
 | `kernel-VERSION-blender.zip` | Editable scene, display sequence, timeline, and verification report |
 | `kernel-VERSION-pet.zip` | Sprite sheet, native frames, high-resolution masters, previews, and render manifest |
 | `kernel-VERSION-model.zip` | GLB geometry, continuous motion data, and display atlas |
-| `kernel-VERSION-site.zip` | Complete static viewer ready for an HTTP server |
-| `release.json` | Version, source commit, sizes, and package hashes |
-| `SHA256SUMS` | SHA-256 checksums for every release download |
+| `kernel-VERSION.html` | Self-contained interactive viewer |
+| `kernel-VERSION-site.zip` | The same viewer as `index.html` for static hosting |
+| `release.json` | Version, source commit, package sizes, and hashes |
+| `SHA256SUMS` | SHA-256 checksums for the release downloads |
 
-GitHub also provides source archives for the release tag.  
-Blender packages retain relative paths to their display images.  
-ZIP entries have stable ordering and timestamps.  
-Render checksums describe the exact produced bytes.  
-Rendering on different hardware is not guaranteed to produce identical image bytes.  
+GitHub provides source archives for the release tag.  
+Keep the Blender scene and its display image sequence together.  
 
-## Prepare a release
-
-Update the three project version fields together.  
-Refresh the lockfiles and commit the release changes.  
-
-Open **Actions → Release Kernel → Run workflow** and select the release branch or tag.  
-Leave `publish` enabled to create the GitHub Release and deploy its site when Pages is configured.  
-Disable `publish` to build downloadable workflow artifacts without creating a tag or release.  
-
-Alternatively, push a version tag to start the release.  
+Verify downloaded packages with their checksums.  
 
 ```sh
-uv lock
-bun install
-uv run python scripts/release.py check --tag v0.3.0
-git tag -a v0.3.0 -m 'Kernel 0.3.0'
-git push origin v0.3.0
+sha256sum --check SHA256SUMS
 ```
 
-Replace the example version with the intended release version.  
-The tag starts the complete release workflow.  
-The workflow checks that an existing tag points to the exact commit used to build the packages.  
-It refuses to move an existing tag or replace a published release.  
+## Open the viewer
 
-## Static site deployment
+Open `kernel-VERSION.html` directly in a browser.  
+The file contains the rigged model, all animation clips, textures, scripts, and styles.  
+Model and animation downloads work offline.  
+For static hosting, extract the site package and deploy `index.html`.  
 
-Production Pages deployment uses the tested site from a published release.  
-Development commits do not replace the production site.  
+## Deployment
 
-Select **Settings → Pages → Build and deployment → GitHub Actions** to enable deployment.  
-Allow the selected release branch or tag in the `github-pages` environment deployment rules.  
-The source repository can remain private.  
-Pages availability and website visibility depend on the GitHub account plan.  
-
-The release remains downloadable when Pages is unavailable.  
-The static site package can also be hosted by another static HTTP server.  
+Set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**.  
+Configure the `github-pages` environment to allow release branches and tags.  
+The release workflow deploys the same static site distributed in the site package.  
