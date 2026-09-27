@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1
+
+- Move Codex and Shimeji format handling, validation, and export dispatch into the Rust core.
+- Expose the shared export mechanism through a Clap CLI and a thin Python bridge.
+- Preserve animation restart events when the Rust core selects the same mode again.
+- Reset wandering before releasing the desktop drag state.
+- Document studio setup and startup commands explicitly.
+
 ## 0.6.0
 
 - Restructure Pets as a standalone application with Kernel as its default persona.

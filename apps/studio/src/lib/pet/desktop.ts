@@ -64,22 +64,23 @@ export async function connectDesktop(
       }
       if (monitor) {
         const area = monitor.workArea;
-        const next = await invoke<{ mode: AnimationMode; x: number | null }>(
-          'wander_step',
-          {
-            frame: {
-              elapsed,
-              active:
-                state.autonomous && state.playing && !state.menu && !dragging,
-              mode: state.mode,
-              x: position.x / scale,
-              left: area.position.x / scale,
-              right: (area.position.x + area.size.width) / scale - innerWidth,
-              choice: Math.random(),
-            },
+        const next = await invoke<{
+          mode: AnimationMode;
+          restart: boolean;
+          x: number | null;
+        }>('wander_step', {
+          frame: {
+            elapsed,
+            active:
+              state.autonomous && state.playing && !state.menu && !dragging,
+            mode: state.mode,
+            x: position.x / scale,
+            left: area.position.x / scale,
+            right: (area.position.x + area.size.width) / scale - innerWidth,
+            choice: Math.random(),
           },
-        );
-        if (next.mode !== state.mode) onMode(next.mode);
+        });
+        if (next.restart || next.mode !== state.mode) onMode(next.mode);
         if (next.x !== null) {
           await window.setPosition(
             new LogicalPosition(next.x, position.y / scale),
@@ -104,8 +105,11 @@ export async function connectDesktop(
       try {
         await window.startDragging();
       } finally {
-        dragging = false;
-        await invoke('reset_wander');
+        try {
+          await invoke('reset_wander');
+        } finally {
+          dragging = false;
+        }
       }
     },
     async close() {

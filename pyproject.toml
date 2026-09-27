@@ -1,7 +1,7 @@
 [project]
 name = "pets-assets"
-version = "0.6.0"
-description = "Persona asset generation and export adapters for Pets"
+version = "0.6.1"
+description = "Persona asset generation and Rust core bindings for Pets"
 requires-python = ">=3.13,<3.14"
 dependencies = ["Pillow==12.3.0", "numpy>=2.0", "bpy==5.2.2"]
 
@@ -14,7 +14,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["personas/kernel/blender/kernel_voxel", "exporters/pets_exports"]
+packages = ["personas/kernel/blender/kernel_voxel", "crates/pets-core/python/pets_core"]
 
 [dependency-groups]
 dev = [

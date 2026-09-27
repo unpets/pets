@@ -5,10 +5,10 @@ The core is a Rust library with no dependency on Tauri, Svelte, Three.js, Blende
 
 ## Rust core
 
-`crates/pets-core` owns persona identity, representation descriptors, export target identifiers, and wandering decisions.  
+`crates/pets-core` owns persona identity, representation descriptors, export mechanisms, and wandering decisions.  
 Hosts supply elapsed time, entropy, and desktop bounds.  
 The core returns an animation intent and an optional position.  
-It performs no operating system calls or rendering.  
+Behavior decisions perform no operating system calls or rendering.  
 
 | Representation | Contract |
 | --- | --- |
@@ -41,12 +41,19 @@ The Blender source is generated and verified before web assets or sprites.
 Meshes, joint placement, screen expressions, and clip timing belong to the persona.  
 Application code orchestrates those assets through the persona adapter.  
 
-## Export adapters
+## Core exports
 
-`exporters/pets_exports/codex.py` owns the Codex v2 atlas layout and validation.  
-`exporters/pets_exports/shimeji.py` owns the Shimeji configuration and image package format.  
-They consume rendered frames and format-specific metadata.  
-Kernel's build pipeline verifies its source records before invoking the adapters.  
+`crates/pets-core/src/export` owns export dispatch, input validation, checksums, and format implementations.  
+The Codex implementation assembles and validates the v2 atlas.  
+The Shimeji implementation writes and validates configuration, images, and package metadata.  
+Both consume rendered frames and a persona descriptor through the same Rust API.  
+The descriptor includes identity, version, frame dimensions, animation counts, timing, and provenance.  
+
+The `export` Cargo feature enables these mechanisms independently of the native host.  
+The `cli` feature adds the Clap-based `pets-export` command.  
+`crates/pets-core/python/pets_core` transports JSON and paths to that command without implementing formats.  
+Kernel's build pipeline verifies its source records before invoking this bridge.  
+An installed executable is reused through `PETS_EXPORT_BIN` or `PATH`; source checkouts can use Cargo directly.  
 
 An export target translates persona output into another application's format.  
 It does not become the source of companion behavior or model geometry.  

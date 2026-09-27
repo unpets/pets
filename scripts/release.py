@@ -12,10 +12,9 @@ import zipfile
 from pathlib import Path
 
 from kernel_voxel.cache import read_cache
+from kernel_voxel.core_exports import validate_atlas, validate_shimeji
 from kernel_voxel.rig import FRAMES
 from kernel_voxel.screen import LAYERS, PALETTE_LAYERS
-from kernel_voxel.shimeji import validate_package
-from pets_exports.codex import validate_atlas
 
 ROOT = Path(__file__).resolve().parents[1]
 SEMVER = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
@@ -93,7 +92,7 @@ def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site
     destination.mkdir(parents=True, exist_ok=True)
     if any(destination.iterdir()):
         raise ValueError("Release destination must be empty")
-    validate_package(shimeji)
+    validate_shimeji(shimeji, build)
     if json.loads((shimeji / "manifest.json").read_text())["version"] != version:
         raise ValueError("Shimeji package version does not match")
     packages = {

@@ -1,6 +1,6 @@
 {
   "name": "pets",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",
@@ -26,9 +26,10 @@
     "build:desktop": "bun run --cwd apps/desktop build",
     "build:shimeji": "uv run kernel-shimeji",
     "test:pet": "bun tests/pet.mjs",
-    "test:core": "cargo test -p pets-core --locked",
+    "test:core": "cargo test -p pets-core --all-features --locked",
     "format:core": "cargo fmt --all",
-    "format:core:check": "cargo fmt --all --check"
+    "format:core:check": "cargo fmt --all --check",
+    "export": "cargo run --locked --quiet -p pets-core --features cli --bin pets-export --"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

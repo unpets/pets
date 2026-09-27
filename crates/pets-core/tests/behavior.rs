@@ -39,3 +39,15 @@ fn paused_frames_do_not_move_and_drag_reset_defers_the_next_choice() {
     input.choice = 0.99;
     assert_eq!(wander.step(input).mode, Animation::Look);
 }
+
+#[test]
+fn selecting_the_same_mode_preserves_the_host_restart_event() {
+    let mut wander = Wander::default();
+    let mut input = frame(Animation::Idle, 0.0);
+    input.elapsed = 9.0;
+    input.choice = 0.0;
+    let next = wander.step(input);
+    assert_eq!(next.mode, Animation::Idle);
+    assert!(next.restart);
+    assert!(!wander.step(frame(Animation::Idle, 0.0)).restart);
+}

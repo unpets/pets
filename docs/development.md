@@ -4,13 +4,13 @@
 
 Cargo manages the Rust core and native host through the root `Cargo.toml`.  
 Bun manages the studio, desktop launcher, Three.js runtime, and Kernel web adapter.  
-uv installs the persona generator and image export adapters from `pyproject.toml`.  
+uv installs the persona generator and Rust core bridge from `pyproject.toml`.  
 `Cargo.lock`, `bun.lock`, and `uv.lock` record resolved dependencies.  
 
 ```sh
 uv sync --frozen
 bun install --frozen-lockfile
-cargo test -p pets-core --locked
+cargo test -p pets-core --all-features --locked
 ```
 
 The default Cargo member is `pets-core`, so core checks do not build native UI dependencies.  
@@ -68,19 +68,48 @@ Stage records verify source fingerprints and output checksums before reuse.
 Keep `blend-screens/` beside the Blender scene.  
 Generated outputs are excluded from source control.  
 
+## Core export CLI
+
+```sh
+bun run export --help
+bun run export export --target codex --input persona.json --frames build/frames --output build/atlas.png
+bun run export validate --target codex --input persona.json --frames build/frames --output build/atlas.png
+bun run export export --target shimeji --input persona.json --frames build/frames --output build-shimeji
+```
+
+`--input` accepts a rendered persona descriptor, with `-` selecting standard input.  
+This descriptor differs from the asset manifest used to load a persona.  
+It contains `id`, `name`, `version`, `cell`, and an `animations` map.  
+Each animation declares `frames` and `frameDurationMs`.  
+Optional `provenance` entries record source checksums or identifiers.  
+Frames use `<animation>/<index>.png` paths with zero-padded indices starting at `00`.  
+Commands return JSON containing the target, frame count, and output checksums.  
+Validation also accepts `--checksums` with a JSON map of relative output paths to SHA-256 values.  
+
+Install the CLI for use outside a source checkout or alongside a Python wheel.  
+
+```sh
+cargo install --path crates/pets-core --features cli --bin pets-export --locked
+```
+
+`PETS_EXPORT_BIN` selects a specific executable.  
+Release jobs build this executable once and reuse it during packaging.  
+Native host builds omit image codecs and CLI dependencies unless their features are enabled.  
+
 ## Formatting and validation
 
 ```sh
 cargo fmt --all --check
-cargo test -p pets-core --locked
-uv run ruff check personas/kernel/blender exporters scripts tests
-uv run ruff format --check personas/kernel/blender exporters scripts tests
+cargo test -p pets-core --all-features --locked
+uv run ruff check personas/kernel/blender crates/pets-core/python scripts tests
+uv run ruff format --check personas/kernel/blender crates/pets-core/python scripts tests
 uv run python -m unittest discover -s tests -v
 bun run format:check
 bun run check
 ```
 
 Core tests cover persona contracts and desktop decisions without an operating system host.  
+Export checks verify frame preservation, directional references, timing, and rejection of damaged outputs.  
 Generator tests cover rig constraints, screen data, transparency, and target isolation.  
 Frontend tests verify exported clips and continuous joint connections during transitions.  
 [Architecture](architecture.md) describes module ownership and dependency rules.  

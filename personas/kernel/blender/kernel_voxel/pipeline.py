@@ -4,7 +4,7 @@ import json
 from importlib.metadata import version
 
 import numpy as np
-from pets_exports import codex
+from pets_core import fingerprint as core_fingerprint
 
 from . import __version__
 from .cache import file_hash, fingerprint, read_cache, source_hash, write_cache
@@ -151,8 +151,7 @@ def export_viewer(source, site_out, record):
 
 
 def assemble(out, record):
-    from pets_exports.codex import assemble_atlas
-
+    from .core_exports import assemble_atlas
     from .previews import make_previews
 
     for state in STATES:
@@ -162,7 +161,7 @@ def assemble(out, record):
         record["states"],
         record["metadata"],
         source_hash("previews.py", "pipeline.py"),
-        file_hash(codex.__file__),
+        core_fingerprint(),
         DURATIONS,
     )
     if read_cache(out / "atlas-cache.json", key):

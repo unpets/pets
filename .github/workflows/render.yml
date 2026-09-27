@@ -52,8 +52,8 @@ jobs:
           bun install --frozen-lockfile
       - name: Test rig, screen and transparency
         run: |
-          uv run ruff check personas/kernel/blender exporters scripts tests
-          uv run ruff format --check personas/kernel/blender exporters scripts tests
+          uv run ruff check personas/kernel/blender crates/pets-core/python scripts tests
+          uv run ruff format --check personas/kernel/blender crates/pets-core/python scripts tests
           uv run python -m unittest discover -s tests -v
       - name: Restore model and viewer cache
         uses: actions/cache@v6.1.0
@@ -66,7 +66,7 @@ jobs:
             build/model-cache.json
             personas/kernel/generated/assets/
             personas/kernel/generated/site-cache.json
-          key: kernel-studio-${{ runner.os }}-${{ hashFiles('personas/kernel/blender/**', 'exporters/**', 'uv.lock', 'pyproject.toml') }}
+          key: kernel-studio-${{ runner.os }}-${{ hashFiles('personas/kernel/blender/**', 'uv.lock', 'pyproject.toml') }}
           restore-keys: kernel-studio-${{ runner.os }}-
       - name: Generate model and animation assets
         run: bun run generate
@@ -75,7 +75,7 @@ jobs:
       - name: Check Svelte and TypeScript
         run: |
           cargo fmt --all --check
-          cargo test -p pets-core --locked
+          cargo test -p pets-core --all-features --locked
           bun run format:check
           bun run check
       - name: Build the Svelte site

@@ -1,28 +1,17 @@
-"""Export verified Kernel renders through the Shimeji adapter."""
+"""Export verified Kernel renders through the Rust core."""
 
 import argparse
 import json
 from pathlib import Path
 
-from pets_exports.frames import RenderedPersona
-from pets_exports.shimeji import export_shimeji as export_frames
-from pets_exports.shimeji import validate_package as validate_frames
+from pets_core import execute
 
 from . import __version__
 from .cache import read_cache
-from .rig import CELL, DURATIONS, FRAMES
+from .core_exports import rendered_persona
+from .rig import FRAMES
 
 STATES = {**FRAMES, "look": 16}
-
-
-def persona(source_sha=""):
-    return RenderedPersona(
-        "kernel", "Kernel", __version__, CELL, STATES, DURATIONS, source_sha
-    )
-
-
-def validate_package(output):
-    return validate_frames(output, persona())
 
 
 def export_shimeji(build, output):
@@ -34,7 +23,13 @@ def export_shimeji(build, output):
             raise ValueError(f"Missing or modified rendered frames: {state}")
     print(
         json.dumps(
-            export_frames(build, output, persona(manifest["source_blend_sha256"]))
+            execute(
+                "export",
+                "shimeji",
+                rendered_persona(manifest["source_blend_sha256"]),
+                build / "frames",
+                output,
+            )
         )
     )
 

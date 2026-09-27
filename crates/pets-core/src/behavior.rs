@@ -40,6 +40,7 @@ pub struct DesktopFrame {
 #[derive(Debug, Serialize, PartialEq)]
 pub struct DesktopStep {
     pub mode: Animation,
+    pub restart: bool,
     pub x: Option<f64>,
 }
 
@@ -57,6 +58,7 @@ impl Wander {
     pub fn step(&mut self, frame: DesktopFrame) -> DesktopStep {
         let mut result = DesktopStep {
             mode: frame.mode,
+            restart: false,
             x: None,
         };
         if !frame.elapsed.is_finite()
@@ -84,6 +86,7 @@ impl Wander {
             let index = ((frame.choice.clamp(0.0, 1.0) * choices.len() as f64) as usize)
                 .min(choices.len() - 1);
             result.mode = choices[index];
+            result.restart = true;
             self.since_choice = 0.0;
         }
         let direction = match frame.mode {

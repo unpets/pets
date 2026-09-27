@@ -2,19 +2,18 @@
 
 A standalone companion application and persona studio.  
 Kernel is the bundled default persona.  
-The Rust core defines persona contracts and companion behavior.  
+The Rust core defines persona contracts, companion behavior, and export mechanisms.  
 Svelte and Three.js provide the studio and visual runtime.  
 
 ## Structure
 
 | Path | Responsibility |
 | --- | --- |
-| `crates/pets-core/` | Rust persona contracts and platform-independent behavior |
+| `crates/pets-core/` | Rust persona contracts, behavior, exports, and Clap CLI |
 | `apps/desktop/` | Tauri desktop host and operating system integration |
 | `apps/studio/` | Svelte studio and browser companion |
 | `packages/three-runtime/` | Shared Three.js animation playback |
 | `personas/kernel/` | Default persona, Blender generator, rig, display, and editor |
-| `exporters/pets_exports/` | Codex and Shimeji image export adapters |
 
 Persona contracts distinguish 2D sprite assets from 3D model assets.  
 Renderers and export adapters consume persona assets without defining the application core.  
@@ -27,7 +26,9 @@ The toolchain requirements are declared in the workspace manifests.
 uv manages Python and Blender's headless rendering module.  
 Native desktop builds also require the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).  
 
-## Quick start
+## Run the studio
+
+Run these commands from a terminal to install dependencies, generate Kernel's assets, and start the studio.  
 
 ```sh
 git clone https://github.com/GGLinnk/pets.git
@@ -38,7 +39,17 @@ bun run generate
 bun run dev
 ```
 
-Open the local URL printed by Vite.  
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173) in a browser.  
+If that port is occupied, use the URL printed by Vite.  
+Keep the terminal running while using the studio.  
+Press `Ctrl+C` to stop it.  
+
+For subsequent sessions, run this command from the repository root.  
+
+```sh
+bun run dev
+```
+
 Drag to orbit, scroll to zoom, and select or scrub an animation.  
 The display editor controls independent background, activity, eyes, and mouth layers.  
 Background, line, and text colors are editable, with line and text colors linked by default.  
@@ -88,6 +99,8 @@ Use `--blend build/kernel.blend` to consume a verified source without rebuilding
 Keep `blend-screens/` beside `kernel.blend` when opening or moving the scene.  
 The Codex atlas is written to `build/kernel-spritesheet.png`.  
 Copy `build-shimeji/img/Kernel` into a Shimeji-ee compatible engine's `img` folder.  
+Both image formats are generated and validated by the Rust core.  
+Run `bun run export --help` for the persona-independent export CLI.  
 
 ## Checks
 
