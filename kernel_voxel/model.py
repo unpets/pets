@@ -280,12 +280,12 @@ def build_model():
     b.voxel("server", (1.18, 0.0, 0.51), (0.47, 0.65, 0.99), "dark", 0.055, step=0.025)
     for z in (0.22, 0.44, 0.66):
         b.box("server", (1.18, -0.337, z), (0.375, 0.035, 0.17), "joint")
-        for j in range(5 if z < 0.6 else 0):
+        for j in range(5):
             b.box(
                 "server", (1.045 + j * 0.047, -0.360, z), (0.020, 0.019, 0.10), "shell"
             )
         b.box("server", (1.337, -0.362, z + 0.03), (0.030, 0.017, 0.023), "green")
-    b.box("server", (1.185, -0.360, 0.85), (0.15, 0.025, 0.11), "screen")
+    b.box("server", SERVER_PORT + (0, 0.082, 0), (0.15, 0.06, 0.11), "joint")
     b.box("server", SERVER_PORT + (0, 0.055, 0), (0.11, 0.03, 0.11), "metal")
     b.box("server", SERVER_PORT + (0, 0.034, 0), (0.078, 0.018, 0.078), "screen")
     b.box("server", SERVER_PORT + (0, 0.016, 0), (0.060, 0.032, 0.060), "cyan_dim")

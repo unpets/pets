@@ -32,7 +32,7 @@ DURATIONS = {
 }
 TAU = math.tau
 WRIST_PORT = np.array([0, 0.14, 0.055])
-SERVER_PORT = np.array([1.16, -0.427, 0.66])
+SERVER_PORT = np.array([1.185, -0.427, 0.85])
 PARENTS = {"body": None, "head": "body"}
 for side in ("L", "R"):
     for child, parent in (
