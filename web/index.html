@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#10171f">
+<title>Kernel — model studio</title>
+
+
+</head>
+<body>
+<header><a class="brand" href="./"><span class="brand-mark" aria-hidden="true">K</span><span>KERNEL <small>Model studio</small></span></a><span class="version">VOXEL / 0.3</span></header>
+<main>
+<section class="stage" aria-label="Interactive 3D model">
+  <div id="viewport" aria-label="Rotate by dragging. Scroll or pinch to zoom."></div>
+  <div class="stage-heading"><span class="eyebrow">YOUR WORKSPACE COMPANION</span><h1>Small robot.<br>Real character.</h1></div>
+  <div id="loading" role="status">Building the view…</div>
+  <div class="view-tools" aria-label="Camera controls"><button data-view="home" aria-label="Reset camera">Reset view</button><button data-view="front">Front</button><button data-view="side">Side</button><button data-view="back">Back</button></div>
+  <div class="stage-footer"><span>Drag to orbit · scroll to zoom</span><label><input id="wireframe" type="checkbox"> Wireframe</label><label><input id="joints" type="checkbox"> Joints</label></div>
+</section>
+<aside>
+  <div class="section-heading"><span class="eyebrow">ANIMATION</span><span id="state-count">10 modes</span></div>
+  <div id="states" class="states" role="group" aria-label="Animation mode"></div>
+  <div class="playback"><button id="play" class="primary" type="button" aria-label="Pause animation">Pause</button><label>Speed <select id="speed"><option value=".25">0.25×</option><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+  <label class="timeline-label" for="timeline"><span id="current-mode">Active work</span><output id="time">0.00 s</output></label>
+  <input id="timeline" type="range" min="0" max="1000" value="0" aria-label="Animation timeline">
+  <div class="screen-heading"><span class="eyebrow">LIVE DISPLAY</span><span class="signal">CONNECTED</span></div>
+  <canvas id="screen" width="96" height="64" aria-label="Live robot display"></canvas>
+  <p id="mode-description">Terminal output and digital rain. The wrist cable connects to the server.</p>
+  <div class="downloads"><a href="assets/kernel.glb" download>Download 3D model ↗</a><a href="assets/animations.json" download>Animation data ↗</a></div>
+</aside>
+</main>
+<footer><span>Kernel · a little presence, always in motion</span><span id="detail">Fine voxel geometry</span></footer>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

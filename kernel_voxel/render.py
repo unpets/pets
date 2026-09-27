@@ -1,282 +1,173 @@
-"""Deterministic software renderer and animated voxel rig for Kernel."""
-from __future__ import annotations
-
+"""Render Kernel from its real voxel model; export the same rig for the web viewer."""
 import argparse
-import math
-from dataclasses import dataclass
+import hashlib
+import json
 from pathlib import Path
-
+import os
+import subprocess
+import sys
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
+from .rig import CELL,FRAMES,DURATIONS,pose_for,pose_at,cable_points
+from .screen import framebuffer
 
-CELL = (192, 208)
-SCALE = 4
-FRAMES = {"idle": 6, "running-right": 8, "running-left": 8, "waving": 4,
-          "jumping": 5, "failed": 8, "waiting": 6, "running": 6, "review": 6}
-COLORS = {"shell": (68, 78, 92), "shell_light": (94, 108, 123),
-          "shell_dark": (43, 51, 65), "joint": (30, 37, 48),
-          "screen": (8, 24, 37), "glass": (14, 40, 54),
-          "cyan": (79, 239, 250), "cyan_dim": (37, 130, 156),
-          "violet": (171, 100, 228), "violet_dim": (97, 62, 139),
-          "metal": (125, 143, 155)}
 
-# Seven-column LED display. Every lit pixel is a 3D tile attached to the head.
-SCREEN = {
-    "happy": ("0000000", "0110110", "0110110", "1000001", "0111110"),
-    "blink": ("0000000", "0000000", "0110110", "1000001", "0111110"),
-    "focus": ("0000000", "1110111", "0100010", "0100010", "0011100"),
-    "error": ("0000000", "1010101", "0100010", "1010101", "0011100"),
-    "ask":   ("0000000", "0110110", "0110110", "0001000", "0001000"),
-    "scan":  ("0000000", "1111111", "1000001", "1111111", "0000000"),
-}
+def alpha_downsample(image,size=CELL):
+    """Average associated color + coverage together. No ringing or chroma despill."""
+    # Pillow RGBa is premultiplied; BOX has no negative lobes or exterior halo.
+    result=image.convert('RGBa').resize(size,Image.Resampling.BOX).convert('RGBA')
+    a=np.asarray(result).copy();a[a[:,:,3]==0,:3]=0
+    return Image.fromarray(a)
 
-Vec = tuple[float, float, float]
 
-def add(a: Vec, b: Vec) -> Vec:
-    return (a[0]+b[0], a[1]+b[1], a[2]+b[2])
-
-def rot(p: Vec, yaw: float = 0, pitch: float = 0) -> Vec:
-    x, y, z = p
-    x, y = x*math.cos(yaw)-y*math.sin(yaw), x*math.sin(yaw)+y*math.cos(yaw)
-    return (x, y*math.cos(pitch)-z*math.sin(pitch), y*math.sin(pitch)+z*math.cos(pitch))
-
-@dataclass
-class Box:
-    center: Vec
-    size: Vec
-    color: str
-    part: str = "body"
-
-@dataclass
-class Pose:
-    lift: float = 0
-    lean: float = 0
-    head_yaw: float = 0
-    head_pitch: float = 0
-    left_arm: float = 0
-    right_arm: float = 0
-    left_leg: float = 0
-    right_leg: float = 0
-    face: str = "happy"
-    gaze_x: int = 0
-    gaze_y: int = 0
-
-def pose_for(state: str, index: int) -> Pose:
-    if state == "idle":
-        return Pose(lift=(0, .018, .035, .018, 0, .006)[index],
-                    head_pitch=(-.02, 0, .015, .02, 0, -.02)[index],
-                    face="blink" if index == 3 else "happy")
-    if state in ("running-right", "running-left"):
-        sign = 1 if state.endswith("right") else -1
-        t = 2*math.pi*index/8
-        return Pose(lift=.05+abs(math.sin(t))*.045, lean=sign*.24,
-                    head_yaw=sign*.27, left_arm=math.sin(t)*.28,
-                    right_arm=-math.sin(t)*.28, left_leg=math.sin(t)*.29,
-                    right_leg=-math.sin(t)*.29)
-    if state == "waving":
-        return Pose(right_arm=(.65,.95,.72,.95)[index], head_pitch=-.08)
-    if state == "jumping":
-        return Pose(lift=(0,.18,.38,.19,0)[index],
-                    left_arm=(.08,.20,.34,.20,.08)[index],
-                    right_arm=(.08,.20,.34,.20,.08)[index])
-    if state == "failed":
-        return Pose(lift=(.02,0,.01,0,.02,0,.01,0)[index],
-                    head_pitch=(.12,.23,.31,.35,.32,.24,.16,.12)[index],
-                    face="error", left_arm=-.08, right_arm=-.08)
-    if state == "waiting":
-        return Pose(head_pitch=(-.10,-.13,-.16,-.13,-.10,-.08)[index],
-                    left_arm=.20, right_arm=.20, face="ask")
-    if state == "running":
-        return Pose(head_pitch=-.08, left_arm=(.16,.23,.16,.10,.16,.23)[index],
-                    right_arm=(.23,.16,.10,.16,.23,.16)[index], face="focus")
-    if state == "review":
-        return Pose(head_yaw=(-.12,-.06,0,.06,.12,0)[index],
-                    head_pitch=(.05,.08,.11,.08,.05,0)[index], face="scan")
-    if state == "look":
-        a = math.radians(index * 22.5)
-        return Pose(head_yaw=.69*math.sin(a), head_pitch=-.52*math.cos(a),
-                    gaze_x=round(math.sin(a)), gaze_y=-round(math.cos(a)))
-    raise ValueError(state)
-
-def geometry(pose: Pose) -> list[Box]:
-    b = []
-    def box(center: Vec, size: Vec, color: str, part="body"):
-        b.append(Box(center,size,color,part))
-    # Three separately recognizable stacked modules, layered voxel bevels.
-    for z, sx, sy, sz, color in ((.70,.95,.66,.41,"shell_dark"),
-                                  (1.18,1.22,.72,.52,"shell"),
-                                  (1.66,1.04,.70,.31,"shell_light")):
-        box((0,0,z),(sx,sy,sz*.72),color)
-        box((0,0,z-sz*.38),(sx*.88,sy*.87,sz*.22),"shell_dark")
-        box((0,0,z+sz*.38),(sx*.89,sy*.87,sz*.22),"shell_light")
-        box((0,-sy/2-.026,z+sz*.22),(sx*.79,.046,.052),"violet_dim")
-        for sign in (-1,1):
-            box((sign*sx*.43,-sy*.50,z),(sx*.06,.045,sz*.39),"metal")
-    # Chest reactor has its own housing; it is not a second display.
-    box((0,-.398,1.21),(.47,.08,.40),"joint")
-    box((0,-.454,1.21),(.32,.044,.28),"violet_dim")
-    box((0,-.488,1.21),(.18,.035,.17),"cyan")
-    for sign in (-1,1):
-        for i in range(3):
-            box((sign*(.38+i*.075),-.392,1.28),(.037,.045,.10),"cyan_dim")
-    box((0,0,1.92),(.29,.34,.18),"joint")
-    # Neck, feet, and limbs share the rig but move by deterministic offsets.
-    for sign, arm, leg in ((-1,pose.left_arm,pose.left_leg),(1,pose.right_arm,pose.right_leg)):
-        box((sign*.75,0,1.46+arm*.25),(.23,.31,.28),"joint")
-        box((sign*.82,-.02,1.14+arm*.45),(.24,.29,.43),"shell")
-        box((sign*.84,-.20,1.11+arm*.45),(.20,.04,.10),"cyan")
-        box((sign*.83,-.02,.91+arm*.45),(.29,.35,.16),"joint")
-        box((sign*.83,-.21,.91+arm*.45),(.16,.035,.07),"violet")
-        box((sign*.32,0,.34+leg*.25),(.24,.32,.45),"joint")
-        box((sign*.36,-.18,.16+leg*.35),(.40,.58,.27),"shell_dark")
-        box((sign*.36,-.48,.16+leg*.35),(.24,.025,.08),"cyan")
-        box((sign*.33,-.18,.48+leg*.25),(.23,.33,.11),"shell_light")
-    # Head is one 3D part; eyes and face LEDs move with it exactly.
-    box((0,0,0),(.33,.34,.17),"joint","head")
-    box((0,0,.12),(1.22,.79,.60),"shell","head")
-    box((0,0,-.246),(1.06,.68,.15),"shell_dark","head")
-    box((0,0,.486),(1.07,.68,.15),"shell_light","head")
-    box((0,.01,.57),(.86,.55,.06),"shell_light","head")
-    # Bezel, recessed dark glass, and LEDs sit in three separate forward planes.
-    box((0,-.427,.12),(1.06,.083,.68),"joint","head")
-    box((0,-.482,.12),(.96,.035,.61),"screen","head")
-    box((0,-.505,.12),(.86,.018,.53),"glass","head")
-    box((0,.02,.66),(.20,.22,.09),"cyan","head")
-    for sign in (-1,1):
-        box((sign*.51,-.477,.12),(.037,.035,.48),"violet_dim","head")
-        box((sign*.34,-.507,-.211),(.11,.026,.019),"cyan_dim","head")
-    for sign in (-1,1):
-        box((sign*.64,0,.13),(.14,.39,.26),"violet","head")
-        box((sign*.72,-.13,.13),(.04,.17,.14),"cyan","head")
-        box((sign*.57,.05,.47),(.12,.22,.055),"metal","head")
-    pattern=SCREEN[pose.face]
-    if pose.gaze_x or pose.gaze_y:
-        # Both eye clusters are rebuilt at integer LED positions for each view.
-        pixels=[["0"]*7 for _ in range(5)]
-        row=max(0,min(3,1+pose.gaze_y))
-        for col in (2,4):
-            pixels[row][max(0,min(6,col+pose.gaze_x))]="1"
-            if row+1 < 4:
-                pixels[row+1][max(0,min(6,col+pose.gaze_x))]="1"
-        pixels[4][3]="1"
-        pattern=["".join(r) for r in pixels]
-    for row, line in enumerate(pattern):
-        for col, on in enumerate(line):
-            if on == "1":
-                box(((col-3)*.116,-.529,.33-row*.106),(.087,.028,.076),"cyan","head")
-    return b
-
-CAM = (3.0,-8.0,3.4)
-def project(p: Vec) -> tuple[float,float,float]:
-    # Slightly elevated view makes the voxel depth visible.
-    side = (math.cos(.14),math.sin(.14),0)
-    up = (-.055,.39,.92)
-    depth = p[0]*CAM[0]+p[1]*CAM[1]+p[2]*CAM[2]
-    return (p[0]*side[0]+p[1]*side[1], p[0]*up[0]+p[1]*up[1]+p[2]*up[2], depth)
-
-FACES=((0,1,3,2),(4,6,7,5),(0,4,5,1),(2,3,7,6),(0,2,6,4),(1,5,7,3))
-SHADE=(.69,1.06,.85,.80,.75,.93)
-
-def mesh(box: Box, pose: Pose) -> list[Vec]:
-    cx,cy,cz=box.center
-    sx,sy,sz=(v/2 for v in box.size)
-    corners=[(cx+dx*sx,cy+dy*sy,cz+dz*sz) for dz in (-1,1)
-             for dy in (-1,1) for dx in (-1,1)]
-    out=[]
-    for v in corners:
-        if box.part == "head":
-            v=add(rot(v,pose.head_yaw,pose.head_pitch),(pose.lean*.25,0,2.40+pose.lift))
-        else:
-            v=add(v,(pose.lean*.16,0,pose.lift))
-        out.append(v)
-    return out
-
-def frame(state: str, index: int) -> Image.Image:
-    pose=pose_for(state,index)
-    width,height=CELL[0]*SCALE,CELL[1]*SCALE
-    pixels=np.zeros((height,width,4),dtype=np.uint8)
-    zbuffer=np.full((height,width),-np.inf,dtype=np.float32)
-
-    def triangle(a, b, c, color):
-        x0,y0,z0=a; x1,y1,z1=b; x2,y2,z2=c
-        left=max(0,math.floor(min(x0,x1,x2)))
-        right=min(width,math.ceil(max(x0,x1,x2))+1)
-        top=max(0,math.floor(min(y0,y1,y2)))
-        bottom=min(height,math.ceil(max(y0,y1,y2))+1)
-        if right<=left or bottom<=top: return
-        denom=(y1-y2)*(x0-x2)+(x2-x1)*(y0-y2)
-        if abs(denom)<1e-8: return
-        yy,xx=np.mgrid[top:bottom,left:right]
-        xx=xx.astype(np.float32)+.5
-        yy=yy.astype(np.float32)+.5
-        w0=((y1-y2)*(xx-x2)+(x2-x1)*(yy-y2))/denom
-        w1=((y2-y0)*(xx-x2)+(x0-x2)*(yy-y2))/denom
-        w2=1-w0-w1
-        depth=w0*z0+w1*z1+w2*z2
-        local_z=zbuffer[top:bottom,left:right]
-        visible=(w0>=-1e-5)&(w1>=-1e-5)&(w2>=-1e-5)&(depth>local_z+1e-5)
-        local_z[visible]=depth[visible]
-        pixels[top:bottom,left:right][visible]=color
-
-    for item in geometry(pose):
-        vertices=mesh(item,pose)
-        for f, indices in enumerate(FACES):
-            points=[vertices[k] for k in indices]
-            # Face normal, and camera-facing cull.
-            a,b,c=points[0],points[1],points[2]
-            u=(b[0]-a[0],b[1]-a[1],b[2]-a[2])
-            v=(c[0]-a[0],c[1]-a[1],c[2]-a[2])
-            normal=(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])
-            if sum(normal[k]*CAM[k] for k in range(3)) <= 0:
-                continue
-            q=[project(p) for p in points]
-            color=tuple(min(255,max(0,round(n*SHADE[f]))) for n in COLORS[item.color])+(255,)
-            pts=[(CELL[0]*SCALE/2+x*58*SCALE,193*SCALE-y*58*SCALE,d) for x,y,d in q]
-            triangle(pts[0],pts[1],pts[2],color)
-            triangle(pts[0],pts[2],pts[3],color)
-    im=Image.fromarray(pixels,"RGBA")
-    return im.resize(CELL,Image.Resampling.LANCZOS)
-
-def export_obj(out: Path) -> None:
-    lines=["# Kernel neutral voxel model; screen glyph is deterministic geometry", "mtllib kernel.mtl"]
-    offset=0
-    for b in geometry(pose_for("idle",0)):
-        corners=mesh(b,pose_for("idle",0))
-        lines.extend(f"v {x:.6f} {y:.6f} {z:.6f}" for x,y,z in corners)
-        lines.append(f"usemtl {b.color}")
-        for face in FACES:
-            lines.append("f "+" ".join(str(offset+i+1) for i in face))
-        offset+=8
-    (out/"kernel.obj").write_text("\n".join(lines)+"\n")
-    (out/"kernel.mtl").write_text("\n".join(
-        f"newmtl {name}\nKd {' '.join(f'{v/255:.6f}' for v in rgb)}\n"
-        for name,rgb in COLORS.items()))
-
-def main() -> None:
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output",type=Path,default=Path("build"))
-    args=parser.parse_args()
-    out=args.output
-    root=out/"frames"
-    atlas=Image.new("RGBA",(1536,2288))
-    for state,count in {**FRAMES,"look":16}.items():
-        directory=root/state
-        directory.mkdir(parents=True,exist_ok=True)
-        images=[]
+def make_previews(out):
+    atlas=Image.open(out/'kernel-spritesheet.png').convert('RGBA')
+    all_frames=[];all_durations=[]
+    for state,count in {**FRAMES,'look':16}.items():
+        frames=[]
         for i in range(count):
-            im=frame(state,i)
-            im.save(directory/f"{i:02d}.png",optimize=True)
-            images.append(im)
-            row=list(FRAMES).index(state) if state != "look" else 9+i//8
-            column=i if state != "look" else i%8
-            atlas.alpha_composite(im,(column*CELL[0],row*CELL[1]))
-        images[0].save(out/f"{state}.gif",save_all=True,
-                       append_images=images[1:],duration=115,loop=0,disposal=2)
-    export_obj(out)
-    atlas.save(out/"kernel-spritesheet.png")
-    with Image.open(out/"kernel-spritesheet.png") as check:
-        check.load()
-    print(f"Rendered {sum(FRAMES.values())+16} model frames to {out}")
+            row=list(FRAMES).index(state) if state!='look' else 9+i//8
+            col=i if state!='look' else i%8
+            image=atlas.crop((col*192,row*208,(col+1)*192,(row+1)*208))
+            # GIF cannot store graded alpha: composite previews on a declared background.
+            bg=Image.new('RGB',CELL,(22,29,39));bg.paste(image,mask=image.getchannel('A'))
+            frames.append(bg)
+        frames[0].save(out/f'{state}.gif',save_all=True,append_images=frames[1:],duration=DURATIONS[state],loop=0,disposal=2)
+        if state!='look':
+            for i,im in enumerate(frames):
+                canvas=Image.new('RGB',(384,456),(22,29,39));canvas.paste(im.resize((384,416),Image.Resampling.NEAREST),(0,0))
+                ImageDraw.Draw(canvas).text((16,430),f'{state}  {i+1}/{count}',fill=(199,220,234))
+                all_frames.append(canvas);all_durations.append(DURATIONS[state])
+    all_frames[0].save(out/'all-states.gif',save_all=True,append_images=all_frames[1:],duration=all_durations,loop=0)
+    ids=[(0,0)]*3+[(4,i) for i in range(5)]+[(0,0)]*3
+    jump=[]
+    for row,i in ids:
+        frame=atlas.crop((i*192,row*208,(i+1)*192,(row+1)*208));bg=Image.new('RGB',CELL,(22,29,39));bg.paste(frame,mask=frame.getchannel('A'));jump.append(bg)
+    jump[0].save(out/'idle-jump-idle.gif',save_all=True,append_images=jump[1:],duration=140,loop=0)
+    # Alpha inspection on both light and dark surfaces; exact encoded frame pixels.
+    plate=Image.new('RGB',(4*384,2*448),(235,239,242));draw=ImageDraw.Draw(plate)
+    for j,(state,i) in enumerate([('idle',0),('running',2),('waving',1),('jumping',2)]):
+        row=list(FRAMES).index(state);frame=atlas.crop((i*192,row*208,(i+1)*192,(row+1)*208)).resize((384,416),Image.Resampling.NEAREST)
+        for r,bg in enumerate([(235,239,242),(22,29,39)]):
+            plate.paste(bg,(j*384,r*448,(j+1)*384,(r+1)*448));plate.paste(frame,(j*384,r*448),frame)
+            draw.text((j*384+15,r*448+428),f'{state} / frame {i}',fill=(75,93,110) if r==0 else (201,219,237))
+    plate.save(out/'alpha-and-stills.png')
 
-if __name__ == "__main__":
-    main()
+
+def export_site(model,out,site_out):
+    import bpy
+    site_out.mkdir(parents=True,exist_ok=True)
+    assets=site_out/'assets';assets.mkdir(exist_ok=True)
+    # Export static source geometry in Z-up coordinates. The viewer applies sampled rig transforms.
+    apply=__import__('kernel_voxel.model',fromlist=['apply_pose']).apply_pose
+    apply(model,pose_for('idle',0));model['texture'].pack()
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in [*model['nodes'].values(),model['display']]:obj.hide_viewport=False;obj.hide_set(False);obj.select_set(True)
+    bpy.ops.export_scene.gltf(filepath=str((assets/'kernel.glb').resolve()),export_format='GLB',use_selection=True,export_yup=False,export_animations=False,export_extras=True)
+    data={'version':'0.3.0','up':'Z','voxelSize':.035,'voxelCount':model['voxel_count'],'screenSize':[96,64],'states':{}}
+    screen_sheet=Image.new('RGB',(96*48,64*10))
+    for row,(state,count) in enumerate({**FRAMES,'look':16}.items()):
+        samples=[]
+        for i in range(121):
+            t=i/120;p=pose_at(state,t)
+            transforms={}
+            for name,m in p.matrices.items():
+                from mathutils import Matrix
+                loc,quat,scale=Matrix(m.tolist()).decompose()
+                transforms[name]={'p':[round(x,6) for x in loc],'q':[round(x,7) for x in (quat.x,quat.y,quat.z,quat.w)]}
+            samples.append({'parts':transforms,'cable':np.round(cable_points(p),6).tolist()})
+        for i in range(48):
+            t=i/48;p=pose_at(state,t);screen_sheet.paste(framebuffer(state,t,p.gaze),(96*i,64*row))
+        data['states'][state]={'duration':count*DURATIONS[state]/1000,'frames':count,'screenRow':row,'samples':samples}
+    (assets/'animations.json').write_text(json.dumps(data,separators=(',',':')))
+    screen_sheet.save(assets/'screens.png',optimize=True)
+    return data
+
+
+def export_blend(model,out):
+    """Bake rigid transforms, cable vertices, and framebuffer sequence into the .blend."""
+    import bpy
+    from mathutils import Matrix
+    from .model import apply_pose
+    scene=bpy.context.scene;scene.render.fps=24
+    frames_dir=(out/'blend-screens').resolve();frames_dir.mkdir(exist_ok=True)
+    timeline=[];frame=1
+    for state in FRAMES:
+        scene.timeline_markers.new(state,frame=frame)
+        count=round(FRAMES[state]*DURATIONS[state]/1000*24)
+        for i in range(count):
+            p=pose_at(state,i/(count-1 if state=='jumping' else count));scene.frame_set(frame);apply_pose(model,p)
+            for name,obj in model['nodes'].items():
+                if name!='server':
+                    obj.rotation_mode='QUATERNION'
+                    loc,q,sc=obj.matrix_world.decompose();obj.location=loc;obj.rotation_quaternion=q
+                    obj.keyframe_insert('location',frame=frame);obj.keyframe_insert('rotation_quaternion',frame=frame)
+                obj.keyframe_insert('hide_render',frame=frame)
+            model['cable'].keyframe_insert('hide_render',frame=frame)
+            for pp in model['cable'].data.splines[0].points:pp.keyframe_insert('co',frame=frame)
+            framebuffer(state,p.t,p.gaze).save(frames_dir/f'screen-{frame:04d}.png')
+            timeline.append({'frame':frame,'state':state,'t':p.t});frame+=1
+    for obj in model['nodes'].values():
+        if obj.animation_data and obj.animation_data.action:
+            for fc in obj.animation_data.action.fcurves:
+                for k in fc.keyframe_points:k.interpolation='LINEAR' if fc.data_path!='hide_render' else 'CONSTANT'
+    scene.frame_start=1;scene.frame_end=frame-1
+    img=bpy.data.images.load(str(frames_dir/'screen-0001.png'));img.source='SEQUENCE'
+    tex=next(n for n in model['display'].data.materials[0].node_tree.nodes if n.type=='TEX_IMAGE')
+    tex.image=img;tex.image_user.frame_duration=frame-1;tex.image_user.frame_start=1;tex.image_user.use_auto_refresh=True
+    scene.frame_set(1)
+    bpy.ops.wm.save_as_mainfile(filepath=str((out/'kernel.blend').resolve()))
+    bpy.ops.file.make_paths_relative()
+    bpy.ops.wm.save_as_mainfile(filepath=str((out/'kernel.blend').resolve()))
+    (out/'timeline.json').write_text(json.dumps(timeline,indent=2))
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output',type=Path,default=Path('build'))
+    parser.add_argument('--site-output',type=Path,default=Path('web/public'))
+    parser.add_argument('--scale',type=int,default=4)
+    parser.add_argument('--samples',type=int,default=32)
+    parser.add_argument('--site-only',action='store_true')
+    parser.add_argument('--states',nargs='+',choices=[*FRAMES,'look'])
+    parser.add_argument('--no-blend',action='store_true')
+    parser.add_argument('--worker',action='store_true',help=argparse.SUPPRESS)
+    args=parser.parse_args();out=args.output;out.mkdir(parents=True,exist_ok=True)
+    if not args.site_only and not args.worker:
+        # Isolate Blender's native render/denoise thread pools by animation state.
+        # This also bounds peak memory and makes a failed row easy to regenerate.
+        for state in args.states or [*FRAMES,'look']:
+            command=[sys.executable,'-m','kernel_voxel.render','--worker','--output',str(out),
+                     '--states',state,'--scale',str(args.scale),'--samples',str(args.samples)]
+            env=dict(os.environ,OPENBLAS_NUM_THREADS='1',OMP_NUM_THREADS='8')
+            subprocess.run(command,check=True,env=env,timeout=600)
+    from .model import setup_scene,build_model,apply_pose
+    import bpy
+    scene=setup_scene(args.scale,args.samples);model=build_model()
+    print(f'Voxel occupancy: {model["voxel_count"]}',flush=True)
+    if args.worker:
+        for state in args.states:
+            count=16 if state=='look' else FRAMES[state]
+            folder=out/'frames'/state;masters=out/'masters'/state;folder.mkdir(parents=True,exist_ok=True);masters.mkdir(parents=True,exist_ok=True)
+            for i in range(count):
+                p=pose_for(state,i);apply_pose(model,p)
+                scene.render.filepath=str((masters/f'{i:02d}.png').resolve());bpy.ops.render.render(write_still=True)
+                with Image.open(scene.render.filepath) as im:alpha_downsample(im).save(folder/f'{i:02d}.png',optimize=True)
+                print(f'FRAME {state} {i+1}/{count}',flush=True)
+        return
+    if not args.site_only:
+        expected=[out/'frames'/s/f'{i:02d}.png' for s,n in {**FRAMES,'look':16}.items() for i in range(n)]
+        if all(p.exists() for p in expected):
+            atlas=Image.new('RGBA',(1536,2288))
+            for state,count in {**FRAMES,'look':16}.items():
+                for i in range(count):
+                    row=list(FRAMES).index(state) if state!='look' else 9+i//8;col=i if state!='look' else i%8
+                    atlas.paste(Image.open(out/'frames'/state/f'{i:02d}.png'),(col*192,row*208))
+            atlas.save(out/'kernel-spritesheet.png',optimize=True);make_previews(out)
+            manifest={'version':'0.3.0','voxel_count':model['voxel_count'],'voxel_pitch':.035,'supersampling':args.scale,'samples':args.samples,'sha256':hashlib.sha256((out/'kernel-spritesheet.png').read_bytes()).hexdigest(),'alpha':'native RGBA; premultiplied BOX reduction; no chroma cleanup'}
+            (out/'manifest.json').write_text(json.dumps(manifest,indent=2))
+    export_site(model,out,args.site_output)
+    if not args.no_blend:export_blend(model,out)
+    print(f'Completed: {out}; viewer: {args.site_output}',flush=True)
+
+if __name__=='__main__':main()

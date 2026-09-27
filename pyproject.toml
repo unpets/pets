@@ -1,9 +1,9 @@
 [project]
 name = "kernel-voxel-pet"
-version = "0.2.0"
+version = "0.3.0"
 description = "Deterministic voxel model and animated sprite renderer for Kernel"
-requires-python = ">=3.11"
-dependencies = ["Pillow>=10", "numpy>=2"]
+requires-python = ">=3.11,<3.12"
+dependencies = ["Pillow==12.3.0", "numpy==1.26.4", "bpy==4.3.0"]
 
 [project.scripts]
 kernel-render = "kernel_voxel.render:main"
