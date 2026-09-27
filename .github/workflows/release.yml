@@ -76,6 +76,8 @@ jobs:
           restore-keys: kernel-source-${{ runner.os }}-
       - name: Build and verify the canonical Blender source
         run: uv run kernel-render --model-only --output build
+      - name: Verify composition playback and baking
+        run: uv run python scripts/verify_compositions.py --blend build/kernel.blend
       - name: Export shared viewer assets
         run: uv run kernel-render --site-only --blend build/kernel.blend --site-output personas/kernel/generated
       - uses: actions/upload-artifact@v7.0.1
@@ -198,6 +200,7 @@ jobs:
           bun run test:viewer
           bun run test:pet
           bun run test:animation
+          bun run test:studio
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Package versioned downloads
         env:

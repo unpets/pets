@@ -1,4 +1,9 @@
 <script lang="ts">
+  import ExportBindings from './ExportBindings.svelte';
+  import CompositionEditor from './CompositionEditor.svelte';
+  import KeyframeEditor from './KeyframeEditor.svelte';
+  import { resolveComposition } from '@pets/three-runtime/project';
+  import { exportAsset, importAsset } from '@pets/three-runtime/assets';
   import CompositionLayers from './CompositionLayers.svelte';
   import { Layers3, Plus, Copy, Upload, Download } from '@lucide/svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
@@ -13,13 +18,12 @@
   let error = $state('');
   let input = $state<HTMLInputElement>();
   let source = $state('');
-  const composition = $derived(editor.project.compositions[mode]);
+  const composition = $derived(resolveComposition(editor.project, mode));
   const component = $derived(editor.project.components[editor.component]);
   const selected = $derived(composition?.bindings[editor.component]);
   const clip = $derived(editor.project.clips[editor.clip]);
   $effect(() => {
-    if (selected?.clip && editor.clip !== selected.clip)
-      editor.clip = selected.clip;
+    if (selected?.clip) editor.clip = selected.clip;
   });
   $effect(() => {
     source = JSON.stringify(clip?.data, null, 2);
@@ -45,7 +49,16 @@
     if (!file) return;
     try {
       if (file.size > 2_000_000) throw new Error('Clips must be under 2 MB.');
-      editor.editClip({ data: JSON.parse(await file.text()) });
+      const value = JSON.parse(await file.text());
+      if (value.format === 'pets-assets') {
+        const result = importAsset($state.snapshot(editor.project), value);
+        editor.replace(result.project);
+        if (result.selection.kind === 'clip') {
+          editor.component =
+            result.project.clips[result.selection.id].component;
+          editor.clip = result.selection.id;
+        }
+      } else editor.editClip({ data: value });
       error = '';
     } catch (reason) {
       error = String(reason);
@@ -54,9 +67,18 @@
   }
   function exportClip() {
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(clip.data, null, 2)], {
-        type: 'application/json',
-      }),
+      new Blob(
+        [
+          JSON.stringify(
+            exportAsset($state.snapshot(editor.project), 'clip', editor.clip),
+            null,
+            2,
+          ),
+        ],
+        {
+          type: 'application/json',
+        },
+      ),
     );
     const link = document.createElement('a');
     link.href = url;
@@ -69,50 +91,42 @@
 <div class="inspector-heading">
   <h2><Layers3 size={15} />Animation inspector</h2>
 </div>
-<section class="inspector-section">
-  <h3>Composition</h3>
-  <label class="field-label"
-    >New asset name<input
-      class="field mt-2 w-full"
-      aria-label="New animation name"
-      bind:value={label}
-    /></label
-  >
-  <button
-    class="button mt-3 w-full"
-    disabled={!label.trim()}
-    onclick={() =>
-      (() => {
-        const id = editor.duplicateComposition(mode, label.trim());
-        studio?.setAnimationProject(editor.project);
-        studio?.setMode(id);
-      })()}><Copy size={13} />Duplicate composition</button
-  >
-  <label class="field-label mt-4 block"
-    >Duration (seconds)<input
-      class="field mt-2 w-full"
-      type="number"
-      min="0.1"
-      max="600"
-      step="0.1"
-      value={composition?.duration}
-      onchange={(event) => {
-        const duration = event.currentTarget.valueAsNumber;
-        if (duration > 0)
-          editor.replace({
-            ...editor.project,
-            compositions: {
-              ...editor.project.compositions,
-              [mode]: { ...composition, duration },
-            },
-          });
-      }}
-    /></label
-  >
-</section>
+<CompositionEditor {editor} {mode} {studio} bind:label />
 <CompositionLayers {editor} {mode} />
 <section class="inspector-section">
   <h3>Component binding</h3>
+  <label class="field-label mb-3"
+    >Component name<input
+      class="field mt-2 w-full"
+      aria-label="Component name"
+      value={component.label}
+      onchange={(e) => {
+        try {
+          editor.editComponent({ label: e.currentTarget.value });
+          error = '';
+        } catch (reason) {
+          error = String(reason);
+        }
+      }}
+    /></label
+  >
+  <button
+    class="button mb-3 w-full"
+    onclick={() => {
+      try {
+        editor.deleteComponent();
+        error = '';
+      } catch (reason) {
+        error = String(reason);
+      }
+    }}>Delete unassigned component</button
+  >
+  <p class="mb-3 text-xs text-muted">
+    {composition.origins[editor.component] &&
+    composition.origins[editor.component] !== mode
+      ? `Inherited from ${editor.project.compositions[composition.origins[editor.component]].label}`
+      : 'Local binding'}
+  </p>
   <label class="field-label"
     >Component<select
       class="field mt-2 w-full"
@@ -140,6 +154,11 @@
     ></label
   >
   {#if selected}
+    <button class="button mt-3 w-full" onclick={() => editor.resetBinding(mode)}
+      >{editor.project.compositions[mode].parent
+        ? 'Reset to parent'
+        : 'Unassign component'}</button
+    >
     <label class="toggle-row mt-4"
       ><span>Enabled</span><input
         type="checkbox"
@@ -196,6 +215,7 @@
     </div>
   {/if}
 </section>
+{#if clip}<KeyframeEditor {editor} />{/if}
 {#if component.kind === 'screen' && !['eyes', 'mouth', 'background', 'activity'].includes(component.data.layer as string)}
   <section class="inspector-section">
     <h3>Layer placement</h3>
@@ -241,6 +261,23 @@
 {/if}
 <section class="inspector-section">
   <h3>Clip library</h3>
+  <label class="field-label mb-3"
+    >Browse clips<select
+      class="field mt-2 w-full"
+      aria-label="Library clip"
+      value={editor.clip}
+      onchange={(e) => (editor.clip = e.currentTarget.value)}
+      >{#each Object.entries(editor.project.clips).filter(([, c]) => c.component === editor.component) as [id, c]}<option
+          value={id}>{c.label}</option
+        >{/each}</select
+    ></label
+  >
+  <button
+    class="button mb-3 w-full"
+    disabled={!clip}
+    onclick={() => editor.bind(mode, { clip: editor.clip, enabled: true })}
+    >Assign selected clip</button
+  >
   <button
     class="button w-full"
     disabled={!label.trim()}
@@ -260,6 +297,31 @@
     ><Layers3 size={13} />Add screen layer</button
   >
   {#if clip}
+    <label class="field-label mt-3"
+      >Clip name<input
+        class="field mt-2 w-full"
+        aria-label="Clip name"
+        value={clip.label}
+        onchange={(e) => editor.editClip({ label: e.currentTarget.value })}
+      /></label
+    >
+    <button
+      class="button mt-2 w-full"
+      onclick={() =>
+        editor.duplicateClip(label.trim() || `${clip.label} copy`, mode)}
+      >Duplicate clip for this composition</button
+    >
+    <button
+      class="button mt-2 w-full"
+      onclick={() => {
+        try {
+          editor.deleteClip();
+          error = '';
+        } catch (reason) {
+          error = String(reason);
+        }
+      }}>Delete unassigned clip</button
+    >
     <label class="field-label mt-4 block"
       >Clip duration (seconds)<input
         aria-label="Clip duration"
@@ -314,3 +376,5 @@
   />
   {#if error}<p class="mt-3 text-xs text-red-200" role="alert">{error}</p>{/if}
 </section>
+
+<ExportBindings {editor} />

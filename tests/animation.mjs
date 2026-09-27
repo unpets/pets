@@ -110,7 +110,13 @@ try {
   await page.screenshot({ path: 'build/studio-animation.png' });
   const pending = page.waitForEvent('download');
   await page
+    .getByRole('button', { name: 'Import and export', exact: true })
+    .click();
+  await page
     .getByRole('button', { name: 'Save animations', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Close project files', exact: true })
     .click();
   const download = await pending;
   assert.equal(download.suggestedFilename(), 'pets-animation.json');
@@ -159,7 +165,7 @@ try {
     .getByRole('button', { name: 'Apply clip data', exact: true })
     .click();
   assert.equal(await page.getByRole('alert').count(), 0);
-  await page.getByLabel('Import screen project file').setInputFiles({
+  await page.getByLabel('Import project file').setInputFiles({
     name: 'pets-animation.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(project)),

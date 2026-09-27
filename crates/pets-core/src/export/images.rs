@@ -1,16 +1,12 @@
-use super::{ExportResult, invalid};
+use super::{AssetStore, ExportResult, invalid};
 use image::{
     DynamicImage, ImageEncoder, ImageReader, RgbaImage,
     codecs::png::{CompressionType, FilterType, PngEncoder},
 };
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    path::Path,
-};
+use std::{io::Cursor, path::Path};
 
-pub fn load(path: &Path, size: [u32; 2]) -> ExportResult<RgbaImage> {
-    let mut reader = ImageReader::open(path)?.with_guessed_format()?;
+pub fn load(path: &Path, size: [u32; 2], store: &dyn AssetStore) -> ExportResult<RgbaImage> {
+    let mut reader = ImageReader::new(Cursor::new(store.read(path)?)).with_guessed_format()?;
     let mut limits = image::Limits::default();
     limits.max_image_width = Some(size[0]);
     limits.max_image_height = Some(size[1]);
@@ -24,8 +20,8 @@ pub fn load(path: &Path, size: [u32; 2]) -> ExportResult<RgbaImage> {
     }
 }
 
-pub fn save(path: &Path, image: &RgbaImage) -> ExportResult<()> {
-    let mut writer = BufWriter::new(File::create(path)?);
+pub fn save(path: &Path, image: &RgbaImage, store: &mut dyn AssetStore) -> ExportResult<()> {
+    let mut writer = Vec::new();
     PngEncoder::new_with_quality(&mut writer, CompressionType::Best, FilterType::Adaptive)
         .write_image(
             image.as_raw(),
@@ -33,7 +29,7 @@ pub fn save(path: &Path, image: &RgbaImage) -> ExportResult<()> {
             image.height(),
             image::ExtendedColorType::Rgba8,
         )?;
-    writer.flush()?;
+    store.write(path, &writer)?;
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "pets",
-  "version": "0.8.5",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",
@@ -12,8 +12,8 @@
   ],
   "scripts": {
     "generate": "uv run kernel-render --site-only",
-    "dev": "bun run --cwd apps/studio dev",
-    "build": "bun run --cwd apps/studio build",
+    "dev": "bun run build:core && bun run --cwd apps/studio dev",
+    "build": "bun run build:core && bun run --cwd apps/studio build",
     "preview": "bun run --cwd apps/studio preview",
     "test": "bun test tests apps/studio/tests",
     "test:viewer": "bun tests/viewer.mjs",
@@ -30,7 +30,9 @@
     "format:core": "cargo fmt --all",
     "format:core:check": "cargo fmt --all --check",
     "export": "cargo run --locked --quiet -p pets-core --features cli --bin pets-export --",
-    "test:animation": "bun tests/animation.mjs"
+    "test:animation": "bun tests/animation.mjs",
+    "build:core": "bun scripts/build-core.ts",
+    "test:studio": "bun tests/studio-project.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

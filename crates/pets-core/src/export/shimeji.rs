@@ -1,14 +1,11 @@
-use super::{ExportReport, ExportResult, RenderedPersona, images, invalid, report};
+use super::{AssetStore, ExportReport, ExportResult, RenderedPersona, images, invalid, report};
 use crate::ExportTarget;
 use quick_xml::{
     Writer,
     events::{BytesDecl, BytesEnd, BytesStart, Event},
 };
 use serde_json::json;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 const TICK_MS: f64 = 40.0;
 const ACTIONS: [(&str, &str); 8] = [
@@ -101,7 +98,11 @@ fn pose(
     ))
 }
 
-fn configuration(persona: &RenderedPersona, frames: &Path) -> ExportResult<Configuration> {
+fn configuration(
+    persona: &RenderedPersona,
+    frames: &Path,
+    store: &dyn AssetStore,
+) -> ExportResult<Configuration> {
     let mut actions = Element::new("ActionList", &[]);
     let anchor = persona.cell[1]
         .checked_sub(11)
@@ -165,7 +166,11 @@ fn configuration(persona: &RenderedPersona, frames: &Path) -> ExportResult<Confi
         if persona.clip(state)?.frames <= index {
             return Err(invalid(format!("Missing Shimeji pose: {state}/{index}")));
         }
-        let frame = images::load(&persona.frame_path(frames, state, index), persona.cell)?;
+        let frame = images::load(
+            &persona.frame_path(frames, state, index),
+            persona.cell,
+            store,
+        )?;
         let bounds =
             images::bounds(&frame).ok_or_else(|| invalid("An embedded Shimeji pose is empty"))?;
         let mut action = Element::new("Action", &[("Name", name), ("Type", "Embedded")]);
@@ -304,13 +309,14 @@ fn frame_files(
     frames: &Path,
     output: &Path,
     copy: bool,
+    store: &mut dyn AssetStore,
 ) -> ExportResult<Vec<PathBuf>> {
     let character = output.join("img").join(&persona.name);
     let mut files = vec![];
     for (state, clip) in &persona.animations {
         for index in 0..clip.frames {
             let source = persona.frame_path(frames, state, index);
-            let frame = images::load(&source, persona.cell)?;
+            let frame = images::load(&source, persona.cell, store)?;
             if images::bounds(&frame).is_none() {
                 return Err(invalid(format!(
                     "Empty Shimeji frame: {}",
@@ -319,8 +325,8 @@ fn frame_files(
             }
             let target = character.join(format!("{state}-{index:02}.png"));
             if copy {
-                fs::copy(&source, &target)?;
-            } else if fs::read(&source)? != fs::read(&target)? {
+                store.write(&target, &store.read(&source)?)?;
+            } else if store.read(&source)? != store.read(&target)? {
                 return Err(invalid("Shimeji image differs from its rendered frame"));
             }
             files.push(target);
@@ -329,8 +335,8 @@ fn frame_files(
     let icon = character.join("shime1.png");
     let idle = character.join("idle-00.png");
     if copy {
-        fs::copy(&idle, &icon)?;
-    } else if fs::read(&idle)? != fs::read(&icon)? {
+        store.write(&icon, &store.read(&idle)?)?;
+    } else if store.read(&idle)? != store.read(&icon)? {
         return Err(invalid("Shimeji icon does not match idle"));
     }
     files.push(icon);
@@ -341,30 +347,31 @@ pub fn export(
     persona: &RenderedPersona,
     frames: &Path,
     output: &Path,
+    store: &mut dyn AssetStore,
 ) -> ExportResult<ExportReport> {
-    let configuration = configuration(persona, frames)?;
+    let configuration = configuration(persona, frames, store)?;
     let config = output.join("img").join(&persona.name).join("conf");
-    fs::create_dir_all(&config)?;
-    let mut files = frame_files(persona, frames, output, true)?;
+    store.create_dir_all(&config)?;
+    let mut files = frame_files(persona, frames, output, true, store)?;
     for (name, content) in [
         ("actions.xml", &configuration.actions),
         ("behaviors.xml", &configuration.behaviors),
     ] {
         let path = config.join(name);
-        fs::write(&path, content)?;
+        store.write(&path, content)?;
         files.push(path);
     }
-    let report = report(ExportTarget::Shimeji, persona, output, &files)?;
-    fs::write(
-        output.join("manifest.json"),
-        serde_json::to_vec_pretty(&metadata(persona, &report, &configuration)?)?,
+    let report = report(ExportTarget::Shimeji, persona, output, &files, store)?;
+    store.write(
+        &output.join("manifest.json"),
+        &serde_json::to_vec_pretty(&metadata(persona, &report, &configuration)?)?,
     )?;
-    fs::write(
-        output.join("README.md"),
+    store.write(
+        &output.join("README.md"),
         format!(
             "# {} for Shimeji\n\nCopy `img/{}` into the Shimeji engine's `img` folder.  \nSelect {} in the character chooser.  \nUse the pet's context menu to choose an action.  \n\nThe image set supports Shimeji-ee compatible engines.  \nWalking uses independently rendered left and right views.  \n",
             persona.name, persona.name, persona.name
-        ),
+        ).as_bytes(),
     )?;
     Ok(report)
 }
@@ -373,25 +380,26 @@ pub fn validate(
     persona: &RenderedPersona,
     frames: &Path,
     output: &Path,
+    store: &mut dyn AssetStore,
 ) -> ExportResult<ExportReport> {
-    let configuration = configuration(persona, frames)?;
+    let configuration = configuration(persona, frames, store)?;
     let config = output.join("img").join(&persona.name).join("conf");
-    let mut files = frame_files(persona, frames, output, false)?;
+    let mut files = frame_files(persona, frames, output, false, store)?;
     for (name, expected) in [
         ("actions.xml", &configuration.actions),
         ("behaviors.xml", &configuration.behaviors),
     ] {
         let path = config.join(name);
-        if &fs::read(&path)? != expected {
+        if &store.read(&path)? != expected {
             return Err(invalid(format!(
                 "Shimeji configuration differs from its export contract: {name}"
             )));
         }
         files.push(path);
     }
-    let report = report(ExportTarget::Shimeji, persona, output, &files)?;
+    let report = report(ExportTarget::Shimeji, persona, output, &files, store)?;
     let actual: serde_json::Value =
-        serde_json::from_slice(&fs::read(output.join("manifest.json"))?)?;
+        serde_json::from_slice(&store.read(&output.join("manifest.json"))?)?;
     if actual != metadata(persona, &report, &configuration)? {
         return Err(invalid(
             "Shimeji manifest does not match its validated outputs",

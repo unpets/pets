@@ -1,3 +1,4 @@
+import { resolveComposition } from '@pets/three-runtime/project';
 import { beforeAll, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { Group, Quaternion, Vector3 } from 'three';
@@ -173,7 +174,7 @@ test('independent joint tracks preserve default poses and arbitrary limb combina
     if (object.userData.joint) joints[object.userData.joint] = object.name;
   });
   for (const mode of ['idle', 'running', 'waving', 'review']) {
-    const composition = data.project.compositions[mode];
+    const composition = resolveComposition(data.project, mode);
     motion.setLayers(
       Object.entries(composition.bindings)
         .filter(([id]) => data.project.components[id].kind === 'rig')

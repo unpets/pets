@@ -1,3 +1,5 @@
+import type { CharacterAssets } from '@pets/kernel/assets';
+import { resolveComposition } from '@pets/three-runtime/project';
 import {
   DirectionalLight,
   GridHelper,
@@ -50,8 +52,9 @@ export async function createStudio(
   displayCanvas: HTMLCanvasElement,
   onPlayback: (state: PlaybackState) => void,
   onDetails: (voxelCount: number) => void,
+  assets?: CharacterAssets,
 ): Promise<StudioController> {
-  const character = await createCharacter(displayCanvas);
+  const character = await createCharacter(displayCanvas, assets);
   const { model, parts, data, display, motion, cable, screen } = character;
   const scene = new Scene();
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
@@ -111,6 +114,7 @@ export async function createStudio(
   let animationFrame = 0;
   let previousTime = performance.now();
   let destroyed = false;
+  let suspended = false;
 
   function setCamera(view: CameraView) {
     camera.position.set(...cameraPositions[view]);
@@ -118,7 +122,7 @@ export async function createStudio(
     controls.update();
   }
   function update(elapsed: number) {
-    const clip = character.project.compositions[mode];
+    const clip = resolveComposition(character.project, mode);
     character.update(mode, elapsed, phase, independentSeconds);
     markers.children.forEach((marker, index) =>
       parts[jointNames[index]].getWorldPosition(marker.position),
@@ -149,11 +153,16 @@ export async function createStudio(
     if (destroyed) return;
     const elapsed = Math.max(0, Math.min((now - previousTime) / 1000, 0.05));
     previousTime = now;
+    if (suspended) {
+      animationFrame = requestAnimationFrame(animate);
+      return;
+    }
     if (playing) {
       independentSeconds += elapsed * speed;
       const next =
         phase +
-        (elapsed * speed) / character.project.compositions[mode].duration;
+        (elapsed * speed) /
+          resolveComposition(character.project, mode).duration;
       phase = looping ? next % 1 : Math.min(1, next);
       if (!looping && next >= 1) playing = false;
     }
@@ -188,6 +197,9 @@ export async function createStudio(
       phase = 0;
       update(0);
     },
+    setSuspended(value) {
+      suspended = value;
+    },
     setPlaying(value) {
       if (value && phase >= 1) phase = 0;
       playing = value;
@@ -210,7 +222,7 @@ export async function createStudio(
           Math.min(intervals, Math.round(phase * intervals) + direction),
         ) / intervals;
       independentSeconds =
-        phase * character.project.compositions[mode].duration;
+        phase * resolveComposition(character.project, mode).duration;
       motion.cancelTransition();
       update(0);
     },
@@ -218,7 +230,7 @@ export async function createStudio(
       playing = false;
       phase = Math.max(0, Math.min(1, value));
       independentSeconds =
-        phase * character.project.compositions[mode].duration;
+        phase * resolveComposition(character.project, mode).duration;
       motion.cancelTransition();
       update(0);
     },

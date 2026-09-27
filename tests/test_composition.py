@@ -3,7 +3,7 @@
 import unittest
 
 import numpy as np
-from kernel_voxel.animation import PROJECT, rig_layer
+from kernel_voxel.animation import PROJECT, resolve_composition, rig_layer
 from kernel_voxel.emission import sample_curve, values_at
 from kernel_voxel.hands import HAND_BONES, KEYBOARD_DEPTH
 from kernel_voxel.keyboard import KEYBOARDS, TYPING_DIGITS, key_intensity
@@ -21,7 +21,7 @@ class CompositionTests(unittest.TestCase):
                     np.testing.assert_allclose(
                         idle.matrices[name], look.matrices[name], atol=1e-10
                     )
-        for name, binding in PROJECT["compositions"]["look"]["bindings"].items():
+        for name, binding in resolve_composition(PROJECT, "look")["bindings"].items():
             if name.startswith("rig/") and name != "rig/head":
                 self.assertEqual(
                     PROJECT["clips"][binding["clip"]]["data"]["source"], "idle"

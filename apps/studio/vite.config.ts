@@ -6,7 +6,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 export default defineConfig({
   plugins: [svelte(), tailwindcss(), viteSingleFile()],
   publicDir: false,
-  assetsInclude: ['**/*.glb'],
+  assetsInclude: ['**/*.glb', '**/*.wasm'],
   base: './',
   build: { outDir: '../../dist', emptyOutDir: true },
   server: { host: '127.0.0.1', port: 5173 },

@@ -2,7 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::BTreeMap, error::Error, fmt};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    error::Error,
+    fmt,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -43,7 +47,10 @@ pub struct Composition {
     pub label: String,
     #[serde(default)]
     pub description: String,
-    pub duration: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration: Option<f64>,
     pub bindings: BTreeMap<String, Binding>,
 }
 
@@ -111,7 +118,7 @@ fn identifier(id: &str) -> bool {
 impl AnimationProject {
     pub fn validate(&self) -> Result<(), AnimationError> {
         require(
-            self.format == "pets-animation" && self.version == 1,
+            self.format == "pets-animation" && matches!(self.version, 1 | 2),
             "Unsupported animation project",
         )?;
         require(
@@ -140,10 +147,12 @@ impl AnimationProject {
             require(
                 identifier(id)
                     && !composition.label.trim().is_empty()
-                    && composition.duration.is_finite()
-                    && composition.duration > 0.0,
+                    && composition
+                        .duration
+                        .is_none_or(|duration| duration.is_finite() && duration > 0.0),
                 format!("Invalid composition: {id}"),
             )?;
+            self.resolve(id)?;
             for (component, binding) in &composition.bindings {
                 let clip = self.clips.get(&binding.clip);
                 require(
@@ -166,6 +175,34 @@ impl AnimationProject {
         Ok(())
     }
 
+    /// Resolve inherited bindings without flattening the editable project.
+    pub fn resolve(&self, id: &str) -> Result<Composition, AnimationError> {
+        let mut chain = Vec::new();
+        let mut seen = BTreeSet::new();
+        let mut cursor = Some(id);
+        while let Some(name) = cursor {
+            require(seen.insert(name), format!("Composition cycle: {name}"))?;
+            let composition = self
+                .compositions
+                .get(name)
+                .ok_or_else(|| AnimationError(format!("Unknown parent composition: {name}")))?;
+            chain.push(composition);
+            cursor = composition.parent.as_deref();
+        }
+        let mut result = chain[0].clone();
+        result.bindings.clear();
+        result.duration = None;
+        for composition in chain.into_iter().rev() {
+            result.bindings.extend(composition.bindings.clone());
+            result.duration = composition.duration.or(result.duration);
+        }
+        require(
+            result.duration.is_some_and(|v| v.is_finite() && v > 0.0),
+            format!("Composition needs a duration: {id}"),
+        )?;
+        Ok(result)
+    }
+
     /// Independent clocks continue across composition changes. Composition clocks
     /// restart and stretch to the composition's duration for explicit coordination.
     pub fn sample(
@@ -178,10 +215,7 @@ impl AnimationProject {
             seconds.is_finite() && independent_seconds.is_finite(),
             "Clock values must be finite",
         )?;
-        let composition = self
-            .compositions
-            .get(composition)
-            .ok_or_else(|| AnimationError(format!("Unknown composition: {composition}")))?;
+        let composition = self.resolve(composition)?;
         composition
             .bindings
             .iter()
@@ -193,7 +227,7 @@ impl AnimationProject {
                     .ok_or_else(|| AnimationError(format!("Unknown clip: {}", binding.clip)))?;
                 let cycles = match binding.clock {
                     Clock::Independent => independent_seconds / clip.duration,
-                    Clock::Composition => seconds / composition.duration,
+                    Clock::Composition => seconds / composition.duration.unwrap(),
                 } * binding.speed
                     + binding.offset;
                 let phase = if clip.looping {

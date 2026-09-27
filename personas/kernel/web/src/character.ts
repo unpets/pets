@@ -1,3 +1,4 @@
+import { resolveComposition } from '@pets/three-runtime/project';
 import {
   Mesh,
   MeshBasicMaterial,
@@ -9,7 +10,7 @@ import {
   Euler,
   type Material,
 } from 'three';
-import { loadAssets } from './assets';
+import { loadAssets, type CharacterAssets } from './assets';
 import { createMotion } from '@pets/three-runtime/motion';
 import { createCable } from './cable';
 import { createEmission } from './emission';
@@ -21,8 +22,11 @@ import {
 } from '@pets/three-runtime/project';
 import { parseKernelProject } from './animation-project';
 
-export async function createCharacter(canvas: HTMLCanvasElement) {
-  const { model, clips, data, screenImages } = await loadAssets();
+export async function createCharacter(
+  canvas: HTMLCanvasElement,
+  assets?: CharacterAssets,
+) {
+  const { model, clips, data, screenImages } = await loadAssets(assets);
   const parts: Record<string, Object3D> = {};
   const joints: Record<string, Object3D> = {};
   let display: Mesh | undefined;
@@ -49,7 +53,7 @@ export async function createCharacter(canvas: HTMLCanvasElement) {
   let samples: ReturnType<typeof sampleComposition> = {};
   let screenSeconds = 0;
   function select(mode: string) {
-    const composition = project.compositions[mode];
+    const composition = resolveComposition(project, mode);
     if (!composition) throw new Error(`Unknown composition: ${mode}`);
     motion.setLayers(
       Object.entries(composition.bindings)
@@ -129,14 +133,14 @@ export async function createCharacter(canvas: HTMLCanvasElement) {
       mode: AnimationMode,
       elapsed: number,
       phase: number,
-      independentSeconds = phase * project.compositions[mode].duration,
+      independentSeconds = phase * resolveComposition(project, mode).duration,
     ) {
       if (selected !== mode) select(mode);
       screenSeconds = independentSeconds;
       samples = sampleComposition(
         project,
         mode,
-        phase * project.compositions[mode].duration,
+        phase * resolveComposition(project, mode).duration,
         independentSeconds,
       );
       motion.update(

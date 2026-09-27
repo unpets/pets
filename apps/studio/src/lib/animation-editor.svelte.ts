@@ -1,4 +1,5 @@
 import {
+  resolveComposition,
   binding,
   uniqueId,
   type AnimationProject,
@@ -76,7 +77,7 @@ export class AnimationEditorState {
   bind(composition: string, update: Partial<Binding>) {
     const project = parseKernelProject(this.project);
     const old =
-      project.compositions[composition].bindings[this.component] ??
+      resolveComposition(project, composition).bindings[this.component] ??
       binding(this.clip);
     project.compositions[composition].bindings[this.component] = {
       ...old,
@@ -87,9 +88,110 @@ export class AnimationEditorState {
   duplicateComposition(source: string, label: string) {
     const project = parseKernelProject(this.project);
     const id = uniqueId(label, project.compositions);
-    project.compositions[id] = { ...project.compositions[source], label };
+    const {
+      origins: _,
+      parent: __,
+      ...resolved
+    } = resolveComposition(project, source);
+    project.compositions[id] = { ...resolved, label };
     this.replace(project);
     return id;
+  }
+  createComposition(label: string, parent?: string) {
+    const project = parseKernelProject(this.project);
+    const id = uniqueId(label, project.compositions);
+    project.compositions[id] = {
+      label,
+      description: '',
+      ...(parent ? { parent } : { duration: 2 }),
+      bindings: {},
+    };
+    this.replace(project);
+    return id;
+  }
+  updateComposition(
+    id: string,
+    update: Partial<AnimationProject['compositions'][string]>,
+  ) {
+    const project = parseKernelProject(this.project);
+    Object.assign(project.compositions[id], update);
+    this.replace(project);
+  }
+  resetBinding(composition: string, components = [this.component]) {
+    const project = parseKernelProject(this.project);
+    for (const component of components)
+      delete project.compositions[composition].bindings[component];
+    this.replace(project);
+  }
+  detachComposition(id: string) {
+    const {
+      origins: _,
+      parent: __,
+      ...resolved
+    } = resolveComposition(this.project, id);
+    const project = parseKernelProject(this.project);
+    project.compositions[id] = resolved;
+    this.replace(project);
+  }
+  deleteComposition(id: string) {
+    const project = parseKernelProject(this.project);
+    if (Object.keys(project.compositions).length === 1)
+      throw new Error('Keep at least one composition.');
+    if (Object.values(project.compositions).some((c) => c.parent === id))
+      throw new Error('Reparent or detach child compositions first.');
+    if (
+      Object.values(project.exports).some((map) =>
+        Object.values(map).includes(id),
+      )
+    )
+      throw new Error(
+        'Update export mappings before deleting this composition.',
+      );
+    delete project.compositions[id];
+    this.replace(project);
+  }
+  duplicateClip(label: string, composition: string) {
+    const project = parseKernelProject(this.project);
+    const id = uniqueId(label, project.clips);
+    project.clips[id] = { ...project.clips[this.clip], label };
+    const old =
+      resolveComposition(project, composition).bindings[this.component] ??
+      binding(id);
+    project.compositions[composition].bindings[this.component] = {
+      ...old,
+      clip: id,
+    };
+    this.replace(project);
+    this.clip = id;
+  }
+  deleteClip() {
+    const project = parseKernelProject(this.project);
+    if (
+      Object.values(project.compositions).some((c) =>
+        Object.values(c.bindings).some((b) => b.clip === this.clip),
+      )
+    )
+      throw new Error('Unassign this clip before deleting it.');
+    delete project.clips[this.clip];
+    this.replace(project);
+  }
+  editComponent(update: Partial<AnimationProject['components'][string]>) {
+    const project = parseKernelProject(this.project);
+    Object.assign(project.components[this.component], update);
+    this.replace(project);
+  }
+  deleteComponent() {
+    const project = parseKernelProject(this.project);
+    if (
+      Object.values(project.compositions).some(
+        (c) => c.bindings[this.component],
+      )
+    )
+      throw new Error('Unassign this component from every composition first.');
+    for (const [id, clip] of Object.entries(project.clips))
+      if (clip.component === this.component) delete project.clips[id];
+    delete project.components[this.component];
+    this.replace(project);
   }
   editClip(update: Partial<Clip>, group?: string) {
     const project = parseKernelProject(this.project);

@@ -14,7 +14,9 @@ def sample_curve(frames, seconds):
 
 
 def values_at(project, state, phase):
-    composition = project["compositions"][state]
+    from .animation import resolve_composition
+
+    composition = resolve_composition(project, state)
     values = {
         component["data"]["material"]: 0.0
         for component in project["components"].values()

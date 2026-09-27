@@ -14,17 +14,22 @@
     ChevronRight,
     Box,
   } from '@lucide/svelte';
+  import { compositionTree } from '@pets/three-runtime/project';
   import type { AnimationProject } from '@pets/three-runtime/project';
-  import { downloads } from '@pets/kernel/assets';
+  import type { CharacterAssets } from '@pets/kernel/assets';
   import { type PlaybackState, type StudioController } from '../lib/types';
   let {
     playback,
     studio,
     project,
+    assets,
+    persona,
   }: {
     playback: PlaybackState;
     studio?: StudioController;
     project: AnimationProject;
+    assets: CharacterAssets;
+    persona: { id: string; name: string };
   } = $props();
   const icons: Record<string, typeof Activity> = {
     idle: Activity,
@@ -38,7 +43,10 @@
     review: ScanEye,
     look: Compass,
   };
-  const modes = $derived(Object.entries(project.compositions));
+  const animationUrl = $derived(
+    `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ ...assets.data, project }))}`,
+  );
+  const modes = $derived(compositionTree(project));
 </script>
 
 <aside class="animation-browser" aria-label="Animation browser">
@@ -50,8 +58,8 @@
       class="flex items-center gap-2.5 rounded-md border border-line bg-surface px-3 py-2.5"
     >
       <Box size={17} class="text-accent" /><span class="text-xs font-medium"
-        >Kernel</span
-      ><span class="ml-auto text-[9px] text-muted">DEFAULT</span>
+        >{persona.name}</span
+      >
     </div>
   </div>
   <div class="flex items-center justify-between px-4 pt-5 pb-3">
@@ -59,10 +67,15 @@
     <span class="text-[10px] text-muted">{modes.length}</span>
   </div>
   <div class="clip-list" role="group" aria-label="Animation mode">
-    {#each modes as [id, mode], index}
+    {#each modes as { id, depth }, index}
+      {@const mode = project.compositions[id]}
       {@const Icon = icons[id] ?? Activity}
       <button
         class="clip-button"
+        style:padding-left={`${12 + depth * 14}px`}
+        title={mode.parent
+          ? `Inherits ${project.compositions[mode.parent].label}`
+          : 'Root composition'}
         data-state={id}
         data-selected={playback.mode === id}
         aria-pressed={playback.mode === id}
@@ -83,8 +96,8 @@
     <h2 class="eyebrow mb-3">SOURCE ASSETS</h2>
     <a
       class="asset-link"
-      href={downloads.model}
-      download="kernel.glb"
+      href={assets.model}
+      download={`${persona.id}.glb`}
       aria-label="Download 3D model"
       ><Download size={13} />Download 3D model<span class="ml-auto text-[9px]"
         >GLB</span
@@ -92,7 +105,7 @@
     >
     <a
       class="asset-link mt-3"
-      href={downloads.animations}
+      href={animationUrl}
       download="animations.json"
       aria-label="Animation data"
       ><Download size={13} />Animation data<span class="ml-auto text-[9px]"

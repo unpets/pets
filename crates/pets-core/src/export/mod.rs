@@ -2,6 +2,8 @@
 
 mod codex;
 mod images;
+mod store;
+pub use store::{AssetStore, FileStore, MemoryStore};
 mod shimeji;
 
 use crate::ExportTarget;
@@ -10,7 +12,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     error::Error,
-    fmt, fs,
+    fmt,
     path::{Path, PathBuf},
 };
 
@@ -190,19 +192,26 @@ fn component(value: &str) -> ExportResult<()> {
 }
 
 pub fn execute(request: &ExportRequest) -> ExportResult<ExportReport> {
+    execute_with_store(request, &mut FileStore)
+}
+
+pub fn execute_with_store(
+    request: &ExportRequest,
+    store: &mut dyn AssetStore,
+) -> ExportResult<ExportReport> {
     request.persona.validate()?;
     let report = match (&request.operation, request.target) {
         (Operation::Export, ExportTarget::Codex) => {
-            codex::export(&request.persona, &request.frames, &request.output)?
+            codex::export(&request.persona, &request.frames, &request.output, store)?
         }
         (Operation::Validate, ExportTarget::Codex) => {
-            codex::validate(&request.persona, &request.frames, &request.output)?
+            codex::validate(&request.persona, &request.frames, &request.output, store)?
         }
         (Operation::Export, ExportTarget::Shimeji) => {
-            shimeji::export(&request.persona, &request.frames, &request.output)?
+            shimeji::export(&request.persona, &request.frames, &request.output, store)?
         }
         (Operation::Validate, ExportTarget::Shimeji) => {
-            shimeji::validate(&request.persona, &request.frames, &request.output)?
+            shimeji::validate(&request.persona, &request.frames, &request.output, store)?
         }
     };
     for (path, expected) in &request.expected_files {
@@ -213,8 +222,8 @@ pub fn execute(request: &ExportRequest) -> ExportResult<ExportReport> {
     Ok(report)
 }
 
-fn checksum(path: &Path) -> ExportResult<String> {
-    Ok(Sha256::digest(fs::read(path)?)
+fn checksum(path: &Path, store: &dyn AssetStore) -> ExportResult<String> {
+    Ok(Sha256::digest(store.read(path)?)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect())
@@ -225,6 +234,7 @@ fn report(
     persona: &RenderedPersona,
     root: &Path,
     files: &[PathBuf],
+    store: &dyn AssetStore,
 ) -> ExportResult<ExportReport> {
     let mut hashes = BTreeMap::new();
     for path in files {
@@ -233,7 +243,7 @@ fn report(
             .map_err(|_| invalid("Export output escaped its root"))?;
         hashes.insert(
             relative.to_string_lossy().replace('\\', "/"),
-            checksum(path)?,
+            checksum(path, store)?,
         );
     }
     Ok(ExportReport {

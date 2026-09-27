@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { parseAnimationProject } from '../packages/three-runtime/src/project.ts';
 const port = 4173;
 const server = spawn('bun', ['run', 'preview', '--', '--port', String(port)], {
   stdio: 'pipe',
@@ -149,10 +150,18 @@ try {
       await page.getByRole('link', { name: label, exact: true }).click();
       const download = await pending;
       assert.equal(download.suggestedFilename(), name);
-      assert.deepEqual(
-        await readFile(await download.path()),
-        await readFile(resolve('personas/kernel/generated/assets', name)),
+      const actual = await readFile(await download.path());
+      const expected = await readFile(
+        resolve('personas/kernel/generated/assets', name),
       );
+      if (name.endsWith('.json')) {
+        const document = JSON.parse(expected);
+        document.project = parseAnimationProject(document.project);
+        assert.deepEqual(
+          JSON.parse(actual),
+          JSON.parse(JSON.stringify(document)),
+        );
+      } else assert.deepEqual(actual, expected);
     }
     await page.locator('[data-view="back"]').click();
     assert.ok(
@@ -257,7 +266,13 @@ try {
       .click();
     const savedProject = page.waitForEvent('download');
     await page
+      .getByRole('button', { name: 'Import and export', exact: true })
+      .click();
+    await page
       .getByRole('button', { name: 'Save screen', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Close project files', exact: true })
       .click();
     const projectDownload = await savedProject;
     const project = JSON.parse(
@@ -270,7 +285,7 @@ try {
       .click();
     project.layers.eyes.x = -4;
     await page
-      .getByLabel('Import screen project file', { exact: true })
+      .getByLabel('Import project file', { exact: true })
       .setInputFiles({
         name: 'screen.json',
         mimeType: 'application/json',
@@ -297,7 +312,7 @@ try {
       '0',
     );
     await page
-      .getByLabel('Import screen project file', { exact: true })
+      .getByLabel('Import project file', { exact: true })
       .setInputFiles({
         name: 'invalid.json',
         mimeType: 'application/json',

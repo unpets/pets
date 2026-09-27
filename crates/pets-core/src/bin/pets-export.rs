@@ -72,11 +72,21 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             seconds,
             independent_seconds,
         } => {
-            let project: pets_core::animation::AnimationProject = if input.as_os_str() == "-" {
+            let document: serde_json::Value = if input.as_os_str() == "-" {
                 serde_json::from_reader(io::stdin().lock())?
             } else {
                 serde_json::from_reader(File::open(input)?)?
             };
+            let project: pets_core::animation::AnimationProject = serde_json::from_value(
+                if document.get("format").and_then(|value| value.as_str()) == Some("pets-studio") {
+                    document
+                        .get("animations")
+                        .cloned()
+                        .ok_or("Studio project has no animations")?
+                } else {
+                    document
+                },
+            )?;
             project.validate()?;
             if let Some(composition) = composition {
                 serde_json::to_writer(

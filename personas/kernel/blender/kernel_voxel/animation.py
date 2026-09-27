@@ -74,7 +74,7 @@ def binding(clip, clock="independent"):
 def animation_project():
     project = {
         "format": "pets-animation",
-        "version": 1,
+        "version": 2,
         "components": {},
         "clips": {},
         "compositions": {},
@@ -201,6 +201,14 @@ def animation_project():
             "duration": count * DURATIONS[state] / 1000,
             "bindings": bindings,
         }
+    for state in ("waving", "look"):
+        child = project["compositions"][state]
+        child["parent"] = "idle"
+        child["bindings"] = {
+            component: source
+            for component, source in child["bindings"].items()
+            if source != project["compositions"]["idle"]["bindings"].get(component)
+        }
     project["exports"] = {
         target: {state: state for state in states} for target in ("codex", "shimeji")
     }
@@ -210,8 +218,31 @@ def animation_project():
 PROJECT = animation_project()
 
 
+def resolve_composition(project, identifier):
+    """Resolve live inherited bindings while retaining sparse editable overrides."""
+    chain, seen = [], set()
+    cursor = identifier
+    while cursor is not None:
+        if cursor in seen:
+            raise ValueError(f"Composition cycle: {cursor}")
+        seen.add(cursor)
+        composition = project["compositions"][cursor]
+        chain.append(composition)
+        cursor = composition.get("parent")
+    result = dict(chain[0])
+    result["bindings"] = {}
+    duration = None
+    for composition in reversed(chain):
+        result["bindings"].update(composition["bindings"])
+        duration = composition.get("duration", duration)
+    if duration is None or duration <= 0:
+        raise ValueError(f"Composition needs a duration: {identifier}")
+    result["duration"] = duration
+    return result
+
+
 def screen_bindings(state, phase):
-    composition = PROJECT["compositions"][state]
+    composition = resolve_composition(PROJECT, state)
     seconds = phase * composition["duration"]
     for component, source in composition["bindings"].items():
         if (
@@ -233,7 +264,7 @@ def screen_bindings(state, phase):
 
 def prop_visible(state, prop):
     component = f"prop/{prop}"
-    source = PROJECT["compositions"][state]["bindings"].get(component)
+    source = resolve_composition(PROJECT, state)["bindings"].get(component)
     return bool(
         source
         and source["enabled"]

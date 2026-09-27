@@ -1,3 +1,5 @@
+import type { StudioProject } from '../studio-project';
+import { resolveComposition } from '@pets/three-runtime/project';
 import type { AnimationProject } from '@pets/three-runtime/project';
 import { loadAnimationProject } from '@pets/kernel/animation-project';
 import {
@@ -20,13 +22,16 @@ import {
   type ScreenProject,
 } from '@pets/kernel/screen-project';
 
-export async function createPetScene(viewport: HTMLDivElement) {
+export async function createPetScene(
+  viewport: HTMLDivElement,
+  project?: StudioProject,
+) {
   const canvas = document.createElement('canvas');
   canvas.width = 96;
   canvas.height = 64;
-  const character = await createCharacter(canvas);
-  character.screen.setProject(loadScreenProject());
-  character.setProject(loadAnimationProject());
+  const character = await createCharacter(canvas, project?.assets);
+  character.screen.setProject(project?.screen ?? loadScreenProject());
+  character.setProject(project?.animations ?? loadAnimationProject());
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.outputColorSpace = SRGBColorSpace;
@@ -62,7 +67,7 @@ export async function createPetScene(viewport: HTMLDivElement) {
   const ray = new Raycaster();
   const headScreen = new Vector3();
   let cursor = { x: 0, y: 0, valid: false };
-  let mode: AnimationMode = 'idle';
+  let mode: AnimationMode = project?.selection.composition ?? 'idle';
   let phase = 0;
   let independentSeconds = 0;
   let playing = true;
@@ -90,7 +95,9 @@ export async function createPetScene(viewport: HTMLDivElement) {
     if (playing) {
       independentSeconds += elapsed;
       phase =
-        (phase + elapsed / character.project.compositions[mode].duration) % 1;
+        (phase +
+          elapsed / resolveComposition(character.project, mode).duration) %
+        1;
     }
     character.joints.head.quaternion.copy(authoredHead);
     character.update(mode, elapsed, phase, independentSeconds);

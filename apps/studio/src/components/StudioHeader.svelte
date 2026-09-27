@@ -12,12 +12,16 @@
   import type { Workspace } from '../lib/types';
 
   let {
+    personaName,
+    busy,
     workspace,
     onworkspace,
     editor,
     onimport,
     onexport,
   }: {
+    personaName: string;
+    busy: boolean;
     workspace: Workspace;
     onworkspace: (value: Workspace) => void;
     editor: { canUndo: boolean; canRedo: boolean; undo(): void; redo(): void };
@@ -37,7 +41,7 @@
         Pets <span class="font-normal text-muted">Studio</span>
       </h1>
       <p class="mt-0.5 text-[10px] text-muted">
-        Kernel <span class="mx-1 text-line">/</span> Default persona
+        {personaName} <span class="mx-1 text-line">/</span> Persona
       </p>
     </div>
   </div>
@@ -65,7 +69,7 @@
       aria-label={workspace === 'animation'
         ? 'Undo animation edit'
         : 'Undo screen edit'}
-      title="Undo screen edit (Ctrl+Z)"
+      title="Undo (Ctrl+Z)"
       disabled={!editor.canUndo}
       onclick={() => editor.undo()}><Undo2 size={16} /></button
     >
@@ -74,23 +78,23 @@
       aria-label={workspace === 'animation'
         ? 'Redo animation edit'
         : 'Redo screen edit'}
-      title="Redo screen edit (Ctrl+Shift+Z)"
+      title="Redo (Ctrl+Shift+Z)"
       disabled={!editor.canRedo}
       onclick={() => editor.redo()}><Redo2 size={16} /></button
     >
     <span class="mx-2 h-5 w-px bg-line"></span>
     <button
       class="button header-file"
-      aria-label="Import screen"
+      disabled={busy}
+      aria-label="Import project"
       onclick={onimport}><Upload size={14} /><span>Import project</span></button
     >
     <button
       class="button primary header-file"
-      aria-label={workspace === 'animation' ? 'Save animations' : 'Save screen'}
+      disabled={busy}
+      aria-label="Import and export"
       onclick={onexport}
-      ><Download size={14} /><span
-        >{workspace === 'animation' ? 'Save animations' : 'Save screen'}</span
-      ></button
+      ><Download size={14} /><span>Import / export</span></button
     >
     <span class="ml-2 hidden text-[10px] text-muted xl:block">v{version}</span>
   </div>

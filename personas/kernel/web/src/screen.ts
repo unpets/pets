@@ -1,3 +1,4 @@
+import { resolveComposition } from '@pets/three-runtime/project';
 import type {
   AnimationProject,
   ComponentSample,
@@ -119,7 +120,9 @@ export function createScreen(
         const source = project.layers[name]?.source;
         if (source === null || source === undefined) continue;
         const mode = Object.keys(animationModes)[source];
-        const binding = animation.compositions[mode]?.bindings[id];
+        const binding = animation.compositions[mode]
+          ? resolveComposition(animation, mode).bindings[id]
+          : undefined;
         const clip = binding && animation.clips[binding.clip];
         if (clip)
           resolved[id] = {

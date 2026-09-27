@@ -70,6 +70,8 @@ jobs:
           restore-keys: kernel-studio-${{ runner.os }}-
       - name: Generate model and animation assets
         run: bun run generate
+      - name: Verify composition playback and baking
+        run: uv run python scripts/verify_compositions.py --blend build/kernel.blend
       - name: Test generated assets
         run: bun test
       - name: Check Svelte and TypeScript
@@ -87,6 +89,8 @@ jobs:
           bunx playwright install --with-deps chromium firefox
           bun run test:viewer
           bun run test:pet
+          bun run test:animation
+          bun run test:studio
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Save generated site
         uses: actions/upload-artifact@v7.0.1

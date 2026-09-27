@@ -1,7 +1,7 @@
-use super::{ExportReport, ExportResult, RenderedPersona, images, invalid, report};
+use super::{AssetStore, ExportReport, ExportResult, RenderedPersona, images, invalid, report};
 use crate::ExportTarget;
 use image::{GenericImage, RgbaImage};
-use std::{fs, path::Path};
+use std::path::Path;
 
 pub const CODEX_STATES: [(&str, u32); 10] = [
     ("idle", 6),
@@ -18,7 +18,11 @@ pub const CODEX_STATES: [(&str, u32); 10] = [
 const CELL: [u32; 2] = [192, 208];
 const SIZE: [u32; 2] = [1536, 2288];
 
-fn assemble(persona: &RenderedPersona, frames: &Path) -> ExportResult<RgbaImage> {
+fn assemble(
+    persona: &RenderedPersona,
+    frames: &Path,
+    store: &dyn AssetStore,
+) -> ExportResult<RgbaImage> {
     if persona.cell != CELL || persona.animations.len() != CODEX_STATES.len() {
         return Err(invalid(
             "Codex v2 requires its ten states and 192 by 208 cells",
@@ -30,7 +34,7 @@ fn assemble(persona: &RenderedPersona, frames: &Path) -> ExportResult<RgbaImage>
             return Err(invalid(format!("Wrong Codex frame count: {state}")));
         }
         for index in 0..*count {
-            let frame = images::load(&persona.frame_path(frames, state, index), CELL)?;
+            let frame = images::load(&persona.frame_path(frames, state, index), CELL, store)?;
             let bounds = images::bounds(&frame)
                 .ok_or_else(|| invalid(format!("Empty frame: {state}/{index}")))?;
             if bounds[0] == 0 || bounds[1] == 0 || bounds[2] == CELL[0] || bounds[3] == CELL[1] {
@@ -51,17 +55,19 @@ pub fn export(
     persona: &RenderedPersona,
     frames: &Path,
     output: &Path,
+    store: &mut dyn AssetStore,
 ) -> ExportResult<ExportReport> {
-    let atlas = assemble(persona, frames)?;
+    let atlas = assemble(persona, frames, store)?;
     if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent)?;
+        store.create_dir_all(parent)?;
     }
-    images::save(output, &atlas)?;
+    images::save(output, &atlas, store)?;
     report(
         ExportTarget::Codex,
         persona,
         output.parent().unwrap_or(Path::new(".")),
         &[output.to_path_buf()],
+        store,
     )
 }
 
@@ -69,8 +75,9 @@ pub fn validate(
     persona: &RenderedPersona,
     frames: &Path,
     output: &Path,
+    store: &mut dyn AssetStore,
 ) -> ExportResult<ExportReport> {
-    if images::load(output, SIZE)? != assemble(persona, frames)? {
+    if images::load(output, SIZE, store)? != assemble(persona, frames, store)? {
         return Err(invalid(
             "Codex atlas pixels do not match the input frames and empty cells",
         ));
@@ -80,5 +87,6 @@ pub fn validate(
         persona,
         output.parent().unwrap_or(Path::new(".")),
         &[output.to_path_buf()],
+        store,
     )
 }

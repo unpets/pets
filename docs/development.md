@@ -26,6 +26,8 @@ bun run dev:pet
 
 The studio and browser companion share Kernel's character adapter and screen compositor.  
 Vite embeds their assets into self-contained HTML builds.  
+Studio builds compile the Rust core for `wasm32-unknown-unknown`.  
+`bun run build:core` installs that Rust target when needed and uses Cargo incremental compilation.  
 Tailwind scans the application and persona components.  
 Screen projects retain the versioned `kernel-screen` format.  
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { download } from '../lib/files';
   import { Plus, Copy, Trash2, Eraser, Pencil } from '@lucide/svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
   let { editor }: { editor: AnimationEditorState } = $props();
@@ -8,6 +9,87 @@
   let erasing = $state(false);
   let size = $state(2);
   let painting = false;
+  let imageInput = $state<HTMLInputElement>();
+  let error = $state('');
+  async function importImage() {
+    const file = imageInput?.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 8_000_000)
+        throw new Error('Sprite images must be under 8 MB.');
+      const image = await createImageBitmap(file);
+      try {
+        if (
+          image.width % 96 ||
+          image.height % 64 ||
+          image.width * image.height > 96 * 64 * 240
+        )
+          throw new Error(
+            'Use a grid of 96 by 64 cells, with at most 240 frames.',
+          );
+        const source = document.createElement('canvas');
+        source.width = image.width;
+        source.height = image.height;
+        const context = source.getContext('2d')!;
+        context.drawImage(image, 0, 0);
+        const imported: [number, number, string][][] = [];
+        for (let y = 0; y < image.height; y += 64)
+          for (let x = 0; x < image.width; x += 96) {
+            const data = context.getImageData(x, y, 96, 64).data;
+            const pixels: [number, number, string][] = [];
+            for (let i = 0; i < data.length; i += 4)
+              if (data[i + 3])
+                pixels.push([
+                  (i / 4) % 96,
+                  Math.floor(i / 4 / 96),
+                  '#' +
+                    Array.from(data.slice(i, i + 4))
+                      .map((v) => v.toString(16).padStart(2, '0'))
+                      .join(''),
+                ]);
+            imported.push(pixels);
+          }
+        editor.editClip({ data: { frames: imported } });
+        frame = 0;
+        error = '';
+      } finally {
+        image.close();
+      }
+    } catch (reason) {
+      error = String(reason);
+    }
+    if (imageInput) imageInput.value = '';
+  }
+  function exportImage() {
+    const output = document.createElement('canvas');
+    const cols = frames.length;
+    output.width = cols * 96;
+    output.height = Math.ceil(frames.length / cols) * 64;
+    const context = output.getContext('2d')!;
+    frames.forEach((pixels, index) => {
+      for (const [x, y, color] of pixels) {
+        context.fillStyle = color;
+        context.fillRect(
+          (index % cols) * 96 + x,
+          Math.floor(index / cols) * 64 + y,
+          1,
+          1,
+        );
+      }
+    });
+    output.toBlob((blob) => {
+      if (blob)
+        download(`${editor.clip.replaceAll('/', '-')}.png`, blob, 'image/png');
+    });
+  }
+  function move(direction: number) {
+    const to = frame + direction;
+    if (to < 0 || to >= frames.length) return;
+    const next = [...frames];
+    [next[frame], next[to]] = [next[to], next[frame]];
+    editor.editClip({ data: { frames: next } });
+    frame = to;
+  }
   const clip = $derived(editor.project.clips[editor.clip]);
   const frames = $derived(clip.data.frames as [number, number, string][][]);
   $effect(() => {
@@ -105,6 +187,27 @@
       onpointercancel={stop}
       onlostpointercapture={stop}
     ></canvas>
+  </div>
+  <input
+    class="hidden"
+    type="file"
+    accept="image/png"
+    aria-label="Import pixel sprite sheet"
+    bind:this={imageInput}
+    onchange={importImage}
+  />
+  {#if error}<p class="px-4 text-xs text-red-200" role="alert">{error}</p>{/if}
+  <div class="flex flex-wrap justify-center gap-2">
+    <button class="button" onclick={() => imageInput?.click()}
+      >Import PNG frames</button
+    ><button class="button" onclick={exportImage}>Export PNG frames</button
+    ><button class="button" disabled={frame === 0} onclick={() => move(-1)}
+      >Move frame earlier</button
+    ><button
+      class="button"
+      disabled={frame === frames.length - 1}
+      onclick={() => move(1)}>Move frame later</button
+    >
   </div>
   <div class="flex flex-wrap items-center justify-center gap-2 p-4">
     <label class="text-xs text-muted"

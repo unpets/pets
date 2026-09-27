@@ -96,3 +96,24 @@ fn export_bindings_resolve_custom_compositions_without_renaming_source_frames() 
     );
     assert_eq!(persona.animations.len(), 1);
 }
+
+#[test]
+fn nested_inheritance_tracks_parent_edits_and_rejects_cycles() {
+    let mut project = project();
+    let child = serde_json::from_value(
+        serde_json::json!({"label":"Child","parent":"greeting","bindings":{}}),
+    )
+    .unwrap();
+    project.compositions.insert("child".into(), child);
+    project.validate().unwrap();
+    assert_eq!(project.resolve("child").unwrap().duration, Some(2.0));
+    project.compositions.get_mut("greeting").unwrap().duration = Some(5.0);
+    assert_eq!(project.resolve("child").unwrap().duration, Some(5.0));
+    assert_eq!(
+        project.sample("child", 2.5, 7.0).unwrap()["body"].phase,
+        0.5
+    );
+    project.compositions.get_mut("greeting").unwrap().parent = Some("child".into());
+    assert!(project.validate().is_err());
+    assert!(project.sample("child", 0.0, 0.0).is_err());
+}

@@ -1,4 +1,9 @@
-import { binding, type AnimationProject, type Binding } from './project';
+import {
+  resolveComposition,
+  binding,
+  type AnimationProject,
+  type Binding,
+} from './project';
 
 export function motionLayers(project: AnimationProject) {
   const layers = new Map<string, { label: string; components: string[] }>();
@@ -41,7 +46,7 @@ export function bindMotionLayer(
 ): AnimationProject {
   const next = structuredClone(project);
   for (const component of components) {
-    const old = next.compositions[composition].bindings[component];
+    const old = resolveComposition(next, composition).bindings[component];
     const clip =
       source === undefined
         ? old?.clip

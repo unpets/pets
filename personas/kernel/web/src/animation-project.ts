@@ -144,7 +144,7 @@ export function parseKernelProject(value: unknown): AnimationProject {
                   pixel[1] < 0 ||
                   pixel[1] >= 64 ||
                   typeof pixel[2] !== 'string' ||
-                  !/^#[0-9a-f]{6}$/i.test(pixel[2]),
+                  !/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(pixel[2]),
               ),
           )
         )

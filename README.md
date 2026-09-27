@@ -57,10 +57,12 @@ Use the Screen workspace for an enlarged display canvas and a dedicated layer in
 The display editor controls independent background, activity, eyes, and mouth layers.  
 Background, line, and text colors are editable, with line and text colors linked by default.  
 Layer controls include visibility, solo preview, opacity, color, and exact pixel offsets.  
-Undo and redo preserve editing history, including imported projects and resets.  
+Undo and redo apply to screen and animation edits.  
 Screen projects can be saved as JSON and imported into the companion.  
 Use the Animation workspace to combine independent joint, display, and prop clips.  
-Create compositions, pixel clips, screen layers, and joint rotation clips.  
+Create parented compositions, reusable pixel clips, screen layers, and joint rotation clips.  
+Children inherit parent content and override selected components.  
+Import / export saves complete projects, reusable assets, offline applications, and rendered Codex or Shimeji packages.  
 [Animation projects](docs/animation.md) describes clocks, reusable assets, and project import and export.  
 
 ## Build the applications
@@ -78,6 +80,8 @@ bun run build:desktop
 | `dist-pet/pet.html` | Self-contained browser companion |
 | `target/release/bundle/` | Native desktop packages |
 
+Studio builds compile the Rust export backend for WebAssembly and embed it in the HTML.  
+`bun run build:core` builds that backend independently.  
 Both HTML files work through `file://` and HTTP.  
 Use `bun run dev:desktop` to start the native companion during development.  
 Drag the companion to move it and right-click to open its controls.  
@@ -109,6 +113,7 @@ The Codex atlas is written to `build/kernel-spritesheet.png`.
 Copy `build-shimeji/img/Kernel` into a Shimeji-ee compatible engine's `img` folder.  
 Both image formats are generated and validated by the Rust core.  
 Run `bun run export --help` for the persona-independent export CLI.  
+Use `uv run kernel-compose --blend build/kernel.blend --project kernel.pets.json --output build-composed` to bake Studio edits into Blender.  
 
 ## Checks
 
@@ -130,6 +135,7 @@ bun run build:pet
 bunx playwright install --with-deps chromium firefox
 bun run test:viewer
 bun run test:pet
+bun run test:studio
 ```
 
 [Development](docs/development.md) covers targeted builds and validation.  

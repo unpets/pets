@@ -38,6 +38,7 @@ export interface StudioController {
   setAnimationProject(project: AnimationProject): void;
   setMode(mode: AnimationMode): void;
   setPlaying(playing: boolean): void;
+  setSuspended(suspended: boolean): void;
   setSpeed(speed: number): void;
   setLooping(looping: boolean): void;
   stepFrame(direction: number): void;

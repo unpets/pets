@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Persona contracts, companion behavior, and export mechanisms for Pets"
 
 [features]
+web = ["export"]
 export = ["dep:image", "dep:quick-xml", "dep:sha2"]
 cli = ["export", "dep:clap"]
 

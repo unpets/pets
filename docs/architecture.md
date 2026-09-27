@@ -47,6 +47,8 @@ Application code orchestrates those assets through the persona adapter.
 The Codex implementation assembles and validates the v2 atlas.  
 The Shimeji implementation writes and validates configuration, images, and package metadata.  
 Both consume rendered frames and a persona descriptor through the same Rust API.  
+Filesystem and memory stores share those implementations.  
+The browser embeds the Rust core as WebAssembly and supplies rendered PNG frames in memory.  
 The descriptor includes identity, version, frame dimensions, animation counts, timing, and provenance.  
 
 The `export` Cargo feature enables these mechanisms independently of the native host.  

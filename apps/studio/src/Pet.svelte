@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { embeddedProject, parseStudioProject } from './lib/studio-project';
   import { onMount } from 'svelte';
   import {
     parseKernelProject,
@@ -13,16 +14,34 @@
     saveScreenProject,
   } from '@pets/kernel/screen-project';
   import persona from '@pets/kernel/manifest';
+  let personaName = $state(persona.name);
   let modes = $state(animationModes);
   let projectFile = $state<HTMLInputElement>();
   async function importScreen() {
     const file = projectFile?.files?.[0];
     if (!file) return;
     try {
-      if (file.size > 2_000_000)
-        throw new Error('Projects must be under 2 MB.');
+      if (file.size > 96_000_000)
+        throw new Error('Projects must be under 96 MB.');
       const value = JSON.parse(await file.text());
-      if (value.format === 'pets-animation') {
+      if (value.format === 'pets-studio') {
+        const project = parseStudioProject(value);
+        const next = await createPetScene(viewport, project);
+        desktop?.destroy();
+        pet?.destroy();
+        pet = next;
+        personaName = project.persona.name;
+        window.kernelPet = next;
+        modes = next.compositions;
+        mode = next.state;
+        desktop = await connectDesktop(
+          next,
+          () => ({ tracking, autonomous, playing, menu, mode }),
+          setMode,
+          () => (menu = true),
+          (message) => (error = message),
+        );
+      } else if (value.format === 'pets-animation') {
         const project = parseKernelProject(value);
         pet?.setAnimationProject(project);
         saveAnimationProject(project);
@@ -59,7 +78,9 @@
   }
   onMount(() => {
     let disposed = false;
-    createPetScene(viewport)
+    const project = embeddedProject();
+    personaName = project?.persona.name ?? persona.name;
+    createPetScene(viewport, project)
       .then(async (scene) => {
         if (disposed) {
           scene.destroy();
@@ -67,6 +88,7 @@
         }
         pet = scene;
         modes = scene.compositions;
+        mode = scene.state;
         window.kernelPet = scene;
         desktop = await connectDesktop(
           scene,
@@ -103,7 +125,7 @@
   class="pet-stage"
   bind:this={viewport}
   role="img"
-  aria-label={`${persona.name} desktop companion`}
+  aria-label={`${personaName} desktop companion`}
   oncontextmenu={(event) => {
     event.preventDefault();
     menu = !menu;
@@ -123,7 +145,7 @@
 {#if menu}
   <section class="pet-controls" aria-label="Pet controls">
     <header>
-      <strong>{persona.name}</strong><button
+      <strong>{personaName}</strong><button
         aria-label="Close controls"
         onclick={() => {
           menu = false;
@@ -164,7 +186,7 @@
         ? 'Pause animation'
         : 'Resume animation'}</button
     >
-    <button onclick={() => projectFile?.click()}>Import screen project</button>
+    <button onclick={() => projectFile?.click()}>Import project</button>
     <input
       bind:this={projectFile}
       type="file"

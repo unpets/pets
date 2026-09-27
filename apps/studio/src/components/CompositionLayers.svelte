@@ -4,14 +4,16 @@
     layerSources,
     motionLayers,
   } from '@pets/three-runtime/layers';
+  import { resolveComposition } from '@pets/three-runtime/project';
   import type { Binding } from '@pets/three-runtime/project';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
   let { editor, mode }: { editor: AnimationEditorState; mode: string } =
     $props();
+  let expanded = $state<Record<string, boolean>>({ head: true });
   const layers = $derived(motionLayers(editor.project));
   function bindings(components: string[]) {
     return components.map(
-      (id) => editor.project.compositions[mode].bindings[id],
+      (id) => resolveComposition(editor.project, mode).bindings[id],
     );
   }
   function shared(components: string[], field: keyof Binding) {
@@ -46,9 +48,14 @@
 <section class="inspector-section">
   <h3>Motion layers</h3>
   {#each layers as layer}
-    <details class="mt-4" open={layer.id === 'head'}>
+    <details class="mt-4" bind:open={expanded[layer.id]}>
       <summary class="cursor-pointer text-xs font-medium">{layer.label}</summary
       >
+      {#if editor.project.compositions[mode].parent}<button
+          class="button mt-2 w-full"
+          onclick={() => editor.resetBinding(mode, layer.components)}
+          >Inherit {layer.label.toLowerCase()}</button
+        >{/if}
       <label class="field-label mt-3 block">
         Motion
         <select
