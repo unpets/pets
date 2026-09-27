@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import ScreenEditor from './components/ScreenEditor.svelte';
   import StudioHeader from './components/StudioHeader.svelte';
   import ModelViewport from './components/ModelViewport.svelte';
   import AnimationPanel from './components/AnimationPanel.svelte';
@@ -56,6 +57,7 @@
   <ModelViewport bind:viewport {studio} {error} />
   <AnimationPanel bind:canvas {playback} {studio} />
 </main>
+<ScreenEditor {studio} />
 <footer
   class="flex flex-wrap justify-between gap-4 border-t border-line px-[4vw] py-5 text-[10px] tracking-wide text-muted"
 >

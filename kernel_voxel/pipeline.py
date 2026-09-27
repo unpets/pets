@@ -129,7 +129,15 @@ def export_viewer(source, site_out, record):
         key,
         [
             site_out / "assets" / name
-            for name in ("kernel.glb", "animations.json", "screens.png")
+            for name in (
+                "kernel.glb",
+                "animations.json",
+                "screens.png",
+                "screen-background.png",
+                "screen-activity.png",
+                "screen-eyes.png",
+                "screen-mouth.png",
+            )
         ],
     )
 

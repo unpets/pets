@@ -96,13 +96,53 @@ bun run test:viewer
 
 ## Releases
 
-Run **Release Kernel** from GitHub Actions to publish the version declared in the project manifests.  
+Pushing a version change to `main` starts **Release Kernel**.  
+The workflow can also be started from GitHub Actions.  
 Pushing a matching `vMAJOR.MINOR.PATCH` tag also starts a release.  
 
-Releases include a standalone HTML viewer and Blender, pet, model, and site packages with SHA-256 checksums.  
+Releases include native desktop applications, Shimeji assets, offline HTML, and Blender, pet, model, and site packages with SHA-256 checksums.  
 Publishing happens only after rendering, validation, and browser checks succeed.  
 Published release assets are never overwritten.  
 The released static site is deployed to GitHub Pages.  
 
 Use **Build Kernel model studio** for development builds and checks.  
 [Release documentation](docs/releasing.md) covers version changes, package contents, and deployment.  
+
+## Desktop pet
+
+Install the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) and Rust.  
+Generate the shared model assets, then start the desktop pet.  
+
+```sh
+bun run generate
+bun run dev:desktop
+```
+
+Use `bun run build:desktop` to create a native application.  
+The transparent pet follows the desktop cursor with a bounded, smoothly animated neck.  
+Drag the pet to move it and right-click to open its controls.  
+The tray menu opens controls or quits the application.  
+Mouse tracking, wandering, and animation playback have separate controls.  
+`bun run build:pet` creates the browser companion in `dist-pet/pet.html`.  
+
+## Screen studio
+
+The screen editor provides independent background, activity, eyes, and mouth layers.  
+Each layer has visibility, opacity, color, position, and expression controls.  
+Changes appear on the 3D model and display preview.  
+Export a screen project as JSON and import it in the studio or desktop pet.  
+Layer assets are generated from the deterministic screen renderer.  
+
+## Shimeji
+
+Render the pet frames, then export the character image set.  
+
+```sh
+uv run kernel-render --output build
+bun run build:shimeji
+```
+
+Copy `build-shimeji/img/Kernel` into the Shimeji engine's `img` folder.  
+Select Kernel in the character chooser.  
+The package supports Shimeji-ee compatible engines and includes dragging, falling, walking, and cursor chasing.  
+The exporter reuses verified frames without rebuilding the model.  

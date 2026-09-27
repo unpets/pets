@@ -15,8 +15,14 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "web").mkdir()
+            (root / "src-tauri").mkdir()
+            (root / "src-tauri/Cargo.toml").write_text('[package]\nversion = "1.2.3"\n')
             (root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n')
-            for name in ("package.json", "web/package.json"):
+            for name in (
+                "package.json",
+                "web/package.json",
+                "src-tauri/tauri.conf.json",
+            ):
                 (root / name).write_text(json.dumps({"version": "1.2.3"}))
             with patch("scripts.release.ROOT", root):
                 self.assertEqual(release_version("v1.2.3"), "1.2.3")

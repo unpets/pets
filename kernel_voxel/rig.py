@@ -33,6 +33,7 @@ DURATIONS = {
 TAU = math.tau
 WRIST_PORT = np.array([0, 0.14, 0.055])
 SERVER_PORT = np.array([1.185, -0.427, 0.85])
+SHOULDER_PIVOT = np.array([0.64, 0, 1.50])
 PARENTS = {"body": None, "head": "body"}
 for side in ("L", "R"):
     for child, parent in (
@@ -110,6 +111,22 @@ def two_bone(a, b, l1, l2, pole):
 
 def smooth(t):
     return t * t * (3 - 2 * t)
+
+
+def look_angle(t):
+    """Ease between the sixteen runtime directions without changing their samples."""
+    step = (t % 1) * 16
+    index = math.floor(step)
+    return TAU * (index + smooth(step - index)) / 16
+
+
+def gaze_at(state, t):
+    if state == "look":
+        angle = look_angle(t)
+        return math.sin(angle), -math.cos(angle)
+    if state == "review":
+        return 0.24 * math.sin(TAU * t), 0.1
+    return 0.0, 0.0
 
 
 def gait_foot(phase):
@@ -210,17 +227,21 @@ def pose_at(state, t):
         hands[1] = np.array([0.96, -0.21, 1.10 + 0.012 * s])
         hands[-1] = np.array([-0.62, -0.41, 1.32 + 0.024 * math.sin(2 * TAU * t)])
     elif state == "review":
-        head_pitch = 0.12 + 0.035 * c
-        head_yaw = 0.13 * s
-        hands[1] = np.array([0.51, -0.44, 1.64 + 0.015 * s])
-        hands[-1] = np.array([-0.69, -0.22, 1.06])
+        nod = math.sin(math.pi * (t - 0.5) / 0.32) ** 2 if 0.5 < t < 0.82 else 0
+        head_pitch = 0.08 + 0.035 * c + 0.08 * nod
+        head_yaw = -0.045 + 0.12 * s
+        hands[1] = np.array([0.43, -0.48, 1.515 + 0.012 * s])
+        hands[-1] = np.array([-0.72, -0.16, 1.04])
     elif state == "look":
         root_z = 0
-        head_yaw = 0.216 + 0.72 * s
-        head_pitch = -0.40 * c
-        gaze = (s, -c)
+        angle = look_angle(t)
+        head_yaw = 0.216 + 0.66 * math.sin(angle)
+        head_pitch = -0.02 - 0.34 * math.cos(angle)
+        hands[-1] = np.array([-0.80, -0.09, 1.03])
+        hands[1] = np.array([0.80, -0.09, 1.03])
     elif state != "idle":
         raise ValueError(state)
+    gaze = gaze_at(state, t)
     heading = transform(angles=(0, 0, yaw))
     body = heading @ transform((root_x, root_y, root_z), (lean, roll, 0))
     matrices = {
@@ -233,7 +254,7 @@ def pose_at(state, t):
         hip = point(body, (side * 0.25, 0, 0.92))
         ankle = point(heading, ankles[side])
         knee = two_bone(hip, ankle, 0.42, 0.42, point(heading, (0, -1, 0)))
-        shoulder = point(body, (side * 0.64, 0, 1.50))
+        shoulder = point(body, SHOULDER_PIVOT * (side, 1, 1))
         # Jump hands follow torso translation; grounded states have world hand targets.
         hand = point(
             heading,
@@ -259,6 +280,8 @@ def pose_at(state, t):
             matrices[f"hand.{name}"] = heading @ transform(
                 hands[side], (math.pi / 2, 0, side * 0.2)
             )
+        if state == "review" and side == 1:
+            matrices[f"hand.{name}"] = transform(hand, (0, -0.20, 0.08))
         for joint, pos in [
             ("hip", hip),
             ("knee", knee),

@@ -14,7 +14,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  target:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.target.outputs.release }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+      - id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == push ]] && git diff --name-only HEAD^ HEAD | grep -qx pyproject.toml; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
   studio:
+    needs: target
+    if: needs.target.outputs.release != 'true'
+
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -56,14 +77,28 @@ jobs:
           bun run format:check
           bun run check
       - name: Build the Svelte site
-        run: bun run build
+        run: |
+          bun run build
+          bun run build:pet
       - name: Browser checks
         run: |
           bunx playwright install --with-deps chromium firefox
           bun run test:viewer
+          bun run test:pet
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Save generated site
         uses: actions/upload-artifact@v7.0.1
         with:
           name: kernel-model-studio
           path: dist/
+      - name: Save shared desktop assets
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: kernel-viewer-assets
+          path: web/public/assets/
+          if-no-files-found: error
+
+  desktop:
+    if: github.event_name != 'push'
+    needs: studio
+    uses: ./.github/workflows/desktop.yml

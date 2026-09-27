@@ -15,6 +15,7 @@ from .rig import (
     WRIST_PORT,
     RigPose,
     cable_points,
+    gaze_at,
     point,
     pose_at,
 )
@@ -147,11 +148,7 @@ def sample_source(model, state, phase, update_display=True):
     matrices = {
         name: np.asarray(model["nodes"][name].matrix_world).copy() for name in PARENTS
     }
-    gaze = (
-        (math.sin(math.tau * phase), -math.cos(math.tau * phase))
-        if state == "look"
-        else (0.0, 0.0)
-    )
+    gaze = gaze_at(state, phase)
     ports = model["metadata"]["ports"]
     pose = RigPose(
         matrices,

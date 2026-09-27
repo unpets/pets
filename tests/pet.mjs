@@ -1,0 +1,85 @@
+import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const browser = await chromium.launch({
+  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  headless: true,
+  args: [
+    '--no-sandbox',
+    '--use-gl=angle',
+    '--use-angle=swiftshader',
+    '--enable-unsafe-swiftshader',
+  ],
+});
+try {
+  const page = await browser.newPage({ viewport: { width: 340, height: 380 } });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(pathToFileURL(resolve('dist-pet/pet.html')).href);
+  await page.waitForFunction(() => window.kernelPet?.ready);
+  await page.mouse.move(335, 15);
+  await page.waitForFunction(
+    () =>
+      window.kernelPet.angles.yaw > 0.25 &&
+      window.kernelPet.angles.pitch < -0.2,
+  );
+  await page.mouse.move(5, 375);
+  await page.waitForFunction(
+    () =>
+      window.kernelPet.angles.yaw < -0.25 &&
+      window.kernelPet.angles.pitch > 0.2,
+  );
+  for (const mode of [
+    'idle',
+    'running-right',
+    'running-left',
+    'waving',
+    'jumping',
+    'failed',
+    'waiting',
+    'running',
+    'review',
+    'look',
+  ]) {
+    await page.evaluate((mode) => window.kernelPet.setMode(mode), mode);
+    await page.waitForTimeout(270);
+    assert.equal(await page.evaluate(() => window.kernelPet.state), mode);
+  }
+  await page.screenshot({ path: 'test-results/pet.png' });
+  assert.deepEqual(errors, []);
+  const studio = await browser.newPage({
+    viewport: { width: 1280, height: 1100 },
+  });
+  studio.on('pageerror', (error) => errors.push(error.message));
+  await studio.goto(pathToFileURL(resolve('dist/index.html')).href);
+  await studio.waitForFunction(() => window.kernelViewer?.ready);
+  await studio.evaluate(() => {
+    window.kernelViewer.setMode('idle');
+    window.kernelViewer.seek(0.2);
+  });
+  const pixels = () =>
+    studio.locator('canvas').filter({ visible: true }).count();
+  assert.ok((await pixels()) >= 2);
+  await studio.getByLabel('Layer visible', { exact: true }).uncheck();
+  await studio
+    .getByRole('button', { name: 'mouth Visible', exact: true })
+    .click();
+  await studio
+    .getByLabel('Layer horizontal offset', { exact: true })
+    .fill('10');
+  const downloadPromise = studio.waitForEvent('download');
+  await studio
+    .getByRole('button', { name: 'Export project', exact: true })
+    .click();
+  const download = await downloadPromise;
+  assert.equal(download.suggestedFilename(), 'kernel-screen.json');
+  await studio.screenshot({
+    path: 'test-results/studio-editor.png',
+    fullPage: true,
+  });
+  assert.deepEqual(errors, []);
+  console.log('Standalone gaze, all modes, and screen editing passed.');
+} finally {
+  await browser.close();
+}

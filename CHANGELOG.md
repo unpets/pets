@@ -1,5 +1,16 @@
 # Changelog
 
+
+## 0.4.0
+
+- Add a native desktop pet with smooth global cursor tracking, independent animation, dragging, wandering, and tray controls.
+- Add Shimeji-ee character export with explicit left and right views and required desktop behaviors.
+- Add a screen studio with independent background, activity, eyes, and mouth layers.
+- Support screen project import, export, undo, and live 3D preview.
+- Connect the arms through spherical shoulder joints.
+- Rework review and lookaround poses with coordinated screen expressions.
+- Build native desktop packages from shared model assets and publish releases on version changes.
+
 ## 0.3.0
 
 - Embedded the complete viewer and model in one HTML file for offline opening and HTTP hosting.

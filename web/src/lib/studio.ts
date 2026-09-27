@@ -6,19 +6,14 @@ import {
   Mesh,
   MeshBasicMaterial,
   NoToneMapping,
-  Object3D,
   PerspectiveCamera,
   Scene,
   SphereGeometry,
   SRGBColorSpace,
   WebGLRenderer,
-  Vector3,
-  type Material,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { loadAssets } from './assets';
-import { createCable, createMotion } from './motion';
-import { createScreen } from './screen';
+import { createCharacter } from './character';
 import type {
   AnimationMode,
   CameraView,
@@ -48,35 +43,14 @@ const cameraPositions: Record<CameraView, VectorTuple> = {
   back: [0, 10, 2.8],
 };
 
-function disposeModel(root: Object3D) {
-  const materials = new Set<Material>();
-  root.traverse((object) => {
-    if (!(object instanceof Mesh)) return;
-    object.geometry.dispose();
-    (Array.isArray(object.material)
-      ? object.material
-      : [object.material]
-    ).forEach((material) => materials.add(material));
-  });
-  materials.forEach((material) => material.dispose());
-}
-
 export async function createStudio(
   viewport: HTMLDivElement,
   displayCanvas: HTMLCanvasElement,
   onPlayback: (state: PlaybackState) => void,
   onDetails: (voxelCount: number) => void,
 ): Promise<StudioController> {
-  const { model, clips, data, screenImage } = await loadAssets();
-  const parts: Record<string, Object3D> = {};
-  let display: Mesh | undefined;
-  model.traverse((object) => {
-    if (object.userData.rig_part) parts[object.userData.rig_part] = object;
-    if (object.userData.is_display && object instanceof Mesh) display = object;
-  });
-  if (!display || !parts.head || !parts.server)
-    throw new Error('Required model nodes are missing.');
-
+  const character = await createCharacter(displayCanvas);
+  const { model, parts, data, display, motion, cable, screen } = character;
   const scene = new Scene();
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -109,23 +83,6 @@ export async function createStudio(
   grid.material.opacity = 0.36;
   scene.add(grid, model);
 
-  const screen = createScreen(displayCanvas, screenImage);
-  const displayMaterial = new MeshBasicMaterial({
-    map: screen.texture,
-    toneMapped: false,
-  });
-  for (const material of Array.isArray(display.material)
-    ? display.material
-    : [display.material]) {
-    material.dispose();
-  }
-  display.material = displayMaterial;
-  const motion = createMotion(model, clips);
-  const cable = createCable(
-    parts['hand.R'],
-    new Vector3(...data.ports.wrist),
-    new Vector3(...data.ports.server),
-  );
   scene.add(cable.mesh);
   const markers = new Group();
   const markerGeometry = new SphereGeometry(0.055, 12, 8);
@@ -156,11 +113,7 @@ export async function createStudio(
   }
   function update(elapsed: number) {
     const clip = data.states[mode];
-    motion.update(elapsed, phase);
-    parts.server.visible = mode === 'running';
-    cable.mesh.visible = mode === 'running';
-    if (cable.mesh.visible) cable.update();
-    screen.update(clip.screenRow, phase);
+    character.update(mode, elapsed, phase);
     markers.children.forEach((marker, index) =>
       parts[jointNames[index]].getWorldPosition(marker.position),
     );
@@ -210,6 +163,10 @@ export async function createStudio(
       update(0);
     },
     setCamera,
+    setScreenProject(project) {
+      screen.setProject(project);
+      update(0);
+    },
     setWireframe(visible) {
       model.traverse((object) => {
         if (!(object instanceof Mesh) || object === display) return;
@@ -228,14 +185,11 @@ export async function createStudio(
       cancelAnimationFrame(animationFrame);
       observer.disconnect();
       controls.dispose();
-      cable.dispose();
-      motion.dispose();
-      screen.dispose();
+      character.dispose();
       markerGeometry.dispose();
       markerMaterial.dispose();
       grid.geometry.dispose();
       grid.material.dispose();
-      disposeModel(model);
       renderer.dispose();
       renderer.domElement.remove();
     },

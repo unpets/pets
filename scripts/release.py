@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import tomllib
 import zipfile
@@ -14,6 +15,8 @@ from PIL import Image
 
 from kernel_voxel.cache import read_cache
 from kernel_voxel.rig import CELL, FRAMES
+from kernel_voxel.screen import LAYERS
+from kernel_voxel.shimeji import validate_package
 
 ROOT = Path(__file__).resolve().parents[1]
 SEMVER = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
@@ -24,9 +27,14 @@ def release_version(tag=None):
     version = project["version"]
     if not SEMVER.fullmatch(version):
         raise ValueError(f"Invalid release version: {version}")
-    for name in ("package.json", "web/package.json"):
+    for name in ("package.json", "web/package.json", "src-tauri/tauri.conf.json"):
         if json.loads((ROOT / name).read_text())["version"] != version:
             raise ValueError(f"Version mismatch in {name}")
+    if (
+        tomllib.loads((ROOT / "src-tauri/Cargo.toml").read_text())["package"]["version"]
+        != version
+    ):
+        raise ValueError("Version mismatch in src-tauri/Cargo.toml")
     if tag and tag != f"v{version}":
         raise ValueError(f"Tag {tag} does not match v{version}")
     return version
@@ -102,7 +110,7 @@ def archive(path, root, files):
             output.writestr(entry, source.read_bytes())
 
 
-def bundle(build, site, destination, version, assets):
+def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site):
     manifest = validate_pet(build)
     if manifest["version"] != version:
         raise ValueError("Rendered assets have the wrong release version")
@@ -128,6 +136,9 @@ def bundle(build, site, destination, version, assets):
     if any(destination.iterdir()):
         raise ValueError("Release destination must be empty")
     prefix = f"kernel-{version}"
+    validate_package(shimeji)
+    if json.loads((shimeji / "manifest.json").read_text())["version"] != version:
+        raise ValueError("Shimeji package version does not match")
     packages = {
         "blender": (
             build,
@@ -146,10 +157,16 @@ def bundle(build, site, destination, version, assets):
             assets,
             [
                 assets / name
-                for name in ("kernel.glb", "animations.json", "screens.png")
+                for name in (
+                    "kernel.glb",
+                    "animations.json",
+                    "screens.png",
+                    *(f"screen-{name}.png" for name in LAYERS),
+                )
             ],
         ),
         "site": (site, files_under(site)),
+        "shimeji": (shimeji, files_under(shimeji)),
     }
     for name, (root, files) in packages.items():
         archive(destination / f"{prefix}-{name}.zip", root, files)
@@ -160,6 +177,24 @@ def bundle(build, site, destination, version, assets):
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip()
     )
+    (destination / f"{prefix}-pet.html").write_bytes(
+        (pet_site / "pet.html").read_bytes()
+    )
+    for target in ("windows-x64", "linux-x64", "macos-arm64"):
+        record_path = desktop / f"{prefix}-{target}.json"
+        record = json.loads(record_path.read_text())
+        if (
+            record["version"] != version
+            or record["commit"] != commit
+            or record["target"] != target
+        ):
+            raise ValueError(f"Desktop package provenance mismatch: {target}")
+        for file in record["files"]:
+            name = file["name"]
+            if Path(name).name != name or sha256(desktop / name) != file["sha256"]:
+                raise ValueError(f"Desktop package checksum mismatch: {name}")
+            shutil.copyfile(desktop / name, destination / name)
+        shutil.copyfile(record_path, destination / record_path.name)
     metadata = {
         "version": version,
         "commit": commit,
@@ -184,6 +219,9 @@ def main():
     parser.add_argument("--build", type=Path, default=Path("build"))
     parser.add_argument("--site", type=Path, default=Path("dist"))
     parser.add_argument("--assets", type=Path, default=Path("web/public/assets"))
+    parser.add_argument("--shimeji", type=Path, default=Path("build-shimeji"))
+    parser.add_argument("--desktop", type=Path, default=Path("desktop-packages"))
+    parser.add_argument("--pet-site", type=Path, default=Path("dist-pet"))
     parser.add_argument("--output", type=Path, default=Path("release"))
     args = parser.parse_args()
     version = release_version(args.tag)
@@ -198,7 +236,16 @@ def main():
                 stream.writelines(f"{key}={value}\n" for key, value in outputs.items())
         print(json.dumps(outputs))
     else:
-        bundle(args.build, args.site, args.output, version, args.assets)
+        bundle(
+            args.build,
+            args.site,
+            args.output,
+            version,
+            args.assets,
+            args.shimeji,
+            args.desktop,
+            args.pet_site,
+        )
 
 
 if __name__ == "__main__":

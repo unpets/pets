@@ -16,3 +16,7 @@ playwright-report/
 test-results/
 .svelte-check/
 release/
+dist-pet/
+src-tauri/target/
+src-tauri/gen/
+desktop-packages/

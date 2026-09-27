@@ -3,12 +3,14 @@
 ## Release process
 
 **Release Kernel** validates, renders, packages, publishes, and deploys a versioned release.  
-Start it manually from GitHub Actions or push a `vMAJOR.MINOR.PATCH` tag.  
-The version must match `pyproject.toml`, `package.json`, and `web/package.json`.  
+Push a version change to `main`, run it from GitHub Actions, or push a `vMAJOR.MINOR.PATCH` tag.  
+The version must match the Python, Bun, web, Cargo, and Tauri manifests.  
 
 The source job builds and verifies the canonical Blender scene once.  
 Render jobs load that shared artifact and process only their assigned animation state.  
-The packaging job assembles verified frames and exports the web assets from the saved scene.  
+The source job exports shared web assets from the saved scene.  
+Desktop jobs consume these assets to build Windows, Linux, and macOS applications.  
+The packaging job assembles verified frames and exports the Shimeji image set.  
 Content fingerprints and output checksums allow unchanged artifacts to be reused.  
 Checks cover baked animation, display references, visibility, generated assets, and the web viewer.  
 The publish job uploads the packages and checksums, then publishes the GitHub Release.  
@@ -22,17 +24,18 @@ Use **Build Kernel model studio** for development builds and checks.
 
 ## Prepare a version
 
-Update the version in all three project manifests.  
+Update the version in `pyproject.toml`, `package.json`, `web/package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`.  
 Refresh the lockfiles and validate the version.  
 
 ```sh
 uv lock
 bun install
+cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
 uv run python scripts/release.py check
 ```
 
 Commit and push the version changes.  
-Open **Actions → Release Kernel → Run workflow** and select the release branch.  
+A push containing the version change starts the release workflow.  
 The workflow creates the matching tag from the verified build commit.  
 
 Alternatively, create and push the version tag.  
@@ -52,6 +55,13 @@ git push origin "v${release_version}"
 | `kernel-VERSION-model.zip` | GLB geometry, continuous motion data, and display atlas |
 | `kernel-VERSION.html` | Self-contained interactive viewer |
 | `kernel-VERSION-site.zip` | The same viewer as `index.html` for static hosting |
+| `kernel-VERSION-pet.html` | Browser companion with mouse tracking |
+| `kernel-VERSION-shimeji.zip` | Shimeji-ee compatible character image set |
+| `kernel-VERSION-windows-x64.exe` | Portable Windows application |
+| `kernel-VERSION-windows-x64-setup.exe` | Windows installer |
+| `kernel-VERSION-linux-x64.AppImage` | Portable Linux application |
+| `kernel-VERSION-linux-x64.deb` | Debian package |
+| `kernel-VERSION-macos-arm64.zip` | macOS application |
 | `release.json` | Version, source commit, package sizes, and hashes |
 | `SHA256SUMS` | SHA-256 checksums for the release downloads |
 

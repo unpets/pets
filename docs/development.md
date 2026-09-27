@@ -120,3 +120,30 @@ It checks the source, generates model assets, builds the site, and runs browser 
 The resulting site is stored as the `kernel-model-studio` artifact.  
 
 [Release process](releasing.md) covers full renders, versioned downloads, and Pages deployment.  
+
+## Desktop and screen editing
+
+The Tauri application uses the shared Three.js character, animation mixer, and screen compositor.  
+Desktop cursor coordinates are converted using the window position and display scale.  
+Cursor sampling runs at 20 Hz and rendering is limited to 30 frames per second.  
+The head follows a smoothed, bounded target while the authored body animation continues.  
+Transparent areas pass pointer events to applications below the pet.  
+The tray menu provides persistent access to pet controls.  
+
+`screen.py` produces four RGBA layers and their default composite.  
+The studio edits a versioned `kernel-screen` JSON project.  
+Projects support independent layer visibility, opacity, tint, offsets, and expression selection.  
+The desktop pet imports the same project format.  
+Browser storage retains the most recent project when storage is available.  
+
+Shimeji exports use a 40 ms engine tick and fixed image anchors.  
+Explicit `ImageRight` references preserve the separately rendered walking directions.  
+Configuration validation checks required behaviors, action references, images, and timing.  
+
+```sh
+bun run build:pet
+bun run test:pet
+bun run dev:desktop
+bun run build:desktop
+uv run kernel-shimeji --build build --output build-shimeji
+```

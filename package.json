@@ -1,6 +1,6 @@
 {
   "name": "kernel-pet",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",
@@ -15,11 +15,18 @@
     "test": "bun test tests web/tests",
     "test:viewer": "bun tests/viewer.mjs",
     "check": "bun run --cwd web check",
-    "format": "prettier --write web/src web/*.json web/*.js web/*.ts web/index.html web/tests/*.ts tests/*.js tests/*.mjs package.json .prettierrc.json",
-    "format:check": "prettier --check web/src web/*.json web/*.js web/*.ts web/index.html web/tests/*.ts tests/*.js tests/*.mjs package.json .prettierrc.json"
+    "format": "prettier --write web/src web/*.json web/*.js web/*.ts web/index.html web/tests/*.ts tests/*.js tests/*.mjs scripts/*.ts package.json .prettierrc.json",
+    "format:check": "prettier --check web/src web/*.json web/*.js web/*.ts web/index.html web/tests/*.ts tests/*.js tests/*.mjs scripts/*.ts package.json .prettierrc.json",
+    "dev:pet": "bun run --cwd web dev --config vite.pet.config.ts",
+    "build:pet": "bun run --cwd web build --config vite.pet.config.ts",
+    "dev:desktop": "bunx tauri dev",
+    "build:desktop": "bunx tauri build",
+    "build:shimeji": "uv run kernel-shimeji",
+    "test:pet": "bun tests/pet.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
+    "@tauri-apps/cli": "2.12.0",
     "prettier": "3.9.9",
     "prettier-plugin-svelte": "4.1.1",
     "prettier-plugin-tailwindcss": "0.8.1"

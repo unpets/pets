@@ -6,7 +6,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-from .rig import SERVER_PORT, WRIST_PORT, cable_points, pose_for
+from .rig import SERVER_PORT, SHOULDER_PIVOT, WRIST_PORT, cable_points, pose_for
 from .screen import framebuffer
 from .surfaces import resolve_coplanar
 
@@ -136,6 +136,21 @@ class Builder:
         return nodes
 
 
+def shoulder_socket(builder, side):
+    center = SHOULDER_PIVOT * (side, 1, 1)
+    builder.voxel(
+        "body",
+        center,
+        (0.32, 0.32, 0.32),
+        "joint",
+        0.16,
+        step=0.012,
+        cut=lambda p: (
+            np.linalg.norm(p - center) < 0.142 or side * (p[0] - center[0]) > -0.04
+        ),
+    )
+
+
 def build_model():
     b = Builder()
     b.voxel("body", (0, 0, 1.44), (1.04, 0.68, 0.39), "shell", 0.14)
@@ -206,16 +221,18 @@ def build_model():
         b.box("head", (0, 0.466, z), (0.49, 0.014, 0.028), "joint")
     for side in (-1, 1):
         n = "L" if side < 0 else "R"
+        shoulder_socket(b, side)
         for part, length, width in [
             (f"thigh.{n}", 0.42, 0.235),
             (f"shin.{n}", 0.42, 0.22),
             (f"upper_arm.{n}", 0.33, 0.205),
             (f"forearm.{n}", 0.34, 0.215),
         ]:
+            shoulder = part.startswith("upper_arm.")
             b.voxel(
                 part,
-                (0, 0, length * 0.50),
-                (width, 0.23, length - 0.14),
+                (0, 0, 0.20 if shoulder else length * 0.50),
+                (width, 0.23, 0.12 if shoulder else length - 0.14),
                 "shell",
                 0.045,
                 step=0.025,
@@ -226,26 +243,32 @@ def build_model():
                 (width * 0.50, 0.025, 0.033),
                 "cyan_dim",
             )
-            b.voxel(
-                part,
-                (0, 0, 0),
-                (0.25, 0.20, 0.20),
-                "joint",
-                0.035,
-                step=0.020,
-                shape="motor",
-            )
-            for side2 in (-1, 1):
+            if shoulder:
+                b.voxel(part, (0, 0, 0), (0.24, 0.24, 0.24), "metal", 0.12, step=0.012)
+                b.box(part, (0, 0, 0.142), (0.10, 0.10, 0.096), "dark")
+            else:
                 b.voxel(
                     part,
-                    (side2 * 0.132, 0, 0),
-                    (0.025, 0.122, 0.122),
-                    "metal",
-                    0.0,
-                    step=0.017,
+                    (0, 0, 0),
+                    (0.25, 0.20, 0.20),
+                    "joint",
+                    0.035,
+                    step=0.020,
                     shape="motor",
                 )
-                b.box(part, (side2 * 0.147, 0, 0), (0.015, 0.036, 0.037), "violet_dim")
+                for side2 in (-1, 1):
+                    b.voxel(
+                        part,
+                        (side2 * 0.132, 0, 0),
+                        (0.025, 0.122, 0.122),
+                        "metal",
+                        0.0,
+                        step=0.017,
+                        shape="motor",
+                    )
+                    b.box(
+                        part, (side2 * 0.147, 0, 0), (0.015, 0.036, 0.037), "violet_dim"
+                    )
             b.box(
                 part, (0, 0.095, length * 0.48), (0.085, 0.052, length * 0.56), "dark"
             )

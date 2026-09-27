@@ -47,15 +47,21 @@ def glyph(draw, xy, char, color, scale=1):
                 )
 
 
-def framebuffer(state, t, gaze=(0.0, 0.0)):
-    im = Image.new("RGB", SIZE, BG)
-    d = ImageDraw.Draw(im)
+LAYERS = ("background", "activity", "eyes", "mouth")
+
+
+def screen_layers(state, t, gaze=(0.0, 0.0)):
+    t %= 1
+    layers = {name: Image.new("RGBA", SIZE) for name in LAYERS}
+    layers["background"].paste((*BG, 255), (0, 0, *SIZE))
+    d = ImageDraw.Draw(layers["background"])
     # Glass is flush inside a centered opening. Status rail stays on the display.
     d.line((5, 8, 90, 8), fill=(21, 53, 66))
     d.line((5, 56, 90, 56), fill=(21, 53, 66))
     for i, ch in enumerate("KRNL"):
         glyph(d, (6 + i * 4, 2), ch, DIM)
     d.rectangle((83, 3, 89, 4), fill=CYAN)
+    d = ImageDraw.Draw(layers["activity"])
     if state == "running":
         # Cyclic digital rain on the right, syntax-like terminal tokens on the left.
         tick = int((t % 1) * 24)
@@ -79,6 +85,7 @@ def framebuffer(state, t, gaze=(0.0, 0.0)):
                 glyph(d, (7 + 5 * j, 13 + r * 8), ch, CYAN if j == 0 else GREEN)
         d.rectangle((7, 51, 7 + int(40 * t), 52), fill=CYAN)
     else:
+        d = ImageDraw.Draw(layers["eyes"])
         dx = round(gaze[0] * 10)
         dy = round(gaze[1] * 9)
         blink = state == "idle" and 0.46 < t < 0.64
@@ -88,22 +95,41 @@ def framebuffer(state, t, gaze=(0.0, 0.0)):
                 # Compressed tired eyelids, never detached error symbols.
                 d.rectangle((x - 7, ey + 4, x + 6, ey + 7), fill=(175, 116, 238))
                 d.rectangle((x + 4, ey + 5, x + 7, ey + 12), fill=(175, 116, 238))
+            elif state == "review":
+                d.rectangle((x - 7, ey + 3, x + 7, ey + 11), fill=CYAN)
+                d.rectangle((x - 4, ey + 4, x + 3, ey + 8), fill=(148, 255, 251))
+                d.line((x - 7, ey - 1, x + 6, ey - 3), fill=DIM, width=2)
             elif blink:
                 d.rectangle((x - 7, ey + 6, x + 7, ey + 8), fill=CYAN)
             else:
                 d.rectangle((x - 7, ey, x + 7, ey + 13), fill=CYAN)
                 d.rectangle((x - 5, ey - 2, x + 5, ey + 15), fill=CYAN)
                 d.rectangle((x - 3, ey + 2, x + 3, ey + 10), fill=(148, 255, 251))
+        d = ImageDraw.Draw(layers["mouth"])
         if state == "waiting":
             d.rectangle((43, 45, 50, 49), fill=CYAN)
         elif state == "failed":
             d.line((38, 49, 46, 45, 54, 49), fill=(175, 116, 238), width=2)
         elif state == "review":
-            d.line((38, 45, 45, 48, 57, 42), fill=CYAN, width=2)
+            d.line((42, 37, 51, 37), fill=CYAN)
         else:
             d.line((37, 43, 40, 47, 53, 47, 57, 43), fill=CYAN, width=2)
         if state == "review":
-            yy = 13 + int(t * 37)
-            d.line((9, yy, 14, yy), fill=(83, 245, 150))
-            d.line((81, yy, 86, yy), fill=(83, 245, 150))
-    return im
+            d = ImageDraw.Draw(layers["activity"])
+            selected = min(2, int(t * 4))
+            for row, width in enumerate((25, 34, 21)):
+                y = 43 + row * 4
+                color = CYAN if row == selected else DIM
+                d.rectangle((22, y, 24, y + 1), fill=color)
+                d.line((29, y, 29 + width, y), fill=color)
+            if 0.5 < t < 0.82:
+                d.line((70, 46, 73, 49, 79, 42), fill=GREEN, width=2)
+    return layers
+
+
+def framebuffer(state, t, gaze=(0.0, 0.0)):
+    layers = screen_layers(state, t, gaze)
+    image = Image.new("RGBA", SIZE)
+    for layer in layers.values():
+        image = Image.alpha_composite(image, layer)
+    return image.convert("RGB")

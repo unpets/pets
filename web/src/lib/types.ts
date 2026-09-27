@@ -1,3 +1,4 @@
+import type { ScreenProject } from './screen-project';
 import type { Object3D, PerspectiveCamera } from 'three';
 
 export const animationModes = {
@@ -36,11 +37,13 @@ export const animationModes = {
   },
   review: {
     label: 'Review',
-    description: 'A hand near the chin and a deliberate inspection sweep.',
+    description:
+      'A thoughtful scan, a hand beneath the chin, and a confirming nod.',
   },
   look: {
     label: 'Look around',
-    description: 'A clockwise sweep through sixteen directions.',
+    description:
+      'Measured glances through sixteen directions, with coordinated eyes.',
   },
 } as const;
 
@@ -76,6 +79,7 @@ export interface PlaybackState {
   seconds: number;
 }
 export interface StudioController {
+  setScreenProject(project: ScreenProject): void;
   setMode(mode: AnimationMode): void;
   setPlaying(playing: boolean): void;
   setSpeed(speed: number): void;
