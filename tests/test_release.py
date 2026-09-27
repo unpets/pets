@@ -14,21 +14,23 @@ class ReleaseTests(unittest.TestCase):
     def test_release_rejects_wrong_tags_and_mismatched_manifests(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "web").mkdir()
-            (root / "src-tauri").mkdir()
-            (root / "src-tauri/Cargo.toml").write_text('[package]\nversion = "1.2.3"\n')
+            (root / "apps/studio").mkdir(parents=True)
+            (root / "apps/desktop/src-tauri").mkdir(parents=True)
+            (root / "Cargo.toml").write_text('[workspace.package]\nversion = "1.2.3"\n')
             (root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n')
             for name in (
                 "package.json",
-                "web/package.json",
-                "src-tauri/tauri.conf.json",
+                "apps/studio/package.json",
+                "apps/desktop/src-tauri/tauri.conf.json",
             ):
-                (root / name).write_text(json.dumps({"version": "1.2.3"}))
+                (root / name).write_text(
+                    json.dumps({"version": "1.2.3", "workspaces": ["apps/studio"]})
+                )
             with patch("scripts.release.ROOT", root):
                 self.assertEqual(release_version("v1.2.3"), "1.2.3")
                 with self.assertRaises(ValueError):
                     release_version("v1.2.4")
-                (root / "web/package.json").write_text('{"version":"1.2.2"}')
+                (root / "apps/studio/package.json").write_text('{"version":"1.2.2"}')
                 with self.assertRaises(ValueError):
                     release_version("v1.2.3")
 

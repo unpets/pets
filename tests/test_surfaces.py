@@ -3,7 +3,6 @@
 import unittest
 
 import numpy as np
-
 from kernel_voxel.surfaces import resolve_coplanar
 
 

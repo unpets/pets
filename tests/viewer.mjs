@@ -130,7 +130,7 @@ try {
       assert.equal(download.suggestedFilename(), name);
       assert.deepEqual(
         await readFile(await download.path()),
-        await readFile(resolve('web/public/assets', name)),
+        await readFile(resolve('personas/kernel/generated/assets', name)),
       );
     }
     await page.locator('[data-view="back"]').click();

@@ -1,0 +1,12 @@
+[package]
+name = "pets-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Persona contracts and companion behavior for Pets"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

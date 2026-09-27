@@ -11,12 +11,11 @@ import tomllib
 import zipfile
 from pathlib import Path
 
-from PIL import Image
-
 from kernel_voxel.cache import read_cache
-from kernel_voxel.rig import CELL, FRAMES
+from kernel_voxel.rig import FRAMES
 from kernel_voxel.screen import LAYERS, PALETTE_LAYERS
 from kernel_voxel.shimeji import validate_package
+from pets_exports.codex import validate_atlas
 
 ROOT = Path(__file__).resolve().parents[1]
 SEMVER = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
@@ -27,14 +26,19 @@ def release_version(tag=None):
     version = project["version"]
     if not SEMVER.fullmatch(version):
         raise ValueError(f"Invalid release version: {version}")
-    for name in ("package.json", "web/package.json", "src-tauri/tauri.conf.json"):
+    workspace = json.loads((ROOT / "package.json").read_text())
+    manifests = ["package.json", "apps/desktop/src-tauri/tauri.conf.json"]
+    manifests.extend(f"{member}/package.json" for member in workspace["workspaces"])
+    for name in manifests:
         if json.loads((ROOT / name).read_text())["version"] != version:
             raise ValueError(f"Version mismatch in {name}")
     if (
-        tomllib.loads((ROOT / "src-tauri/Cargo.toml").read_text())["package"]["version"]
+        tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"][
+            "version"
+        ]
         != version
     ):
-        raise ValueError("Version mismatch in src-tauri/Cargo.toml")
+        raise ValueError("Version mismatch in Cargo.toml")
     if tag and tag != f"v{version}":
         raise ValueError(f"Tag {tag} does not match v{version}")
     return version
@@ -43,52 +47,6 @@ def release_version(tag=None):
 def sha256(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
-
-
-def validate_pet(build):
-    sheet_path = build / "kernel-spritesheet.png"
-    manifest = json.loads((build / "manifest.json").read_text())
-    if manifest["sha256"] != sha256(sheet_path):
-        raise ValueError("Sprite sheet checksum does not match its manifest")
-    occupied = set()
-    with Image.open(sheet_path) as sheet:
-        if sheet.mode != "RGBA" or sheet.size != (1536, 2288):
-            raise ValueError("Invalid sprite sheet format")
-        for state, count in {**FRAMES, "look": 16}.items():
-            for index in range(count):
-                row = list(FRAMES).index(state) if state != "look" else 9 + index // 8
-                column = index if state != "look" else index % 8
-                occupied.add((row, column))
-                x, y = column * CELL[0], row * CELL[1]
-                cell = sheet.crop((x, y, x + CELL[0], y + CELL[1]))
-                with Image.open(build / "frames" / state / f"{index:02d}.png") as frame:
-                    if (
-                        frame.mode != "RGBA"
-                        or frame.size != CELL
-                        or frame.tobytes() != cell.tobytes()
-                    ):
-                        raise ValueError(f"Atlas mismatch: {state}/{index}")
-                box = cell.getchannel("A").getbbox()
-                if (
-                    not box
-                    or box[0] == 0
-                    or box[1] == 0
-                    or box[2] == CELL[0]
-                    or box[3] == CELL[1]
-                ):
-                    raise ValueError(f"Empty or clipped frame: {state}/{index}")
-        for row in range(11):
-            for column in range(8):
-                if (row, column) in occupied:
-                    continue
-                x, y = column * CELL[0], row * CELL[1]
-                if (
-                    sheet.crop((x, y, x + CELL[0], y + CELL[1]))
-                    .getchannel("A")
-                    .getbbox()
-                ):
-                    raise ValueError("Unused atlas cells must be transparent")
-    return manifest
 
 
 def files_under(root):
@@ -111,7 +69,7 @@ def archive(path, root, files):
 
 
 def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site):
-    manifest = validate_pet(build)
+    manifest = validate_atlas(build, "kernel-spritesheet.png")
     if manifest["version"] != version:
         raise ValueError("Rendered assets have the wrong release version")
     verification = json.loads((build / "blend-check.json").read_text())
@@ -135,7 +93,6 @@ def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site
     destination.mkdir(parents=True, exist_ok=True)
     if any(destination.iterdir()):
         raise ValueError("Release destination must be empty")
-    prefix = f"kernel-{version}"
     validate_package(shimeji)
     if json.loads((shimeji / "manifest.json").read_text())["version"] != version:
         raise ValueError("Shimeji package version does not match")
@@ -169,19 +126,26 @@ def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site
         "shimeji": (shimeji, files_under(shimeji)),
     }
     for name, (root, files) in packages.items():
-        archive(destination / f"{prefix}-{name}.zip", root, files)
-    (destination / f"{prefix}.html").write_bytes((site / "index.html").read_bytes())
+        archive(
+            destination
+            / f"{'pets' if name == 'site' else 'kernel'}-{version}-{name}.zip",
+            root,
+            files,
+        )
+    (destination / f"pets-{version}.html").write_bytes(
+        (site / "index.html").read_bytes()
+    )
     commit = (
         os.environ.get("GITHUB_SHA")
         or subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip()
     )
-    (destination / f"{prefix}-pet.html").write_bytes(
+    (destination / f"pets-{version}-pet.html").write_bytes(
         (pet_site / "pet.html").read_bytes()
     )
     for target in ("windows-x64", "linux-x64", "macos-arm64"):
-        record_path = desktop / f"{prefix}-{target}.json"
+        record_path = desktop / f"pets-{version}-{target}.json"
         record = json.loads(record_path.read_text())
         if (
             record["version"] != version
@@ -218,7 +182,9 @@ def main():
     parser.add_argument("--tag")
     parser.add_argument("--build", type=Path, default=Path("build"))
     parser.add_argument("--site", type=Path, default=Path("dist"))
-    parser.add_argument("--assets", type=Path, default=Path("web/public/assets"))
+    parser.add_argument(
+        "--assets", type=Path, default=Path("personas/kernel/generated/assets")
+    )
     parser.add_argument("--shimeji", type=Path, default=Path("build-shimeji"))
     parser.add_argument("--desktop", type=Path, default=Path("desktop-packages"))
     parser.add_argument("--pet-site", type=Path, default=Path("dist-pet"))

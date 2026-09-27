@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Restructure Pets as a standalone application with Kernel as its default persona.
+- Move persona contracts and existing desktop wandering decisions into a Rust core.
+- Separate the studio, native host, shared Three.js playback, and Kernel implementation.
+- Define distinct 2D sprite and 3D model representation contracts.
+- Extract Codex and Shimeji export adapters from persona generation.
+- Update workspace builds, release paths, and documentation without adding runtime features.
+
 ## 0.5.0
 
 - Articulate both hands with independent finger chains and opposing thumbs.

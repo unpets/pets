@@ -1,0 +1,19 @@
+[package]
+name = "pets-desktop"
+version.workspace = true
+description = "Pets desktop companion host"
+authors = ["Gabriel Grondin"]
+repository = "https://github.com/GGLinnk/pets"
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "pets_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.0" }
+
+[dependencies]
+pets-core.workspace = true
+tauri = { version = "2.12.0", features = ["tray-icon", "macos-private-api"] }

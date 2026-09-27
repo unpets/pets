@@ -15,11 +15,11 @@ async function files(directory: string): Promise<string[]> {
   }
   return result;
 }
-const prefix = `kernel-${version}-${target}`;
+const prefix = `pets-${version}-${target}`;
 const packages: string[] = [];
 if (target === 'windows-x64') {
   const output = join(out, `${prefix}.exe`);
-  await copyFile('src-tauri/target/release/kernel-pet.exe', output);
+  await copyFile('target/release/pets-desktop.exe', output);
   packages.push(output);
 }
 if (target === 'macos-arm64') {
@@ -30,14 +30,14 @@ if (target === 'macos-arm64') {
     '-k',
     '--sequesterRsrc',
     '--keepParent',
-    'src-tauri/target/release/bundle/macos/Kernel.app',
+    'target/release/bundle/macos/Pets.app',
     output,
   ]);
   if (await process.exited)
     throw new Error('macOS application packaging failed.');
   packages.push(output);
 } else {
-  for (const path of await files('src-tauri/target/release/bundle')) {
+  for (const path of await files('target/release/bundle')) {
     const extension = path.endsWith('.AppImage')
       ? '.AppImage'
       : path.endsWith('.deb')

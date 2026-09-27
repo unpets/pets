@@ -2,9 +2,9 @@
 
 ## Release process
 
-**Release Kernel** validates, renders, packages, publishes, and deploys a versioned release.  
+**Release Pets** validates, renders, packages, publishes, and deploys a versioned release.  
 Push a version change to `main`, run it from GitHub Actions, or push a `vMAJOR.MINOR.PATCH` tag.  
-The version must match the Python, Bun, web, Cargo, and Tauri manifests.  
+The version must match the Python, Bun workspace, Cargo workspace, and Tauri manifests.  
 
 The source job builds and verifies the canonical Blender scene once.  
 Render jobs load that shared artifact and process only their assigned animation state.  
@@ -20,17 +20,17 @@ Each version identifies one source commit and one set of release assets.
 Version tags and published assets are immutable.  
 Publish changes under a new version.  
 
-Use **Build Kernel model studio** for development builds and checks.  
+Use **Build Pets studio** for development builds and checks.  
 
 ## Prepare a version
 
-Update the version in `pyproject.toml`, `package.json`, `web/package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`.  
+Update `pyproject.toml`, every Bun workspace manifest, the root Cargo workspace version, and `apps/desktop/src-tauri/tauri.conf.json`.  
 Refresh the lockfiles and validate the version.  
 
 ```sh
 uv lock
 bun install
-cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+cargo generate-lockfile
 uv run python scripts/release.py check
 ```
 
@@ -42,7 +42,7 @@ Alternatively, create and push the version tag.
 
 ```sh
 release_version=$(bun -p "require('./package.json').version")
-git tag -a "v${release_version}" -m "Kernel ${release_version}"
+git tag -a "v${release_version}" -m "Pets ${release_version}"
 git push origin "v${release_version}"
 ```
 
@@ -53,15 +53,15 @@ git push origin "v${release_version}"
 | `kernel-VERSION-blender.zip` | Editable scene, display sequence, timeline, verification report, and build record |
 | `kernel-VERSION-pet.zip` | Sprite sheet, native frames, high-resolution masters, previews, and render manifest |
 | `kernel-VERSION-model.zip` | GLB geometry, continuous motion data, and display atlas |
-| `kernel-VERSION.html` | Self-contained interactive viewer |
-| `kernel-VERSION-site.zip` | The same viewer as `index.html` for static hosting |
-| `kernel-VERSION-pet.html` | Browser companion with mouse tracking |
+| `pets-VERSION.html` | Self-contained interactive viewer |
+| `pets-VERSION-site.zip` | The same viewer as `index.html` for static hosting |
+| `pets-VERSION-pet.html` | Browser companion with mouse tracking |
 | `kernel-VERSION-shimeji.zip` | Shimeji-ee compatible character image set |
-| `kernel-VERSION-windows-x64.exe` | Portable Windows application |
-| `kernel-VERSION-windows-x64-setup.exe` | Windows installer |
-| `kernel-VERSION-linux-x64.AppImage` | Portable Linux application |
-| `kernel-VERSION-linux-x64.deb` | Debian package |
-| `kernel-VERSION-macos-arm64.zip` | macOS application |
+| `pets-VERSION-windows-x64.exe` | Portable Windows application |
+| `pets-VERSION-windows-x64-setup.exe` | Windows installer |
+| `pets-VERSION-linux-x64.AppImage` | Portable Linux application |
+| `pets-VERSION-linux-x64.deb` | Debian package |
+| `pets-VERSION-macos-arm64.zip` | macOS application |
 | `release.json` | Version, source commit, package sizes, and hashes |
 | `SHA256SUMS` | SHA-256 checksums for the release downloads |
 
@@ -76,7 +76,7 @@ sha256sum --check SHA256SUMS
 
 ## Open the viewer
 
-Open `kernel-VERSION.html` directly in a browser.  
+Open `pets-VERSION.html` directly in a browser.  
 The file contains the rigged model, all animation clips, textures, scripts, and styles.  
 Model and animation downloads work offline.  
 For static hosting, extract the site package and deploy `index.html`.  

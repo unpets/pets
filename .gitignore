@@ -4,8 +4,8 @@ __pycache__/
 build*/
 dist/
 node_modules/
-web/node_modules/
-web/public/assets/
+apps/studio/node_modules/
+personas/kernel/generated/
 *.blend1
 sample-*.png
 test-*.png
@@ -17,6 +17,6 @@ test-results/
 .svelte-check/
 release/
 dist-pet/
-src-tauri/target/
-src-tauri/gen/
+target/
+apps/desktop/src-tauri/gen/
 desktop-packages/

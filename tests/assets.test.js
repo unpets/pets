@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
-const root = 'web/public/assets/';
+const root = 'personas/kernel/generated/assets/';
 const data = JSON.parse(readFileSync(root + 'animations.json', 'utf8'));
 test('every animation has complete finite rigid transforms and cable anchors', () => {
   expect(Object.keys(data.states).length).toBe(10);

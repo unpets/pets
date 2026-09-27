@@ -1,4 +1,4 @@
-name: Build Kernel model studio
+name: Build Pets studio
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: kernel-${{ github.ref }}
+  group: pets-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -52,8 +52,8 @@ jobs:
           bun install --frozen-lockfile
       - name: Test rig, screen and transparency
         run: |
-          uv run ruff check kernel_voxel scripts tests
-          uv run ruff format --check kernel_voxel scripts tests
+          uv run ruff check personas/kernel/blender exporters scripts tests
+          uv run ruff format --check personas/kernel/blender exporters scripts tests
           uv run python -m unittest discover -s tests -v
       - name: Restore model and viewer cache
         uses: actions/cache@v6.1.0
@@ -64,9 +64,9 @@ jobs:
             build/timeline.json
             build/blend-check.json
             build/model-cache.json
-            web/public/assets/
-            web/public/site-cache.json
-          key: kernel-studio-${{ runner.os }}-${{ hashFiles('kernel_voxel/**', 'uv.lock', 'pyproject.toml') }}
+            personas/kernel/generated/assets/
+            personas/kernel/generated/site-cache.json
+          key: kernel-studio-${{ runner.os }}-${{ hashFiles('personas/kernel/blender/**', 'exporters/**', 'uv.lock', 'pyproject.toml') }}
           restore-keys: kernel-studio-${{ runner.os }}-
       - name: Generate model and animation assets
         run: bun run generate
@@ -74,6 +74,8 @@ jobs:
         run: bun test
       - name: Check Svelte and TypeScript
         run: |
+          cargo fmt --all --check
+          cargo test -p pets-core --locked
           bun run format:check
           bun run check
       - name: Build the Svelte site
@@ -89,13 +91,13 @@ jobs:
       - name: Save generated site
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: kernel-model-studio
+          name: pets-studio
           path: dist/
       - name: Save shared desktop assets
         uses: actions/upload-artifact@v7.0.1
         with:
           name: kernel-viewer-assets
-          path: web/public/assets/
+          path: personas/kernel/generated/assets/
           if-no-files-found: error
 
   desktop:

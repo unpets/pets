@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "kernel",
+  "name": "Kernel",
+  "representation": {
+    "kind": "3d",
+    "model": "kernel.glb",
+    "animations": "animations.json"
+  },
+  "exports": ["codex", "shimeji"]
+}

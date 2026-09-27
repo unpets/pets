@@ -3,7 +3,6 @@
 import unittest
 
 import numpy as np
-
 from kernel_voxel.hands import DIGITS, HAND_BONES, digit_angles
 from kernel_voxel.rig import FRAMES, WORK_CONTACT, WORK_CONTACT_LOCAL, pose_at
 from kernel_voxel.transforms import point

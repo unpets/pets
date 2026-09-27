@@ -1,0 +1,25 @@
+{
+  "name": "@pets/kernel",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./manifest": "./src/manifest.ts",
+    "./components/*": "./src/components/*",
+    "./assets": "./src/assets.ts",
+    "./character": "./src/character.ts",
+    "./screen": "./src/screen.ts",
+    "./screen-project": "./src/screen-project.ts",
+    "./gaze": "./src/gaze.ts",
+    "./types": "./src/types.ts"
+  },
+  "dependencies": {
+    "@pets/three-runtime": "workspace:*",
+    "three": "0.186.1",
+    "svelte": "5.57.1",
+    "@lucide/svelte": "1.48.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0"
+  }
+}

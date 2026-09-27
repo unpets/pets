@@ -3,11 +3,10 @@
 import unittest
 
 import numpy as np
-from PIL import Image
-
 from kernel_voxel.render import alpha_downsample
 from kernel_voxel.rig import FRAMES, cable_points, pose_at, pose_for
 from kernel_voxel.screen import framebuffer
+from PIL import Image
 
 
 class RigTests(unittest.TestCase):
