@@ -138,15 +138,15 @@ class Builder:
 
 
 def shoulder_socket(builder, side):
-    center = SHOULDER_PIVOT * (side, 1, 1) - np.array([side * 0.045, 0, 0])
+    center = SHOULDER_PIVOT * (side, 1, 1) - np.array([side * 0.095, 0, 0])
     builder.voxel(
         "body",
         center,
-        (0.14, 0.26, 0.26),
+        (0.22, 0.22, 0.22),
         "joint",
-        0,
+        0.11,
         step=0.010,
-        shape="motor",
+        cut=lambda point: side * (point[0] - center[0]) < 0,
     )
 
 
@@ -228,28 +228,30 @@ def build_model():
             (f"forearm.{n}", 0.34, 0.215),
         ]:
             shoulder = part.startswith("upper_arm.")
+            arm = shoulder or part.startswith("forearm.")
+            depth = 0.16 if arm else 0.23
             b.voxel(
                 part,
-                (0, 0, 0.20 if shoulder else length * 0.50),
-                (width, 0.23, 0.12 if shoulder else length - 0.14),
+                (0, 0, 0.185 if shoulder else length * 0.50),
+                (width, depth, 0.175 if shoulder else length - 0.14),
                 "shell",
                 0.045,
                 step=0.025,
             )
             b.box(
                 part,
-                (0, -0.124, length * 0.50),
+                (0, -depth / 2 - 0.009, length * 0.50),
                 (width * 0.50, 0.025, 0.033),
                 "cyan_dim",
             )
             if shoulder:
-                b.voxel(part, (0, 0, 0), (0.24, 0.24, 0.24), "metal", 0.12, step=0.012)
+                b.voxel(part, (0, 0, 0), (0.21, 0.21, 0.21), "metal", 0.105, step=0.010)
                 b.box(part, (0, 0, 0.142), (0.10, 0.10, 0.096), "dark")
             else:
                 b.voxel(
                     part,
                     (0, 0, 0),
-                    (0.25, 0.20, 0.20),
+                    (0.25, 0.16 if arm else 0.20, 0.20),
                     "joint",
                     0.035,
                     step=0.020,
@@ -269,7 +271,10 @@ def build_model():
                         part, (side2 * 0.147, 0, 0), (0.015, 0.036, 0.037), "violet_dim"
                     )
             b.box(
-                part, (0, 0.095, length * 0.48), (0.085, 0.052, length * 0.56), "dark"
+                part,
+                (0, depth / 2 - 0.02, length * 0.48),
+                (0.085, 0.052, length * 0.56),
+                "dark",
             )
         b.box(f"forearm.{n}", (0, 0, 0.295), (0.095, 0.095, 0.06), "metal")
         build_hand(b, n)

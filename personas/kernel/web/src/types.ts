@@ -47,7 +47,6 @@ export const animationModes = {
 export type AnimationMode = keyof typeof animationModes;
 export type VectorTuple = [number, number, number];
 export type QuaternionTuple = [number, number, number, number];
-export type CameraView = 'home' | 'front' | 'side' | 'back';
 export interface PartTransform {
   p: VectorTuple;
   q: QuaternionTuple;

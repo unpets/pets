@@ -34,9 +34,9 @@ DURATIONS = {
     "look": 130,
 }
 TAU = math.tau
-WRIST_PORT = np.array([0, 0.14, 0.055])
+WRIST_PORT = np.array([0, 0.09, 0.055])
 SERVER_PORT = np.array([1.185, -0.427, 0.85])
-SHOULDER_PIVOT = np.array([0.64, 0, 1.50])
+SHOULDER_PIVOT = np.array([0.60, 0, 1.50])
 PARENTS = {"body": None, "head": "body"}
 for side in ("L", "R"):
     for child, parent in (

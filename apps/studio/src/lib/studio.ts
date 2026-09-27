@@ -40,7 +40,9 @@ const cameraPositions: Record<CameraView, VectorTuple> = {
   home: [3.2, -7.5, 3.5],
   front: [0, -10, 1.5],
   side: [9, -0.1, 2.5],
+  left: [-9, -0.1, 2.5],
   back: [0, 10, 2.8],
+  top: [0, -0.01, 11],
 };
 
 export async function createStudio(
@@ -65,17 +67,19 @@ export async function createStudio(
   controls.maxDistance = 12;
   controls.maxPolarAngle = Math.PI * 0.95;
 
-  scene.add(new HemisphereLight(0xd6edff, 0x384555, 2.2));
+  const ambient = new HemisphereLight(0xd6edff, 0x384555, 2.2);
+  scene.add(ambient);
   const lights: [VectorTuple, number, number][] = [
     [[-3, -5, 7], 0xedf6ff, 3.5],
     [[4, -2, 4], 0xbcdcff, 1.7],
     [[-2, 4, 6], 0xd9caff, 2.7],
   ];
-  for (const [position, color, power] of lights) {
+  const studioLights = lights.map(([position, color, power]) => {
     const light = new DirectionalLight(color, power);
     light.position.set(...position);
     scene.add(light);
-  }
+    return light;
+  });
   const grid = new GridHelper(12, 48, 0x3a5667, 0x273e4d);
   grid.rotation.x = Math.PI / 2;
   grid.position.z = -0.026;
@@ -102,6 +106,7 @@ export async function createStudio(
   let phase = 0;
   let playing = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   let speed = 1;
+  let looping = true;
   let animationFrame = 0;
   let previousTime = performance.now();
   let destroyed = false;
@@ -117,10 +122,20 @@ export async function createStudio(
     markers.children.forEach((marker, index) =>
       parts[jointNames[index]].getWorldPosition(marker.position),
     );
-    onPlayback({ mode, phase, playing, speed, seconds: phase * clip.duration });
+    onPlayback({
+      mode,
+      phase,
+      playing,
+      speed,
+      seconds: phase * clip.duration,
+      duration: clip.duration,
+      frames: clip.samples.length,
+      looping,
+    });
   }
   const observer = new ResizeObserver(() => {
     const { clientWidth: width, clientHeight: height } = viewport;
+    if (!width || !height) return;
     renderer.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
@@ -133,14 +148,28 @@ export async function createStudio(
     if (destroyed) return;
     const elapsed = Math.max(0, Math.min((now - previousTime) / 1000, 0.05));
     previousTime = now;
-    if (playing)
-      phase = (phase + (elapsed * speed) / data.states[mode].duration) % 1;
+    if (playing) {
+      const next = phase + (elapsed * speed) / data.states[mode].duration;
+      phase = looping ? next % 1 : Math.min(1, next);
+      if (!looping && next >= 1) playing = false;
+    }
     update(elapsed);
     controls.update();
     renderer.render(scene, camera);
     animationFrame = requestAnimationFrame(animate);
   }
   animationFrame = requestAnimationFrame(animate);
+
+  function setWireframe(visible: boolean) {
+    model.traverse((object) => {
+      if (!(object instanceof Mesh) || object === display) return;
+      for (const material of Array.isArray(object.material)
+        ? object.material
+        : [object.material]) {
+        if ('wireframe' in material) material.wireframe = visible;
+      }
+    });
+  }
 
   return {
     setMode(next) {
@@ -150,11 +179,28 @@ export async function createStudio(
       update(0);
     },
     setPlaying(value) {
+      if (value && phase >= 1) phase = 0;
       playing = value;
       update(0);
     },
     setSpeed(value) {
-      speed = value;
+      speed = Math.max(0.1, Math.min(4, value));
+      update(0);
+    },
+    setLooping(value) {
+      looping = value;
+      update(0);
+    },
+    stepFrame(direction) {
+      playing = false;
+      const intervals = data.states[mode].samples.length - 1;
+      phase =
+        Math.max(
+          0,
+          Math.min(intervals, Math.round(phase * intervals) + direction),
+        ) / intervals;
+      motion.cancelTransition();
+      update(0);
     },
     seek(value) {
       playing = false;
@@ -167,18 +213,21 @@ export async function createStudio(
       screen.setProject(project);
       update(0);
     },
-    setWireframe(visible) {
-      model.traverse((object) => {
-        if (!(object instanceof Mesh) || object === display) return;
-        for (const material of Array.isArray(object.material)
-          ? object.material
-          : [object.material]) {
-          if ('wireframe' in material) material.wireframe = visible;
-        }
-      });
-    },
+    setWireframe,
     setJoints(visible) {
       markers.visible = visible;
+    },
+    setViewSettings(settings) {
+      setWireframe(settings.wireframe);
+      markers.visible = settings.joints;
+      grid.visible = settings.grid;
+      controls.autoRotate = settings.orbit;
+      ambient.intensity = 2.2 * settings.lighting;
+      studioLights.forEach((light, index) => {
+        light.intensity = lights[index][2] * settings.lighting;
+      });
+      camera.fov = settings.fov;
+      camera.updateProjectionMatrix();
     },
     destroy() {
       destroyed = true;

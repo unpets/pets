@@ -54,6 +54,7 @@ try {
   studio.on('pageerror', (error) => errors.push(error.message));
   await studio.goto(pathToFileURL(resolve('dist/index.html')).href);
   await studio.waitForFunction(() => window.kernelViewer?.ready);
+  await studio.getByRole('button', { name: 'Screen', exact: true }).click();
   await studio.evaluate(() => {
     window.kernelViewer.setMode('idle');
     window.kernelViewer.seek(0.2);
@@ -63,14 +64,14 @@ try {
   assert.ok((await pixels()) >= 2);
   await studio.getByLabel('Layer visible', { exact: true }).uncheck();
   await studio
-    .getByRole('button', { name: 'mouth Visible', exact: true })
+    .getByRole('button', { name: 'Edit mouth layer', exact: true })
     .click();
   await studio
     .getByLabel('Layer horizontal offset', { exact: true })
     .fill('10');
   const downloadPromise = studio.waitForEvent('download');
   await studio
-    .getByRole('button', { name: 'Export project', exact: true })
+    .getByRole('button', { name: 'Save screen', exact: true })
     .click();
   const download = await downloadPromise;
   assert.equal(download.suggestedFilename(), 'kernel-screen.json');

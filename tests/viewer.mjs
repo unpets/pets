@@ -141,6 +141,161 @@ try {
     await page.locator('#joints').check();
     await page.locator('#wireframe').check();
     await page.locator('#wireframe').uncheck();
+    await page
+      .getByRole('slider', { name: 'Field of view', exact: true })
+      .fill('45');
+    assert.equal(await page.evaluate(() => window.kernelViewer.camera.fov), 45);
+    await page.getByRole('button', { name: 'Reset viewport settings' }).click();
+    await page.evaluate(() => window.kernelViewer.seek(0.5));
+    await page.getByRole('button', { name: 'Next frame', exact: true }).click();
+    assert.match(await page.getByLabel('Current frame').textContent(), /062/);
+    await page
+      .getByRole('button', { name: 'Previous frame', exact: true })
+      .click();
+    assert.match(await page.getByLabel('Current frame').textContent(), /061/);
+    await page.getByRole('button', { name: 'Loop animation' }).click();
+    await page.evaluate(() => {
+      window.kernelViewer.seek(0.99);
+      window.kernelViewer.setPlaying(true);
+    });
+    await page.waitForFunction(
+      () => document.querySelector('#timeline').value === '1000',
+    );
+    assert.equal(
+      await page.locator('#play').getAttribute('aria-label'),
+      'Play animation',
+    );
+    await page.getByRole('button', { name: 'Loop animation' }).click();
+    await page.evaluate(() => window.kernelViewer.seek(0.25));
+
+    await page.getByRole('button', { name: 'Screen', exact: true }).click();
+    await page
+      .getByLabel('Screen canvas', { exact: true })
+      .waitFor({ state: 'visible' });
+    await page.waitForFunction(
+      () =>
+        document.querySelector('#screen').getBoundingClientRect().width >= 288,
+    );
+    const previewBox = await page.locator('#screen').boundingBox();
+    const inspectorBox = await page
+      .getByRole('complementary', { name: 'Screen editor' })
+      .boundingBox();
+    assert.ok(previewBox.width >= 288);
+    assert.ok(inspectorBox.x > previewBox.x + previewBox.width);
+    await page.getByLabel('Layer horizontal offset', { exact: true }).fill('5');
+    await page.getByLabel('Layer opacity', { exact: true }).fill('0.45');
+    await page
+      .getByRole('button', { name: 'Undo screen edit', exact: true })
+      .click();
+    assert.equal(
+      await page.getByLabel('Layer opacity', { exact: true }).inputValue(),
+      '1',
+    );
+    assert.equal(
+      await page
+        .getByLabel('Layer horizontal offset', { exact: true })
+        .inputValue(),
+      '5',
+    );
+    await page
+      .getByRole('button', { name: 'Redo screen edit', exact: true })
+      .click();
+    assert.equal(
+      await page.getByLabel('Layer opacity', { exact: true }).inputValue(),
+      '0.45',
+    );
+    await page
+      .getByRole('button', { name: 'Reset selected layer', exact: true })
+      .click();
+    assert.equal(
+      await page
+        .getByLabel('Layer horizontal offset', { exact: true })
+        .inputValue(),
+      '0',
+    );
+    await page
+      .getByRole('button', { name: 'Terminal palette', exact: true })
+      .click();
+    assert.equal(
+      await page.getByLabel('Screen lines color', { exact: true }).inputValue(),
+      '#74ef9a',
+    );
+    assert.equal(
+      await page.getByLabel('Screen text color', { exact: true }).inputValue(),
+      '#74ef9a',
+    );
+    await page
+      .getByLabel('Screen lines color', { exact: true })
+      .fill('#cc9944');
+    assert.equal(
+      await page.getByLabel('Screen text color', { exact: true }).inputValue(),
+      '#cc9944',
+    );
+    await page
+      .getByRole('button', { name: 'Solo eyes layer', exact: true })
+      .click();
+    const savedProject = page.waitForEvent('download');
+    await page
+      .getByRole('button', { name: 'Save screen', exact: true })
+      .click();
+    const projectDownload = await savedProject;
+    const project = JSON.parse(
+      await readFile(await projectDownload.path(), 'utf8'),
+    );
+    assert.ok(Object.values(project.layers).every((layer) => layer.visible));
+    assert.equal(project.palette.lines, '#cc9944');
+    await page
+      .getByRole('button', { name: 'Solo eyes layer', exact: true })
+      .click();
+    project.layers.eyes.x = -4;
+    await page
+      .getByLabel('Import screen project file', { exact: true })
+      .setInputFiles({
+        name: 'screen.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(JSON.stringify(project)),
+      });
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[aria-label="Layer horizontal offset"]')
+          .value === '-4',
+    );
+    assert.equal(
+      await page
+        .getByLabel('Layer horizontal offset', { exact: true })
+        .inputValue(),
+      '-4',
+    );
+    await page
+      .getByRole('button', { name: 'Undo screen edit', exact: true })
+      .click();
+    assert.equal(
+      await page
+        .getByLabel('Layer horizontal offset', { exact: true })
+        .inputValue(),
+      '0',
+    );
+    await page
+      .getByLabel('Import screen project file', { exact: true })
+      .setInputFiles({
+        name: 'invalid.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from('{}'),
+      });
+    await page.getByRole('alert').waitFor({ state: 'visible' });
+    assert.equal(await page.getByRole('alert').count(), 1);
+    assert.equal(
+      await page
+        .getByLabel('Layer horizontal offset', { exact: true })
+        .inputValue(),
+      '0',
+    );
+    await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Reset screen project', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Pixel grid', exact: true }).click();
+    await page.screenshot({ path: `build/viewer-${transport}-screen.png` });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({
       path: `build/viewer-${transport}-mobile.png`,
@@ -156,7 +311,7 @@ try {
     assert.deepEqual(requests, []);
     await page.close();
     console.log(
-      `${transport}: all modes, playback, screen, scrubbing, camera, downloads and mobile checks passed without external requests.`,
+      `${transport}: all modes, frame stepping, camera, screen history, palette, imports, exports and mobile checks passed without external requests.`,
     );
   }
   console.log(

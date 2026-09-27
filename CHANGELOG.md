@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Reorganize the studio into Scene and Screen workspaces with a clip browser, central viewport, timeline, and inspector.
+- Add screen zoom, pixel grid, guides, layer solo preview, precise offsets, palette presets, and undo and redo.
+- Add frame stepping, playback loop control, camera views, lighting controls, and viewport reset.
+- Reduce arm depth while preserving width and lengthen the upper-arm housing to approach the forearm.
+- Replace cylindrical shoulder sockets with smaller filled hemispheres seated into the torso.
+- Slim the palms and fingers while preserving the working hand's contact with the server.
+
 ## 0.6.1
 
 - Move Codex and Shimeji format handling, validation, and export dispatch into the Rust core.

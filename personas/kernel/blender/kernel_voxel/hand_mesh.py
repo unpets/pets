@@ -5,9 +5,11 @@ from .hands import HAND_BONES
 
 def build_hand(builder, suffix):
     part = f"hand.{suffix}"
-    builder.voxel(part, (0, 0, 0), (0.13, 0.13, 0.13), "joint", 0.065, step=0.013)
-    builder.voxel(part, (0, 0, 0.055), (0.21, 0.15, 0.135), "dark", 0.025, step=0.010)
-    builder.box(part, (0, 0.085, 0.055), (0.12, 0.026, 0.060), "violet")
+    builder.voxel(part, (0, 0, 0), (0.13, 0.10, 0.13), "joint", 0.05, step=0.010)
+    builder.voxel(
+        part, (0, -0.025, 0.055), (0.21, 0.10, 0.135), "dark", 0.025, step=0.010
+    )
+    builder.box(part, (0, 0.035, 0.055), (0.12, 0.026, 0.060), "violet")
     builder.box(part, (0, -0.071, 0.061), (0.135, 0.008, 0.060), "joint")
     for name, bone in HAND_BONES.items():
         if not name.endswith(f".{suffix}"):
@@ -38,14 +40,14 @@ def build_hand(builder, suffix):
         builder.voxel(
             name,
             (0, 0, center),
-            (bone.width - 0.008, 0.033, length),
+            (bone.width - 0.008, 0.026, length),
             "shell",
             0.006,
             step=0.005,
         )
         builder.box(
             name,
-            (0, -0.018, center),
+            (0, -0.014, center),
             (bone.width - 0.012, 0.006, length * 0.65),
             "dark",
         )
