@@ -17,6 +17,10 @@
   const selected = $derived(composition?.bindings[editor.component]);
   const clip = $derived(editor.project.clips[editor.clip]);
   $effect(() => {
+    if (selected?.clip && editor.clip !== selected.clip)
+      editor.clip = selected.clip;
+  });
+  $effect(() => {
     source = JSON.stringify(clip?.data, null, 2);
   });
   function selectComponent(value: string) {

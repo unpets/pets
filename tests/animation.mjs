@@ -23,6 +23,16 @@ try {
   await page.waitForFunction(() => window.kernelViewer?.ready);
   await page.evaluate(() => window.kernelViewer.seek(0));
   await page.getByRole('button', { name: 'Animation', exact: true }).click();
+  assert.equal(await page.getByLabel('Clip duration').inputValue(), '1');
+  await page.evaluate(() => window.kernelViewer.setMode('idle'));
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[aria-label="Clip duration"]').value === '4.8',
+  );
+  await page.evaluate(() => window.kernelViewer.setMode('running'));
+  await page.waitForFunction(
+    () => document.querySelector('[aria-label="Clip duration"]').value === '1',
+  );
   await page.getByLabel('New animation name').fill('Custom greeting');
   await page
     .getByRole('button', { name: 'Duplicate composition', exact: true })

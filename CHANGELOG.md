@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.2
+
+- Keep the clip editor aligned with the active composition binding when switching animations or importing projects.
+
 ## 0.8.1
 
 - Keep wrist targets continuous when walking arm swing crosses zero.
