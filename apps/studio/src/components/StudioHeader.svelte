@@ -1,8 +1,16 @@
 <script lang="ts">
-  import { Box, Monitor, Undo2, Redo2, Upload, Download } from '@lucide/svelte';
+  import {
+    Box,
+    Monitor,
+    Layers3,
+    Undo2,
+    Redo2,
+    Upload,
+    Download,
+  } from '@lucide/svelte';
   import { version } from '../../package.json';
   import type { Workspace } from '../lib/types';
-  import type { ScreenEditorState } from '@pets/kernel/screen-editor';
+
   let {
     workspace,
     onworkspace,
@@ -12,7 +20,7 @@
   }: {
     workspace: Workspace;
     onworkspace: (value: Workspace) => void;
-    editor: ScreenEditorState;
+    editor: { canUndo: boolean; canRedo: boolean; undo(): void; redo(): void };
     onimport: () => void;
     onexport: () => void;
   } = $props();
@@ -44,18 +52,28 @@
       aria-pressed={workspace === 'screen'}
       onclick={() => onworkspace('screen')}><Monitor size={15} />Screen</button
     >
+    <button
+      class:active={workspace === 'animation'}
+      aria-pressed={workspace === 'animation'}
+      onclick={() => onworkspace('animation')}
+      ><Layers3 size={15} />Animation</button
+    >
   </nav>
   <div class="flex items-center justify-end gap-1.5">
     <button
       class="icon-button"
-      aria-label="Undo screen edit"
+      aria-label={workspace === 'animation'
+        ? 'Undo animation edit'
+        : 'Undo screen edit'}
       title="Undo screen edit (Ctrl+Z)"
       disabled={!editor.canUndo}
       onclick={() => editor.undo()}><Undo2 size={16} /></button
     >
     <button
       class="icon-button"
-      aria-label="Redo screen edit"
+      aria-label={workspace === 'animation'
+        ? 'Redo animation edit'
+        : 'Redo screen edit'}
       title="Redo screen edit (Ctrl+Shift+Z)"
       disabled={!editor.canRedo}
       onclick={() => editor.redo()}><Redo2 size={16} /></button
@@ -64,12 +82,15 @@
     <button
       class="button header-file"
       aria-label="Import screen"
-      onclick={onimport}><Upload size={14} /><span>Import screen</span></button
+      onclick={onimport}><Upload size={14} /><span>Import project</span></button
     >
     <button
       class="button primary header-file"
-      aria-label="Save screen"
-      onclick={onexport}><Download size={14} /><span>Save screen</span></button
+      aria-label={workspace === 'animation' ? 'Save animations' : 'Save screen'}
+      onclick={onexport}
+      ><Download size={14} /><span
+        >{workspace === 'animation' ? 'Save animations' : 'Save screen'}</span
+      ></button
     >
     <span class="ml-2 hidden text-[10px] text-muted xl:block">v{version}</span>
   </div>

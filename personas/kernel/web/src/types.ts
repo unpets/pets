@@ -1,4 +1,8 @@
-export const animationModes = {
+import type { AnimationProject } from '@pets/three-runtime/project';
+export const animationModes: Record<
+  string,
+  { label: string; description: string }
+> = {
   idle: {
     label: 'Idle',
     description: 'A quiet breathing cycle, with an occasional blink.',
@@ -42,9 +46,9 @@ export const animationModes = {
     description:
       'Measured glances through sixteen directions, with coordinated eyes.',
   },
-} as const;
+};
 
-export type AnimationMode = keyof typeof animationModes;
+export type AnimationMode = string;
 export type VectorTuple = [number, number, number];
 export type QuaternionTuple = [number, number, number, number];
 export interface PartTransform {
@@ -62,6 +66,7 @@ export interface AnimationClip {
   samples: PoseSample[];
 }
 export interface AnimationData {
+  project: AnimationProject;
   version: string;
   voxelCount: number;
   ports: { wrist: VectorTuple; server: VectorTuple };

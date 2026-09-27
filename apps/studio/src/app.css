@@ -417,3 +417,28 @@
     font-size: 8px;
   }
 }
+
+.studio-stage.editing-clip {
+  grid-template-columns: 1fr 1fr;
+}
+.pixel-clip-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #101e29;
+  border-left: 1px solid #273e4d;
+}
+.studio-stage.editing-clip .screen-panel {
+  display: none;
+}
+@media (max-width: 900px) {
+  .studio-stage.editing-clip {
+    grid-template-columns: 1fr;
+  }
+  .studio-stage.editing-clip .model-panel {
+    min-height: 240px;
+  }
+  .pixel-clip-editor {
+    min-height: 320px;
+  }
+}

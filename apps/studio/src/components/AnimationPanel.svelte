@@ -14,18 +14,19 @@
     ChevronRight,
     Box,
   } from '@lucide/svelte';
+  import type { AnimationProject } from '@pets/three-runtime/project';
   import { downloads } from '@pets/kernel/assets';
-  import {
-    animationModes,
-    type AnimationMode,
-    type PlaybackState,
-    type StudioController,
-  } from '../lib/types';
+  import { type PlaybackState, type StudioController } from '../lib/types';
   let {
     playback,
     studio,
-  }: { playback: PlaybackState; studio?: StudioController } = $props();
-  const icons = {
+    project,
+  }: {
+    playback: PlaybackState;
+    studio?: StudioController;
+    project: AnimationProject;
+  } = $props();
+  const icons: Record<string, typeof Activity> = {
     idle: Activity,
     'running-right': ArrowRight,
     'running-left': ArrowLeft,
@@ -37,10 +38,7 @@
     review: ScanEye,
     look: Compass,
   };
-  const modes = Object.entries(animationModes) as [
-    AnimationMode,
-    (typeof animationModes)[AnimationMode],
-  ][];
+  const modes = $derived(Object.entries(project.compositions));
 </script>
 
 <aside class="animation-browser" aria-label="Animation browser">
@@ -57,12 +55,12 @@
     </div>
   </div>
   <div class="flex items-center justify-between px-4 pt-5 pb-3">
-    <h2 class="eyebrow">ANIMATION CLIPS</h2>
-    <span class="text-[10px] text-muted">10</span>
+    <h2 class="eyebrow">COMPOSITIONS</h2>
+    <span class="text-[10px] text-muted">{modes.length}</span>
   </div>
   <div class="clip-list" role="group" aria-label="Animation mode">
     {#each modes as [id, mode], index}
-      {@const Icon = icons[id]}
+      {@const Icon = icons[id] ?? Activity}
       <button
         class="clip-button"
         data-state={id}

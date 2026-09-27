@@ -1,5 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { AnimationEditorState } from './lib/animation-editor.svelte';
+  import AnimationInspector from './components/AnimationInspector.svelte';
+  import PixelClipEditor from './components/PixelClipEditor.svelte';
+  import {
+    loadAnimationProject,
+    parseKernelProject,
+  } from '@pets/kernel/animation-project';
   import ScreenEditor from '@pets/kernel/components/ScreenEditor.svelte';
   import ScreenPreview from '@pets/kernel/components/ScreenPreview.svelte';
   import { ScreenEditorState } from '@pets/kernel/screen-editor';
@@ -30,6 +37,12 @@
   let workspace = $state<Workspace>('scene');
   let settings = $state(defaultViewSettings());
   const editor = new ScreenEditorState();
+  const animations = new AnimationEditorState();
+  const history = $derived(workspace === 'animation' ? animations : editor);
+  const editingPixels = $derived(
+    workspace === 'animation' &&
+      !!animations.project.clips[animations.clip]?.data.frames,
+  );
   let playback = $state<PlaybackState>({
     mode: 'running',
     phase: 0,
@@ -42,6 +55,9 @@
   });
 
   $effect(() => {
+    studio?.setAnimationProject(animations.project);
+  });
+  $effect(() => {
     studio?.setScreenProject(editor.preview);
   });
   $effect(() => {
@@ -50,13 +66,23 @@
 
   function exportScreen() {
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(editor.project, null, 2) + '\n'], {
-        type: 'application/json',
-      }),
+      new Blob(
+        [
+          JSON.stringify(
+            workspace === 'animation' ? animations.project : editor.project,
+            null,
+            2,
+          ) + '\n',
+        ],
+        {
+          type: 'application/json',
+        },
+      ),
     );
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'kernel-screen.json';
+    link.download =
+      workspace === 'animation' ? 'pets-animation.json' : 'kernel-screen.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -64,11 +90,17 @@
     const file = input?.files?.[0];
     if (!file) return;
     try {
-      if (file.size > 65536)
-        throw new Error('Screen projects must be under 64 KB.');
-      editor.replace(parseScreenProject(JSON.parse(await file.text())));
-      editor.solo = null;
-      workspace = 'screen';
+      if (file.size > 2_000_000)
+        throw new Error('Projects must be under 2 MB.');
+      const value = JSON.parse(await file.text());
+      if (value.format === 'pets-animation') {
+        animations.replace(parseKernelProject(value));
+        workspace = 'animation';
+      } else {
+        editor.replace(parseScreenProject(value));
+        editor.solo = null;
+        workspace = 'screen';
+      }
       projectError = '';
     } catch (reason) {
       projectError =
@@ -82,8 +114,8 @@
       return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
       event.preventDefault();
-      if (event.shiftKey) editor.redo();
-      else editor.undo();
+      if (event.shiftKey) history.redo();
+      else history.undo();
     } else if (
       !event.ctrlKey &&
       !event.metaKey &&
@@ -97,6 +129,7 @@
   }
   onMount(() => {
     editor.load(loadScreenProject());
+    animations.load(loadAnimationProject());
     if (!viewport || !canvas) return;
     let disposed = false;
     createStudio(
@@ -129,7 +162,7 @@
   <StudioHeader
     {workspace}
     onworkspace={(value) => (workspace = value)}
-    {editor}
+    editor={history}
     onimport={() => input?.click()}
     onexport={exportScreen}
   />
@@ -142,7 +175,7 @@
     onchange={importScreen}
   />
   <main class="studio-layout">
-    <AnimationPanel {playback} {studio} />
+    <AnimationPanel {playback} {studio} project={animations.project} />
     <div class="studio-center">
       {#if projectError}<div
           class="border-b border-red-300/20 bg-red-300/5 px-4 py-3 text-xs text-red-200"
@@ -153,8 +186,13 @@
             onclick={() => (projectError = '')}>Dismiss</button
           >
         </div>{/if}
-      <div class="studio-stage" class:editing-screen={workspace === 'screen'}>
+      <div
+        class="studio-stage"
+        class:editing-screen={workspace === 'screen'}
+        class:editing-clip={editingPixels}
+      >
         <ModelViewport bind:viewport {studio} {error} {workspace} />
+        {#if editingPixels}<PixelClipEditor editor={animations} />{/if}
         <ScreenPreview
           bind:canvas
           mode={playback.mode}
@@ -168,8 +206,26 @@
       class="studio-inspector"
       aria-label={workspace === 'screen' ? 'Screen editor' : 'Scene settings'}
     >
-      {#if workspace === 'screen'}<ScreenEditor
+      {#if workspace === 'animation'}<AnimationInspector
+          editor={animations}
+          mode={playback.mode}
+          {studio}
+        />{:else if workspace === 'screen'}<ScreenEditor
           {editor}
+          onanimation={() => {
+            const id = `screen/${editor.selected}`;
+            if (animations.project.components[id]) {
+              animations.component = id;
+              animations.clip =
+                animations.project.compositions[playback.mode].bindings[id]
+                  ?.clip ??
+                Object.keys(animations.project.clips).find(
+                  (clip) => animations.project.clips[clip].component === id,
+                ) ??
+                '';
+            }
+            workspace = 'animation';
+          }}
         />{:else}<ViewportInspector
           {settings}
           onchange={(value) => (settings = value)}

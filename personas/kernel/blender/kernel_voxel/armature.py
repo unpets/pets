@@ -3,6 +3,7 @@
 import math
 
 import bpy
+from bpy_extras.anim_utils import action_ensure_channelbag_for_slot
 from mathutils import Matrix
 
 from .hands import HAND_BONES
@@ -116,4 +117,34 @@ def bake_actions(model):
         actions[state] = action
     armature.animation_data.action = actions["idle"]
     model["actions"] = actions
+    component_actions(actions)
     return actions
+
+
+def component_actions(actions):
+    """Expose each joint clip as a reusable slotted Blender action asset."""
+    for state, source in actions.items():
+        curves = source.layers[0].strips[0].channelbags[0].fcurves
+        for name in PARENTS:
+            action = bpy.data.actions.new(f"rig/{name}/{state}")
+            action.use_fake_user = True
+            action["pets_component"] = f"rig/{name}"
+            action["pets_clip"] = f"rig/{name}/{state}"
+            action.asset_mark()
+            action.asset_data.description = f"{name} local motion from {state}"
+            slot = action.slots.new(id_type="OBJECT", name="Kernel rig")
+            bag = action_ensure_channelbag_for_slot(action, slot)
+            prefix = f'pose.bones["{name}"]'
+            for curve in curves:
+                if not curve.data_path.startswith(prefix):
+                    continue
+                target = bag.fcurves.new(
+                    curve.data_path, index=curve.array_index, group_name=name
+                )
+                target.keyframe_points.add(len(curve.keyframe_points))
+                for original, copied in zip(
+                    curve.keyframe_points, target.keyframe_points
+                ):
+                    copied.co = original.co
+                    copied.interpolation = original.interpolation
+                target.update()

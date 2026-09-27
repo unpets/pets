@@ -37,6 +37,8 @@ TAU = math.tau
 WRIST_PORT = np.array([0, 0.09, 0.055])
 SERVER_PORT = np.array([1.185, -0.427, 0.85])
 SHOULDER_PIVOT = np.array([0.60, 0, 1.50])
+REST_HEIGHT = 0.078
+LEG_REACH = 0.833
 PARENTS = {"body": None, "head": "body"}
 for side in ("L", "R"):
     for child, parent in (
@@ -141,7 +143,7 @@ def pose_at(state, t):
     if state != "jumping":
         t %= 1
     s, c = math.sin(TAU * t), math.cos(TAU * t)
-    root_z = 0.012 * s
+    root_z = REST_HEIGHT + 0.002 * s
     root_y = 0.0
     root_x = 0.0
     lean = 0.0
@@ -149,13 +151,13 @@ def pose_at(state, t):
     yaw = 0.0
     head_yaw = 0.025 * s
     head_pitch = -0.018 * c
-    hands = {-1: np.array([-0.78, -0.04, 1.00]), 1: np.array([0.78, -0.04, 1.00])}
+    hands = {-1: None, 1: None}
     ankles = {-1: np.array([-0.26, -0.015, 0.17]), 1: np.array([0.26, -0.015, 0.17])}
     feet_pitch = {-1: 0.0, 1: 0.0}
     gaze = (0.0, 0.0)
     if state.startswith("running-"):
         yaw = 0.95 if state == "running-right" else -0.95
-        root_z = 0.018 - 0.016 * math.cos(2 * TAU * t)
+        root_z = REST_HEIGHT - 0.010 * math.cos(2 * TAU * t)
         lean = 0.10
         root_y = -0.015
         roll = 0.035 * s
@@ -164,9 +166,6 @@ def pose_at(state, t):
             fy, fz, fp = gait_foot(phase)
             ankles[side] = np.array([side * 0.26, fy, 0.17 + fz])
             feet_pitch[side] = fp
-            hands[side] = np.array(
-                [side * 0.75, -0.07 - side * 0.19 * s, 1.02 + 0.035 * c]
-            )
         head_pitch = -0.08
         head_yaw = -0.10 if yaw > 0 else 0.10
     elif state == "waving":
@@ -182,6 +181,7 @@ def pose_at(state, t):
                 root_z = za + (zb - za) * smooth((t - ta) / (tb - ta))
                 break
         air = max(0, root_z)
+        root_z += REST_HEIGHT
         for side in (-1, 1):
             ankles[side][2] += air
             hands[side] = np.array(
@@ -193,7 +193,7 @@ def pose_at(state, t):
             )
         head_pitch = -0.09 * math.sin(math.pi * t)
     elif state == "failed":
-        root_z = -0.035 * (1 - c) / 2
+        root_z = REST_HEIGHT - 0.035 * (1 - c) / 2
         head_pitch = 0.17 + 0.08 * (1 - c) / 2
         head_yaw = 0.085 * math.sin(2 * TAU * t)
         hands[1] = np.array([0.84, -0.22, 1.09])
@@ -206,7 +206,8 @@ def pose_at(state, t):
     elif state == "running":
         head_yaw = 0.13
         head_pitch = 0.035 + 0.02 * s
-        root_z = 0.007 * s
+        root_z = 0.070 + 0.007 * s
+        root_x = 0.025
         hands[1] = WORK_HAND[:3, 3].copy()
         hands[-1] = np.array([-0.62, -0.41, 1.32 + 0.024 * math.sin(2 * TAU * t)])
     elif state == "review":
@@ -214,18 +215,23 @@ def pose_at(state, t):
         head_pitch = 0.08 + 0.035 * c + 0.08 * nod
         head_yaw = -0.045 + 0.12 * s
         hands[1] = np.array([0.43, -0.48, 1.515 + 0.012 * s])
-        hands[-1] = np.array([-0.72, -0.16, 1.04])
     elif state == "look":
-        root_z = 0
+        root_z = REST_HEIGHT
         angle = look_angle(t)
         head_yaw = 0.216 + 0.66 * math.sin(angle)
         head_pitch = -0.02 - 0.34 * math.cos(angle)
-        hands[-1] = np.array([-0.80, -0.09, 1.03])
-        hands[1] = np.array([0.80, -0.09, 1.03])
     elif state != "idle":
         raise ValueError(state)
     gaze = gaze_at(state, t)
     heading = transform(angles=(0, 0, yaw))
+    # Limit torso height against both foot targets, preserving a soft knee bend.
+    # This also allows the support leg to extend during the walking cycle.
+    tilted = transform((root_x, root_y, 0), (lean, roll, 0))
+    for side in (-1, 1):
+        hip = point(tilted, (side * 0.25, 0, 0.92))
+        offset = hip[:2] - ankles[side][:2]
+        height = math.sqrt(LEG_REACH**2 - float(offset @ offset))
+        root_z = min(root_z, ankles[side][2] + height - hip[2])
     body = heading @ transform((root_x, root_y, root_z), (lean, roll, 0))
     matrices = {
         "body": body,
@@ -238,11 +244,27 @@ def pose_at(state, t):
         ankle = point(heading, ankles[side])
         knee = two_bone(hip, ankle, 0.42, 0.42, point(heading, (0, -1, 0)))
         shoulder = point(body, SHOULDER_PIVOT * (side, 1, 1))
-        # Jump hands follow torso translation; grounded states have world hand targets.
-        hand = point(
-            heading,
-            hands[side] + np.array([0, 0, max(0, root_z) if state == "jumping" else 0]),
-        )
+        if hands[side] is None:
+            # Rest targets follow the shoulder, independently of planted feet.
+            swing = side * 0.18 * s if state.startswith("running-") else 0.0
+            drift = 0.008 * math.sin(TAU * t + side * 1.1)
+            hand = point(
+                body,
+                (
+                    side * 0.68,
+                    -0.035 - swing + drift,
+                    0.85 + 0.035 * s * s if swing else 0.84,
+                ),
+            )
+        else:
+            # Gesture targets stay in world space; airborne hands follow lift.
+            hand = point(
+                heading,
+                hands[side]
+                + np.array(
+                    [0, 0, max(0, root_z - REST_HEIGHT) if state == "jumping" else 0]
+                ),
+            )
         pole = (1, 0, -1) if state == "review" and side == 1 else (side * 0.3, 0.8, 0)
         elbow = two_bone(shoulder, hand, 0.33, 0.34, point(heading, pole))
         matrices[f"thigh.{name}"], matrices[f"shin.{name}"] = limb_matrices(

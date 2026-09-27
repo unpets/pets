@@ -197,6 +197,7 @@ jobs:
           bunx playwright install --with-deps chromium firefox
           bun run test:viewer
           bun run test:pet
+          bun run test:animation
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Package versioned downloads
         env:

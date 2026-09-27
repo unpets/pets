@@ -1,6 +1,6 @@
 {
   "name": "@pets/kernel",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,7 +12,8 @@
     "./screen-project": "./src/screen-project.ts",
     "./screen-editor": "./src/screen-editor.svelte.ts",
     "./gaze": "./src/gaze.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./animation-project": "./src/animation-project.ts"
   },
   "dependencies": {
     "@pets/three-runtime": "workspace:*",

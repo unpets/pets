@@ -14,11 +14,11 @@
     },
     "apps/desktop": {
       "name": "@pets/desktop",
-      "version": "0.7.0",
+      "version": "0.8.0",
     },
     "apps/studio": {
       "name": "@pets/studio",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "dependencies": {
         "@lucide/svelte": "1.48.0",
         "@pets/kernel": "workspace:*",
@@ -43,7 +43,7 @@
     },
     "packages/three-runtime": {
       "name": "@pets/three-runtime",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "dependencies": {
         "three": "0.186.1",
       },
@@ -53,7 +53,7 @@
     },
     "personas/kernel/web": {
       "name": "@pets/kernel",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "dependencies": {
         "@lucide/svelte": "1.48.0",
         "@pets/three-runtime": "workspace:*",

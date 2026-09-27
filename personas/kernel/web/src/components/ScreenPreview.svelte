@@ -82,7 +82,7 @@
         width="96"
         height="64"
         class="block size-full [image-rendering:pixelated]"
-        aria-label={`${animationModes[mode].label} display`}
+        aria-label={`${animationModes[mode]?.label ?? mode} display`}
       ></canvas>
       {#if grid}<div
           class="pixel-grid"
@@ -97,7 +97,7 @@
     <span
       >{solo ? `Solo preview: ${solo}` : 'Composite preview'}
       <span class="mx-1 text-line">/</span>
-      {animationModes[mode].label}</span
+      {animationModes[mode]?.label ?? mode}</span
     ><span>{scale * 100}%</span>
   </div>
 </section>

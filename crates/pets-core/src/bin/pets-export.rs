@@ -15,6 +15,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Validate or sample an independent animation project.
+    Project {
+        #[arg(long, default_value = "-")]
+        input: PathBuf,
+        /// Composition to sample; omit to validate the project.
+        #[arg(long)]
+        composition: Option<String>,
+        #[arg(long, default_value_t = 0.0)]
+        seconds: f64,
+        #[arg(long, default_value_t = 0.0)]
+        independent_seconds: f64,
+    },
     /// Create an export from rendered persona frames.
     Export(FormatArgs),
     /// Validate an export against its source frames and optional checksums.
@@ -29,6 +41,9 @@ enum Command {
 
 #[derive(Args)]
 struct FormatArgs {
+    /// Animation project whose export bindings map host intents to rendered clips.
+    #[arg(long)]
+    project: Option<PathBuf>,
     /// Target application format.
     #[arg(long, value_enum)]
     target: Target,
@@ -51,10 +66,32 @@ enum Target {
 
 fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let (operation, format, checksums) = match cli.command {
+        Command::Project {
+            input,
+            composition,
+            seconds,
+            independent_seconds,
+        } => {
+            let project: pets_core::animation::AnimationProject = if input.as_os_str() == "-" {
+                serde_json::from_reader(io::stdin().lock())?
+            } else {
+                serde_json::from_reader(File::open(input)?)?
+            };
+            project.validate()?;
+            if let Some(composition) = composition {
+                serde_json::to_writer(
+                    io::stdout().lock(),
+                    &project.sample(&composition, seconds, independent_seconds)?,
+                )?;
+            } else {
+                serde_json::to_writer(io::stdout().lock(), &project)?;
+            }
+            return Ok(());
+        }
         Command::Export(format) => (Operation::Export, format, None),
         Command::Validate { format, checksums } => (Operation::Validate, format, checksums),
     };
-    let persona: RenderedPersona = if format.input.as_os_str() == "-" {
+    let mut persona: RenderedPersona = if format.input.as_os_str() == "-" {
         serde_json::from_reader(io::stdin().lock())?
     } else {
         serde_json::from_reader(File::open(format.input)?)?
@@ -67,6 +104,10 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Target::Codex => ExportTarget::Codex,
         Target::Shimeji => ExportTarget::Shimeji,
     };
+    if let Some(path) = format.project {
+        let project = serde_json::from_reader(File::open(path)?)?;
+        persona.bind_project(&project, target)?;
+    }
     let report = execute(&ExportRequest {
         operation,
         target,

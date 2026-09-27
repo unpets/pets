@@ -11,10 +11,12 @@
     ArrowDown,
   } from '@lucide/svelte';
   import ScreenPalette from './ScreenPalette.svelte';
-  import { animationModes } from '../types';
   import { screenLayers } from '../screen-project';
   import type { ScreenEditorState } from '../screen-editor.svelte';
-  let { editor }: { editor: ScreenEditorState } = $props();
+  let {
+    editor,
+    onanimation,
+  }: { editor: ScreenEditorState; onanimation: () => void } = $props();
   const layer = $derived(editor.project.layers[editor.selected]);
   function offset(axis: 'x' | 'y', value: number, group?: string) {
     if (!Number.isFinite(value)) return;
@@ -92,23 +94,8 @@
         editor.changeLayer({ visible: event.currentTarget.checked })}
     /></label
   >
-  <label class="field-label"
-    >Expression<select
-      aria-label="Layer expression"
-      class="field mt-2 w-full"
-      value={layer.source ?? ''}
-      onchange={(event) =>
-        editor.changeLayer({
-          source:
-            event.currentTarget.value === ''
-              ? null
-              : Number(event.currentTarget.value),
-        })}
-      ><option value="">Follow animation</option
-      >{#each Object.values(animationModes) as mode, index}<option value={index}
-          >{mode.label}</option
-        >{/each}</select
-    ></label
+  <button class="button w-full" onclick={onanimation}
+    >Edit layer animation</button
   >
   <label class="range-label mt-5"
     ><span>Opacity<output>{Math.round(layer.opacity * 100)}%</output></span

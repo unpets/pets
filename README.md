@@ -56,9 +56,12 @@ The timeline supports frame stepping, playback speed, and loop control.
 Use the Screen workspace for an enlarged display canvas and a dedicated layer inspector.  
 The display editor controls independent background, activity, eyes, and mouth layers.  
 Background, line, and text colors are editable, with line and text colors linked by default.  
-Layer controls include visibility, solo preview, expression, opacity, color, and exact pixel offsets.  
+Layer controls include visibility, solo preview, opacity, color, and exact pixel offsets.  
 Undo and redo preserve editing history, including imported projects and resets.  
 Screen projects can be saved as JSON and imported into the companion.  
+Use the Animation workspace to combine independent joint, display, and prop clips.  
+Create compositions, pixel clips, screen layers, and joint rotation clips.  
+[Animation projects](docs/animation.md) describes clocks, reusable assets, and project import and export.  
 
 ## Build the applications
 

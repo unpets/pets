@@ -166,3 +166,67 @@ test('active work keeps the hand planted between baked samples while the torso m
   }
   expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(0.013);
 });
+
+test('independent joint tracks preserve default poses and arbitrary limb combinations', () => {
+  const joints: Record<string, string> = {};
+  model.traverse((object) => {
+    if (object.userData.joint) joints[object.userData.joint] = object.name;
+  });
+  for (const mode of ['idle', 'running', 'waving', 'review']) {
+    const composition = data.project.compositions[mode];
+    motion.setLayers(
+      Object.entries(composition.bindings)
+        .filter(([id]) => data.project.components[id].kind === 'rig')
+        .map(([id, binding]) => ({
+          id,
+          source: data.project.clips[binding.clip].data.source as string,
+          nodes: (data.project.components[id].data.nodes as string[]).map(
+            (name) => joints[name],
+          ),
+        })),
+    );
+    motion.cancelTransition();
+    for (let index = 0; index <= 120; index += 10) {
+      motion.update(
+        0,
+        Object.fromEntries(
+          Object.keys(composition.bindings).map((id) => [id, index / 120]),
+        ),
+      );
+      assertConnections();
+      for (const [name, expected] of Object.entries(
+        data.states[mode].samples[index].parts,
+      )) {
+        expect(
+          parts[name]
+            .getWorldPosition(new Vector3())
+            .distanceTo(new Vector3(...expected.p)),
+        ).toBeLessThan(0.0001);
+      }
+    }
+  }
+  const composition = data.project.compositions.idle;
+  motion.setLayers(
+    Object.entries(composition.bindings)
+      .filter(([id]) => data.project.components[id].kind === 'rig')
+      .map(([id]) => ({
+        id,
+        source: id.endsWith('.R') ? 'waving' : 'idle',
+        nodes: (data.project.components[id].data.nodes as string[]).map(
+          (name) => joints[name],
+        ),
+      })),
+  );
+  for (let index = 0; index < 120; index++) {
+    motion.update(
+      1 / 60,
+      Object.fromEntries(
+        Object.keys(composition.bindings).map((id) => [
+          id,
+          (id.endsWith('.R') ? index / 120 : index / 40) % 1,
+        ]),
+      ),
+    );
+    assertConnections();
+  }
+});

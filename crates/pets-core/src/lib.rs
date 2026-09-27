@@ -1,5 +1,6 @@
 //! Platform-independent persona contracts, companion behavior, and exports.
 
+pub mod animation;
 pub mod behavior;
 #[cfg(feature = "export")]
 pub mod export;

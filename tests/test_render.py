@@ -10,6 +10,34 @@ from PIL import Image
 
 
 class RigTests(unittest.TestCase):
+    def test_neutral_limbs_are_relaxed_without_locking(self):
+        for state in ("idle", "look"):
+            for t in np.linspace(0, 1, 121):
+                pose = pose_at(state, t)
+                for side in ("L", "R"):
+                    for a, b, c in (
+                        ("shoulder", "elbow", "wrist"),
+                        ("hip", "knee", "ankle"),
+                    ):
+                        start, hinge, end = (
+                            pose.joints[f"{name}.{side}"] for name in (a, b, c)
+                        )
+                        first, second = hinge - start, end - hinge
+                        angle = np.degrees(
+                            np.arccos(
+                                np.clip(
+                                    first
+                                    @ second
+                                    / np.linalg.norm(first)
+                                    / np.linalg.norm(second),
+                                    -1,
+                                    1,
+                                )
+                            )
+                        )
+                        self.assertGreater(angle, 10)
+                        self.assertLess(angle, 26)
+
     def test_bone_lengths_and_orthonormal_frames_across_motion(self):
         for state in [*FRAMES, "look"]:
             for t in np.linspace(0, 1, 121):

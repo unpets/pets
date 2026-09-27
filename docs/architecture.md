@@ -66,3 +66,11 @@ Additional formats belong beside the existing adapters and must declare their in
 - Export adapters consume rendered assets; they do not import the Kernel generator.
 - Kernel owns its rig, materials, display layers, and Blender generation.
 - Build targets request only their required artifacts and verify cached outputs.
+
+## Animation composition
+
+The core owns component, clip, composition, timing, and export binding contracts.  
+Renderer adapters interpret clip data and apply evaluated phases to their targets.  
+Kernel supplies reusable joint motion, screen clips, prop bindings, and default compositions.  
+The studio edits the same project imported by the standalone companion.  
+See [Animation projects](animation.md) for the data flow and authoring controls.  

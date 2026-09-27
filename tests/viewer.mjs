@@ -32,8 +32,14 @@ try {
     ).unref();
   });
   browser = await engine.launch({
-    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-    headless: true,
+    ...(engine === firefox
+      ? { firefoxUserPrefs: { 'webgl.force-enabled': true } }
+      : {}),
+    executablePath:
+      engine === chromium
+        ? process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+        : undefined,
+    headless: engine === chromium || !process.env.DISPLAY,
     args:
       engine === chromium
         ? [
@@ -62,9 +68,16 @@ try {
       return route.abort();
     });
     await page.goto(url);
-    await page.waitForFunction(() => window.kernelViewer?.ready, undefined, {
-      timeout: 30000,
-    });
+    await page.waitForFunction(
+      () =>
+        window.kernelViewer?.ready || document.querySelector('[role="alert"]'),
+      undefined,
+      { timeout: 30000 },
+    );
+    assert.ok(
+      await page.evaluate(() => window.kernelViewer?.ready),
+      await page.locator('[role="alert"]').allTextContents(),
+    );
     assert.equal(
       await page.locator('main').evaluate((el) => getComputedStyle(el).display),
       'grid',

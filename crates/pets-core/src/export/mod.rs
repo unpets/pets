@@ -59,6 +59,8 @@ fn invalid(message: impl Into<String>) -> ExportError {
 pub struct RenderedAnimation {
     pub frames: u32,
     pub frame_duration_ms: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// Renderer-independent input. Both sprite and model pipelines can produce frames.
@@ -116,6 +118,9 @@ impl RenderedPersona {
         }
         for (name, clip) in &self.animations {
             component(name)?;
+            if let Some(source) = &clip.source {
+                component(source)?;
+            }
             if clip.frames == 0 || clip.frames > 4096 || clip.frame_duration_ms == 0 {
                 return Err(invalid(format!("Invalid animation timing: {name}")));
             }
@@ -128,7 +133,46 @@ impl RenderedPersona {
             .ok_or_else(|| invalid(format!("Missing animation: {state}")))
     }
     fn frame_path(&self, frames: &Path, state: &str, index: u32) -> PathBuf {
-        frames.join(state).join(format!("{index:02}.png"))
+        let source = self
+            .animations
+            .get(state)
+            .and_then(|clip| clip.source.as_deref())
+            .unwrap_or(state);
+        frames.join(source).join(format!("{index:02}.png"))
+    }
+
+    /// Resolve host intent names to rendered composition directories.
+    pub fn bind_project(
+        &mut self,
+        project: &crate::animation::AnimationProject,
+        target: ExportTarget,
+    ) -> ExportResult<()> {
+        project
+            .validate()
+            .map_err(|error| invalid(error.to_string()))?;
+        let target = match target {
+            ExportTarget::Codex => "codex",
+            ExportTarget::Shimeji => "shimeji",
+        };
+        let bindings = project
+            .exports
+            .get(target)
+            .ok_or_else(|| invalid(format!("Missing export bindings: {target}")))?;
+        self.animations = bindings
+            .iter()
+            .map(|(intent, composition)| {
+                component(intent)?;
+                component(composition)?;
+                let mut clip = self
+                    .animations
+                    .get(composition)
+                    .ok_or_else(|| invalid(format!("Missing rendered composition: {composition}")))?
+                    .clone();
+                clip.source = Some(clip.source.unwrap_or_else(|| composition.clone()));
+                Ok((intent.clone(), clip))
+            })
+            .collect::<ExportResult<_>>()?;
+        Ok(())
     }
 }
 

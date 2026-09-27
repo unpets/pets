@@ -6,6 +6,7 @@ from pathlib import Path
 import bpy
 import numpy as np
 
+from .animation import PROJECT, prop_visible
 from .rig import FRAMES, pose_at
 
 
@@ -29,6 +30,17 @@ def verify(build):
         action = bpy.data.actions.get(name)
         if not action or not action.slots:
             raise ValueError(f"Missing slotted animation action: {name}")
+    for clip in PROJECT["clips"].values():
+        if PROJECT["components"][clip["component"]]["kind"] != "rig":
+            continue
+        name = f"{clip['component']}/{clip['data']['source']}"
+        action = bpy.data.actions.get(name)
+        if (
+            not action
+            or action.get("pets_component") != clip["component"]
+            or not action.asset_data
+        ):
+            raise ValueError(f"Missing component action asset: {name}")
     if display.parent != parts["head"]:
         raise ValueError("Screen is not attached to the head")
     if (scene.frame_start, scene.frame_end) != (1, len(timeline)):
@@ -46,8 +58,11 @@ def verify(build):
         raise FileNotFoundError("Blender display image reference cannot be resolved")
     for sample in timeline:
         scene.frame_set(sample["frame"])
-        hidden = sample["state"] != "running"
-        for obj in (parts["server"], scene.objects["cable"]):
+        for prop, obj in (
+            ("server", parts["server"]),
+            ("cable", scene.objects["cable"]),
+        ):
+            hidden = not prop_visible(sample["state"], prop)
             if obj.hide_render != hidden or obj.hide_viewport != hidden:
                 raise ValueError(
                     f"Incorrect server visibility at frame {sample['frame']}"

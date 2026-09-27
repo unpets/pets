@@ -1,27 +1,55 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "String", into = "String")]
 pub enum Animation {
-    #[serde(rename = "idle")]
     Idle,
-    #[serde(rename = "running-left")]
     MoveLeft,
-    #[serde(rename = "running-right")]
     MoveRight,
-    #[serde(rename = "waving")]
     Wave,
-    #[serde(rename = "jumping")]
     Jump,
-    #[serde(rename = "failed")]
     Failed,
-    #[serde(rename = "waiting")]
     Waiting,
-    #[serde(rename = "running")]
     Work,
-    #[serde(rename = "review")]
     Review,
-    #[serde(rename = "look")]
     Look,
+    Custom(String),
+}
+
+impl From<String> for Animation {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "idle" => Self::Idle,
+            "running-left" => Self::MoveLeft,
+            "running-right" => Self::MoveRight,
+            "waving" => Self::Wave,
+            "jumping" => Self::Jump,
+            "failed" => Self::Failed,
+            "waiting" => Self::Waiting,
+            "running" => Self::Work,
+            "review" => Self::Review,
+            "look" => Self::Look,
+            _ => Self::Custom(value),
+        }
+    }
+}
+impl From<Animation> for String {
+    fn from(value: Animation) -> Self {
+        match value {
+            Animation::Idle => "idle",
+            Animation::MoveLeft => "running-left",
+            Animation::MoveRight => "running-right",
+            Animation::Wave => "waving",
+            Animation::Jump => "jumping",
+            Animation::Failed => "failed",
+            Animation::Waiting => "waiting",
+            Animation::Work => "running",
+            Animation::Review => "review",
+            Animation::Look => "look",
+            Animation::Custom(value) => return value,
+        }
+        .to_owned()
+    }
 }
 
 /// Desktop coordinates are logical pixels in the current monitor's scale.
@@ -57,7 +85,7 @@ impl Wander {
 
     pub fn step(&mut self, frame: DesktopFrame) -> DesktopStep {
         let mut result = DesktopStep {
-            mode: frame.mode,
+            mode: frame.mode.clone(),
             restart: false,
             x: None,
         };
@@ -85,7 +113,7 @@ impl Wander {
             ];
             let index = ((frame.choice.clamp(0.0, 1.0) * choices.len() as f64) as usize)
                 .min(choices.len() - 1);
-            result.mode = choices[index];
+            result.mode = choices[index].clone();
             result.restart = true;
             self.since_choice = 0.0;
         }

@@ -1,5 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import {
+    parseKernelProject,
+    saveAnimationProject,
+  } from '@pets/kernel/animation-project';
   import { Eye, Play, Pause, Settings, X, Footprints } from '@lucide/svelte';
   import { animationModes, type AnimationMode } from './lib/types';
   import { createPetScene, type PetScene } from './lib/pet/scene';
@@ -9,16 +13,28 @@
     saveScreenProject,
   } from '@pets/kernel/screen-project';
   import persona from '@pets/kernel/manifest';
+  let modes = $state(animationModes);
   let projectFile = $state<HTMLInputElement>();
   async function importScreen() {
     const file = projectFile?.files?.[0];
     if (!file) return;
     try {
-      if (file.size > 65536)
-        throw new Error('Screen projects must be under 64 KB.');
-      const project = parseScreenProject(JSON.parse(await file.text()));
-      pet?.setScreenProject(project);
-      saveScreenProject(project);
+      if (file.size > 2_000_000)
+        throw new Error('Projects must be under 2 MB.');
+      const value = JSON.parse(await file.text());
+      if (value.format === 'pets-animation') {
+        const project = parseKernelProject(value);
+        pet?.setAnimationProject(project);
+        saveAnimationProject(project);
+        if (pet) {
+          modes = pet.compositions;
+          mode = pet.state;
+        }
+      } else {
+        const project = parseScreenProject(value);
+        pet?.setScreenProject(project);
+        saveScreenProject(project);
+      }
       error = '';
     } catch (reason) {
       error = String(reason);
@@ -50,6 +66,7 @@
           return;
         }
         pet = scene;
+        modes = scene.compositions;
         window.kernelPet = scene;
         desktop = await connectDesktop(
           scene,
@@ -120,8 +137,8 @@
           autonomous = false;
           setMode(mode);
         }}
-        >{#each Object.entries(animationModes) as [value, details]}<option
-            {value}>{details.label}</option
+        >{#each Object.entries(modes) as [value, details]}<option {value}
+            >{details.label}</option
           >{/each}</select
       ></label
     >

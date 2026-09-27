@@ -1,6 +1,10 @@
 """96 x 64 deterministic framebuffer. No randomness, wall clock, or text assets."""
 
+import math
+
 from PIL import Image, ImageDraw
+
+from .animation import screen_bindings
 
 SIZE = (96, 64)
 BG = (7, 21, 29)
@@ -59,7 +63,7 @@ PALETTE_LAYERS = (
 COMPONENTS = ("background", *PALETTE_LAYERS, "eyes", "mouth")
 
 
-def screen_components(state, t, gaze=(0.0, 0.0)):
+def draw_clip(layer, generator, t):
     t %= 1
     layers = {name: Image.new("RGBA", SIZE) for name in COMPONENTS}
     layers["background"].paste((*BG, 255), (0, 0, *SIZE))
@@ -71,8 +75,18 @@ def screen_components(state, t, gaze=(0.0, 0.0)):
     for i, ch in enumerate("KRNL"):
         glyph(text, (6 + i * 4, 2), ch, DIM)
     d.rectangle((83, 3, 89, 4), fill=CYAN)
+    if layer == "background":
+        return {
+            name: image
+            for name, image in layers.items()
+            if name.startswith("background")
+        }
+    if generator == "empty":
+        return {
+            name: Image.new("RGBA", SIZE) for name in layers if name.startswith(layer)
+        }
     d = ImageDraw.Draw(layers["activity-text"])
-    if state == "running":
+    if generator == "terminal":
         # Cyclic digital rain on the right, syntax-like terminal tokens on the left.
         tick = int((t % 1) * 24)
         for col in range(7):
@@ -97,16 +111,21 @@ def screen_components(state, t, gaze=(0.0, 0.0)):
         lines.rectangle((7, 51, 7 + int(40 * t), 52), fill=CYAN)
     else:
         d = ImageDraw.Draw(layers["eyes"])
+        gaze = (
+            (math.sin(math.tau * t), -math.cos(math.tau * t))
+            if generator == "look"
+            else (0, 0)
+        )
         dx = round(gaze[0] * 10)
         dy = round(gaze[1] * 9)
-        blink = state == "idle" and 0.46 < t < 0.64
+        blink = generator == "blink" and (0.46 < t < 0.485 or 0.815 < t < 0.835)
         ey = 23 + dy
         for x in (25 + dx, 62 + dx):
-            if state == "failed":
+            if generator in ("tired", "frown"):
                 # Compressed tired eyelids, never detached error symbols.
                 d.rectangle((x - 7, ey + 4, x + 6, ey + 7), fill=(175, 116, 238))
                 d.rectangle((x + 4, ey + 5, x + 7, ey + 12), fill=(175, 116, 238))
-            elif state == "review":
+            elif generator in ("focused", "line", "checklist"):
                 d.rectangle((x - 7, ey + 3, x + 7, ey + 11), fill=CYAN)
                 d.rectangle((x - 4, ey + 4, x + 3, ey + 8), fill=(148, 255, 251))
                 d.line((x - 7, ey - 1, x + 6, ey - 3), fill=DIM, width=2)
@@ -117,15 +136,15 @@ def screen_components(state, t, gaze=(0.0, 0.0)):
                 d.rectangle((x - 5, ey - 2, x + 5, ey + 15), fill=CYAN)
                 d.rectangle((x - 3, ey + 2, x + 3, ey + 10), fill=(148, 255, 251))
         d = ImageDraw.Draw(layers["mouth"])
-        if state == "waiting":
+        if generator == "open":
             d.rectangle((43, 45, 50, 49), fill=CYAN)
-        elif state == "failed":
+        elif generator in ("tired", "frown"):
             d.line((38, 49, 46, 45, 54, 49), fill=(175, 116, 238), width=2)
-        elif state == "review":
+        elif generator in ("focused", "line", "checklist"):
             d.line((42, 37, 51, 37), fill=CYAN)
         else:
             d.line((37, 43, 40, 47, 53, 47, 57, 43), fill=CYAN, width=2)
-        if state == "review":
+        if generator in ("focused", "line", "checklist"):
             d = ImageDraw.Draw(layers["activity-lines"])
             selected = min(2, int(t * 4))
             for row, width in enumerate((25, 34, 21)):
@@ -135,6 +154,13 @@ def screen_components(state, t, gaze=(0.0, 0.0)):
                 d.line((29, y, 29 + width, y), fill=color)
             if 0.5 < t < 0.82:
                 d.line((70, 46, 73, 49, 79, 42), fill=GREEN, width=2)
+    return {name: image for name, image in layers.items() if name.startswith(layer)}
+
+
+def screen_components(state, t, gaze=(0.0, 0.0)):
+    layers = {name: Image.new("RGBA", SIZE) for name in COMPONENTS}
+    for layer, generator, phase in screen_bindings(state, t):
+        layers.update(draw_clip(layer, generator, phase))
     return layers
 
 

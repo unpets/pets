@@ -7,6 +7,7 @@ import bpy
 import numpy as np
 
 from . import __version__
+from .animation import PROJECT, prop_visible
 from .rig import (
     DURATIONS,
     FRAMES,
@@ -32,6 +33,8 @@ def save_source(model, out):
     from .model import apply_pose
 
     scene = bpy.context.scene
+    project_text = bpy.data.texts.new("pets-animation.json")
+    project_text.write(json.dumps(PROJECT, indent=2))
     armature = model["armature"]
     timeline_action = bpy.data.actions.new("Preview timeline")
     armature.animation_data.action = timeline_action
@@ -117,6 +120,11 @@ def load_source(path, device=None):
     )
     texture.image = image
     actions = {name: bpy.data.actions[name] for name in [*FRAMES, "look"]}
+    # Runtime tracks reference the same curves through their full source actions.
+    # The editable source retains the separate joint assets in its Action library.
+    for action in list(bpy.data.actions):
+        if action.get("pets_component"):
+            bpy.data.actions.remove(action)
     # The combined preview belongs in the editable source, not the exported clip list.
     armature.animation_data.action = actions["idle"]
     timeline = bpy.data.actions.get("Preview timeline")
@@ -132,6 +140,7 @@ def load_source(path, device=None):
         "texture": image,
         "actions": actions,
         "metadata": metadata,
+        "project": json.loads(bpy.data.texts["pets-animation.json"].as_string()),
         "voxel_count": metadata["voxel_count"],
     }
 
@@ -159,11 +168,10 @@ def sample_source(model, state, phase, update_display=True):
         point(matrices["hand.R"], ports["wrist"]),
         np.asarray(ports["server"]),
     )
-    work = state == "running"
-    model["nodes"]["server"].hide_render = not work
-    model["nodes"]["server"].hide_viewport = not work
-    model["cable"].hide_render = not work
-    model["cable"].hide_viewport = not work
+    for prop, obj in (("server", model["nodes"]["server"]), ("cable", model["cable"])):
+        obj.hide_render = not prop_visible(state, prop)
+        obj.hide_viewport = obj.hide_render
+
     for vertex, position in zip(
         model["cable"].data.splines[0].points, cable_points(pose)
     ):

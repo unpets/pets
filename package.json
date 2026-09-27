@@ -1,6 +1,6 @@
 {
   "name": "pets",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",
@@ -29,7 +29,8 @@
     "test:core": "cargo test -p pets-core --all-features --locked",
     "format:core": "cargo fmt --all",
     "format:core:check": "cargo fmt --all --check",
-    "export": "cargo run --locked --quiet -p pets-core --features cli --bin pets-export --"
+    "export": "cargo run --locked --quiet -p pets-core --features cli --bin pets-export --",
+    "test:animation": "bun tests/animation.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

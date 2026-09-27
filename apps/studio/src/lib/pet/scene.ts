@@ -1,3 +1,5 @@
+import type { AnimationProject } from '@pets/three-runtime/project';
+import { loadAnimationProject } from '@pets/kernel/animation-project';
 import {
   DirectionalLight,
   HemisphereLight,
@@ -24,6 +26,7 @@ export async function createPetScene(viewport: HTMLDivElement) {
   canvas.height = 64;
   const character = await createCharacter(canvas);
   character.screen.setProject(loadScreenProject());
+  character.setProject(loadAnimationProject());
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.outputColorSpace = SRGBColorSpace;
@@ -61,12 +64,13 @@ export async function createPetScene(viewport: HTMLDivElement) {
   let cursor = { x: 0, y: 0, valid: false };
   let mode: AnimationMode = 'idle';
   let phase = 0;
+  let independentSeconds = 0;
   let playing = true;
   let tracking = true;
   let disposed = false;
   let frame = 0;
   let previous = performance.now();
-  character.motion.setMode(mode);
+  character.setMode(mode);
   const observer = new ResizeObserver(() => {
     const width = Math.max(1, viewport.clientWidth);
     const height = Math.max(1, viewport.clientHeight);
@@ -83,10 +87,13 @@ export async function createPetScene(viewport: HTMLDivElement) {
     const elapsed = Math.min(0.1, (now - previous) / 1000);
     previous = now;
     if (document.hidden) return;
-    if (playing)
-      phase = (phase + elapsed / character.data.states[mode].duration) % 1;
+    if (playing) {
+      independentSeconds += elapsed;
+      phase =
+        (phase + elapsed / character.project.compositions[mode].duration) % 1;
+    }
     character.joints.head.quaternion.copy(authoredHead);
-    character.update(mode, elapsed, phase);
+    character.update(mode, elapsed, phase, independentSeconds);
     authoredHead.copy(character.joints.head.quaternion);
     character.parts.head.getWorldPosition(headScreen).project(camera);
     const x = ((headScreen.x + 1) * viewport.clientWidth) / 2;
@@ -102,16 +109,27 @@ export async function createPetScene(viewport: HTMLDivElement) {
       tracking && cursor.valid ? eyes.yaw * 10 : 0,
       tracking && cursor.valid ? eyes.pitch * 12 : 0,
     );
-    character.screen.update(character.data.states[mode].screenRow, phase);
+    character.updateScreen();
     renderer.render(scene, camera);
   }
   frame = requestAnimationFrame(animate);
   return {
+    get compositions() {
+      return character.project.compositions;
+    },
+    setAnimationProject(project: AnimationProject) {
+      character.setProject(project);
+      if (!project.compositions[mode])
+        mode = Object.keys(project.compositions)[0];
+      character.setMode(mode);
+    },
     setScreenProject(project: ScreenProject) {
       character.screen.setProject(project);
     },
     setMode(next: AnimationMode) {
-      character.motion.setMode(next);
+      if (!character.project.compositions[next])
+        next = Object.keys(character.project.compositions)[0];
+      character.setMode(next);
       mode = next;
       phase = 0;
     },

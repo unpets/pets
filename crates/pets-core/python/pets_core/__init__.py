@@ -78,3 +78,17 @@ def execute(operation, target, persona, frames, output, expected_files=None):
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or "Core export failed")
     return json.loads(result.stdout)
+
+
+def animation_project(project):
+    """Validate and normalize a reusable animation project with the Rust core."""
+    result = subprocess.run(
+        command() + ["project"],
+        input=json.dumps(project),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        raise ValueError(result.stderr.strip() or "Invalid animation project")
+    return json.loads(result.stdout)

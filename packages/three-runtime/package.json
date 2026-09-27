@@ -1,10 +1,11 @@
 {
   "name": "@pets/three-runtime",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "exports": {
-    "./motion": "./src/motion.ts"
+    "./motion": "./src/motion.ts",
+    "./project": "./src/project.ts"
   },
   "dependencies": {
     "three": "0.186.1"

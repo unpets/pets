@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+- Add independent animation components, reusable clips, composition clocks, and export bindings to the Rust core.
+- Add an Animation workspace with composition editing, per-component timing, pixel clip painting, and joint rotation clips.
+- Separate display generators and atlas clips from body animation modes.
+- Expose reusable joint action assets and the composition catalog in Blender.
+- Support custom composition names and animation project imports in the standalone companion.
+- Relax resting elbows and knees and extend walking support legs without locking joints.
+- Run Firefox validation with a virtual display for WebGL2 rendering.
+
 ## 0.7.0
 
 - Reorganize the studio into Scene and Screen workspaces with a clip browser, central viewport, timeline, and inspector.

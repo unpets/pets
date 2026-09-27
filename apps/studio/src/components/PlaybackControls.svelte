@@ -66,7 +66,7 @@
     </div>
     <div class="flex items-center gap-4 text-[11px]">
       <span class="hidden text-muted sm:block"
-        >{animationModes[playback.mode].label}</span
+        >{animationModes[playback.mode]?.label ?? playback.mode}</span
       >
       <output aria-label="Current frame" class="text-muted tabular-nums"
         >{String(frame).padStart(3, '0')} <span class="text-line">/</span>

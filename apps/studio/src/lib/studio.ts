@@ -104,6 +104,7 @@ export async function createStudio(
 
   let mode: AnimationMode = 'running';
   let phase = 0;
+  let independentSeconds = 0;
   let playing = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   let speed = 1;
   let looping = true;
@@ -117,8 +118,8 @@ export async function createStudio(
     controls.update();
   }
   function update(elapsed: number) {
-    const clip = data.states[mode];
-    character.update(mode, elapsed, phase);
+    const clip = character.project.compositions[mode];
+    character.update(mode, elapsed, phase, independentSeconds);
     markers.children.forEach((marker, index) =>
       parts[jointNames[index]].getWorldPosition(marker.position),
     );
@@ -129,7 +130,7 @@ export async function createStudio(
       speed,
       seconds: phase * clip.duration,
       duration: clip.duration,
-      frames: clip.samples.length,
+      frames: 121,
       looping,
     });
   }
@@ -149,7 +150,10 @@ export async function createStudio(
     const elapsed = Math.max(0, Math.min((now - previousTime) / 1000, 0.05));
     previousTime = now;
     if (playing) {
-      const next = phase + (elapsed * speed) / data.states[mode].duration;
+      independentSeconds += elapsed * speed;
+      const next =
+        phase +
+        (elapsed * speed) / character.project.compositions[mode].duration;
       phase = looping ? next % 1 : Math.min(1, next);
       if (!looping && next >= 1) playing = false;
     }
@@ -172,8 +176,14 @@ export async function createStudio(
   }
 
   return {
+    setAnimationProject(project) {
+      character.setProject(project);
+      if (!project.compositions[mode])
+        mode = Object.keys(project.compositions)[0];
+      update(0);
+    },
     setMode(next) {
-      motion.setMode(next);
+      character.setMode(next);
       mode = next;
       phase = 0;
       update(0);
@@ -193,18 +203,22 @@ export async function createStudio(
     },
     stepFrame(direction) {
       playing = false;
-      const intervals = data.states[mode].samples.length - 1;
+      const intervals = 120;
       phase =
         Math.max(
           0,
           Math.min(intervals, Math.round(phase * intervals) + direction),
         ) / intervals;
+      independentSeconds =
+        phase * character.project.compositions[mode].duration;
       motion.cancelTransition();
       update(0);
     },
     seek(value) {
       playing = false;
       phase = Math.max(0, Math.min(1, value));
+      independentSeconds =
+        phase * character.project.compositions[mode].duration;
       motion.cancelTransition();
       update(0);
     },

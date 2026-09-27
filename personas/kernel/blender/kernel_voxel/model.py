@@ -6,6 +6,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
+from .animation import prop_visible
 from .hand_mesh import build_hand
 from .rig import SERVER_PORT, SHOULDER_PIVOT, WRIST_PORT, cable_points, pose_for
 from .screen import framebuffer
@@ -388,11 +389,10 @@ def apply_pose(model, pose):
     else:
         for name, m in pose.matrices.items():
             model["nodes"][name].matrix_world = Matrix(m.tolist())
-    work = pose.state == "running"
-    model["nodes"]["server"].hide_render = not work
-    model["nodes"]["server"].hide_viewport = not work
-    model["cable"].hide_render = not work
-    model["cable"].hide_viewport = not work
+    for prop, obj in (("server", model["nodes"]["server"]), ("cable", model["cable"])):
+        obj.hide_render = not prop_visible(pose.state, prop)
+        obj.hide_viewport = obj.hide_render
+
     for p, v in zip(model["cable"].data.splines[0].points, cable_points(pose)):
         p.co = (*v, 1)
     im = (

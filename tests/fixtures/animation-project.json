@@ -1,0 +1,17 @@
+{
+  "format": "pets-animation",
+  "version": 1,
+  "components": {
+    "body": {"label": "Body", "kind": "rig", "data": {}},
+    "eyes": {"label": "Eyes", "kind": "pixels", "data": {}}
+  },
+  "clips": {
+    "walk": {"label": "Walk", "component": "body", "duration": 0.8, "looping": true, "data": {}},
+    "blink": {"label": "Blink", "component": "eyes", "duration": 4, "looping": true, "data": {}}
+  },
+  "compositions": {
+    "greeting": {"label": "Greeting", "duration": 2, "bindings": {"body": {"clip": "walk", "clock": "composition"}, "eyes": {"clip": "blink"}}},
+    "thinking": {"label": "Thinking", "duration": 5, "bindings": {"eyes": {"clip": "blink"}}}
+  },
+  "exports": {"codex": {"idle": "greeting"}}
+}

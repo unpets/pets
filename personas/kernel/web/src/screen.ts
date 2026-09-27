@@ -1,10 +1,14 @@
+import type {
+  AnimationProject,
+  ComponentSample,
+} from '@pets/three-runtime/project';
 import { CanvasTexture, NearestFilter, SRGBColorSpace } from 'three';
 import {
   defaultScreenProject,
   parseScreenProject,
-  screenLayers,
   type ScreenProject,
 } from './screen-project';
+import { animationModes } from './types';
 
 export const screenSources = [
   'eyes',
@@ -82,36 +86,94 @@ export function createScreen(
     );
   }
   let project = defaultScreenProject();
-  let previousCell = -1;
+  let previousCell = '';
   let gaze = { x: 0, y: 0 };
   return {
     texture,
+    invalidate() {
+      previousCell = '';
+    },
     setProject(value: ScreenProject) {
       project = parseScreenProject(value);
-      previousCell = -1;
+      previousCell = '';
     },
     setGaze(x: number, y: number) {
       x = Math.round(Math.max(-8, Math.min(8, x)));
       y = Math.round(Math.max(-6, Math.min(6, y)));
       if (x !== gaze.x || y !== gaze.y) {
         gaze = { x, y };
-        previousCell = -1;
+        previousCell = '';
       }
     },
-    update(row: number, phase: number) {
-      const frame = Math.min(47, Math.max(0, Math.floor(phase * 48)));
-      const cell = row * 48 + frame;
+    update(
+      animation: AnimationProject,
+      samples: Record<string, ComponentSample>,
+      seconds = 0,
+    ) {
+      const components = Object.entries(animation.components)
+        .filter(([, c]) => c.kind === 'screen')
+        .sort((a, b) => Number(a[1].data.order) - Number(b[1].data.order));
+      const resolved = { ...samples };
+      for (const [id, specification] of components) {
+        const name = specification.data.layer as keyof ScreenProject['layers'];
+        const source = project.layers[name]?.source;
+        if (source === null || source === undefined) continue;
+        const mode = Object.keys(animationModes)[source];
+        const binding = animation.compositions[mode]?.bindings[id];
+        const clip = binding && animation.clips[binding.clip];
+        if (clip)
+          resolved[id] = {
+            clip: binding.clip,
+            phase: (((seconds / clip.duration) % 1) + 1) % 1,
+          };
+      }
+      const cells = components.map(([id]) => {
+        const sample = resolved[id];
+        if (!sample) return '';
+        const clip = animation.clips[sample.clip];
+        const count = Array.isArray(clip.data.frames)
+          ? clip.data.frames.length
+          : 48;
+        return `${sample.clip}:${Math.min(count - 1, Math.floor(sample.phase * count))}`;
+      });
+      const cell = cells.join('|');
       if (cell === previousCell) return;
       context.globalAlpha = 1;
       context.fillStyle = project.palette.background;
       context.fillRect(0, 0, 96, 64);
-      for (const name of screenLayers) {
-        const layer = project.layers[name];
+      for (const [id, specification] of components) {
+        const sample = resolved[id];
+        if (!sample) continue;
+        const clip = animation.clips[sample.clip];
+        const name = specification.data.layer as keyof ScreenProject['layers'];
+        const layer = project.layers[name] ?? {
+          visible: true,
+          opacity: 1,
+          x: 0,
+          y: 0,
+          color: null,
+          source: null,
+          ...(specification.data.style as Partial<
+            ScreenProject['layers']['eyes']
+          >),
+        };
+        const frames = clip.data.frames as
+          [number, number, string][][] | undefined;
+        const frame = Math.min(
+          (frames?.length ?? 48) - 1,
+          Math.floor(sample.phase * (frames?.length ?? 48)),
+        );
         if (!layer.visible || layer.opacity === 0) continue;
         layerContext.globalCompositeOperation = 'source-over';
         layerContext.clearRect(0, 0, 96, 64);
-        const sourceRow = layer.source ?? row;
-        if (name === 'background' || name === 'activity') {
+        const sourceRow = Number(clip.data.row ?? 0);
+        if (frames) {
+          for (const [x, y, color] of frames[frame]) {
+            layerContext.fillStyle = color;
+            layerContext.fillRect(x, y, 1, 1);
+          }
+          if (layer.color) tint(layerContext, layer.color);
+        } else if (name === 'background' || name === 'activity') {
           if (name === 'background') {
             layerContext.fillStyle = project.palette.background;
             layerContext.fillRect(0, 0, 96, 64);

@@ -103,8 +103,10 @@
 </section>
 <section class="inspector-section border-b-0">
   <h3>Selected clip</h3>
-  <p class="mb-2 text-xs font-medium">{animationModes[mode].label}</p>
-  <p class="text-xs leading-6 text-muted">{animationModes[mode].description}</p>
+  <p class="mb-2 text-xs font-medium">{animationModes[mode]?.label ?? mode}</p>
+  <p class="text-xs leading-6 text-muted">
+    {animationModes[mode]?.description ?? 'Custom composition'}
+  </p>
   <p
     class="mt-5 rounded-md border border-line bg-surface p-3 text-[11px] leading-5 text-muted"
   >
