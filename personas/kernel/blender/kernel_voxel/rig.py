@@ -246,14 +246,15 @@ def pose_at(state, t):
         shoulder = point(body, SHOULDER_PIVOT * (side, 1, 1))
         if hands[side] is None:
             # Rest targets follow the shoulder, independently of planted feet.
-            swing = side * 0.18 * s if state.startswith("running-") else 0.0
+            walking = state.startswith("running-")
+            swing = side * 0.18 * s if walking else 0.0
             drift = 0.008 * math.sin(TAU * t + side * 1.1)
             hand = point(
                 body,
                 (
                     side * 0.68,
                     -0.035 - swing + drift,
-                    0.85 + 0.035 * s * s if swing else 0.84,
+                    0.85 + 0.035 * s * s if walking else 0.84,
                 ),
             )
         else:

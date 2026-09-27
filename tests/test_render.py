@@ -10,6 +10,22 @@ from PIL import Image
 
 
 class RigTests(unittest.TestCase):
+    def test_walking_wrists_are_continuous_at_zero_crossings(self):
+        for state in ("running-left", "running-right"):
+            for t in (0, 0.5, 1):
+                center = pose_at(state, t)
+                for offset in (-1e-6, 1e-6):
+                    adjacent = pose_at(state, t + offset)
+                    for side in ("L", "R"):
+                        for joint in ("wrist", "elbow"):
+                            name = f"{joint}.{side}"
+                            self.assertLess(
+                                np.linalg.norm(
+                                    center.joints[name] - adjacent.joints[name]
+                                ),
+                                1e-4,
+                            )
+
     def test_neutral_limbs_are_relaxed_without_locking(self):
         for state in ("idle", "look"):
             for t in np.linspace(0, 1, 121):

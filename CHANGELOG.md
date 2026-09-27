@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1
+
+- Keep wrist targets continuous when walking arm swing crosses zero.
+- Verify wrist and elbow continuity at both gait zero crossings and loop boundaries.
+
 ## 0.8.0
 
 - Add independent animation components, reusable clips, composition clocks, and export bindings to the Rust core.
