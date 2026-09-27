@@ -100,7 +100,7 @@ try {
   await studio.waitForTimeout(60);
   const firstScreen = await sampleScreen();
   assert.deepEqual(firstScreen.slice(0, 3), [24, 36, 48]);
-  const railPixel = (8 * 96 + 6) * 4;
+  const railPixel = (13 * 96 + 6) * 4;
   assert.ok(firstScreen[railPixel] > firstScreen[railPixel + 1]);
   await studio.evaluate(() => window.kernelViewer.seek(0.5));
   await studio.waitForTimeout(60);

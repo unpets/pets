@@ -5,11 +5,62 @@ import unittest
 import numpy as np
 from kernel_voxel.render import alpha_downsample
 from kernel_voxel.rig import FRAMES, cable_points, pose_at, pose_for
-from kernel_voxel.screen import framebuffer
+from kernel_voxel.screen import draw_clip, framebuffer
+from kernel_voxel.transforms import point
 from PIL import Image
 
 
 class RigTests(unittest.TestCase):
+    def test_screen_status_frame_has_equal_outer_margins(self):
+        layers = draw_clip("background", "rails", 0)
+        markings = Image.alpha_composite(
+            layers["background-lines"], layers["background-text"]
+        )
+        left, top, right, bottom = markings.getbbox()
+        self.assertEqual(left, markings.width - right)
+        self.assertEqual(top, markings.height - bottom)
+        self.assertEqual(left, top)
+
+    def test_idle_head_draws_a_figure_eight_with_two_center_crossings(self):
+        def direction(t):
+            pose = pose_at("idle", t)
+            return (np.linalg.inv(pose.matrices["body"]) @ pose.matrices["head"])[:3, 1]
+
+        np.testing.assert_allclose(direction(0), direction(0.5), atol=1e-10)
+        np.testing.assert_allclose(direction(0), direction(1), atol=1e-10)
+        self.assertLess(direction(0.25)[0], -0.02)
+        self.assertGreater(direction(0.75)[0], 0.02)
+        for a, b in ((0.125, 0.375), (0.625, 0.875)):
+            self.assertLess(direction(a)[2] * direction(b)[2], 0)
+
+    def test_jump_crouches_and_lands_deeply_and_pushes_through_the_toes(self):
+        for t in (0.22, 0.25, 0.75, 0.80):
+            pose = pose_at("jumping", t)
+            first = pose.joints["knee.R"] - pose.joints["hip.R"]
+            second = pose.joints["ankle.R"] - pose.joints["knee.R"]
+            bend = np.degrees(np.arccos(np.clip(first @ second / 0.42**2, -1, 1)))
+            self.assertGreater(bend, 60)
+        for t in np.linspace(0.22, 0.34, 25):
+            foot = pose_at("jumping", t).matrices["foot.R"]
+            np.testing.assert_allclose(
+                point(foot, (0, -0.34, -0.17)), [0.26, -0.355, 0], atol=1e-9
+            )
+        self.assertGreater(pose_at("jumping", 0.34).matrices["foot.R"][2, 1], 0.45)
+        np.testing.assert_allclose(
+            pose_at("jumping", 0.70).matrices["foot.R"][:3, :3], np.eye(3), atol=1e-9
+        )
+
+    def test_jump_body_velocity_stays_continuous_across_motion_phases(self):
+        delta = 1e-6
+        for t in (0.22, 0.34, 0.70, 0.80):
+            before, center, after = [
+                pose_at("jumping", u).matrices["body"][:3, 3]
+                for u in (t - delta, t, t + delta)
+            ]
+            np.testing.assert_allclose(
+                (center - before) / delta, (after - center) / delta, atol=0.001
+            )
+
     def test_walking_wrists_are_continuous_at_zero_crossings(self):
         for state in ("running-left", "running-right"):
             for t in (0, 0.5, 1):

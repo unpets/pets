@@ -6,7 +6,7 @@ from pathlib import Path
 import bpy
 import numpy as np
 
-from .animation import PROJECT, prop_visible
+from .animation import PROJECT, PROPS, prop_visible
 from .rig import FRAMES, pose_at
 
 
@@ -17,8 +17,12 @@ def verify(build):
     parts = {obj["rig_part"]: obj for obj in scene.objects if "rig_part" in obj}
     display = next(obj for obj in scene.objects if obj.get("is_display"))
     armature = next(obj for obj in scene.objects if obj.type == "ARMATURE")
+    foot_vertices = {
+        side: np.array([vertex.co[:] for vertex in parts[f"foot.{side}"].data.vertices])
+        for side in ("L", "R")
+    }
     for name, obj in parts.items():
-        if name == "server":
+        if name in PROPS:
             continue
         if (
             obj.parent != armature
@@ -58,14 +62,12 @@ def verify(build):
         raise FileNotFoundError("Blender display image reference cannot be resolved")
     for sample in timeline:
         scene.frame_set(sample["frame"])
-        for prop, obj in (
-            ("server", parts["server"]),
-            ("cable", scene.objects["cable"]),
-        ):
+        for prop in PROPS:
+            obj = scene.objects["cable"] if prop == "cable" else parts[prop]
             hidden = not prop_visible(sample["state"], prop)
             if obj.hide_render != hidden or obj.hide_viewport != hidden:
                 raise ValueError(
-                    f"Incorrect server visibility at frame {sample['frame']}"
+                    f"Incorrect {prop} visibility at frame {sample['frame']}"
                 )
         pose = pose_at(sample["state"], sample["t"])
         for name, matrix in pose.matrices.items():
@@ -73,6 +75,14 @@ def verify(build):
                 raise ValueError(
                     f"Baked rig differs at frame {sample['frame']}: {name}"
                 )
+        if sample["state"] == "jumping":
+            for side, vertices in foot_vertices.items():
+                matrix = np.asarray(parts[f"foot.{side}"].matrix_world)
+                lowest = (vertices @ matrix[2, :3] + matrix[2, 3]).min()
+                if lowest < -1e-5:
+                    raise ValueError(
+                        f"Foot enters the floor at frame {sample['frame']}: {lowest}"
+                    )
         if not (
             build / "blend-screens" / f"screen-{sample['frame']:04d}.png"
         ).is_file():
@@ -83,6 +93,8 @@ def verify(build):
         "screen_parent": "head",
         "relative_screen_sequence": True,
         "server_and_cable_visibility": True,
+        "keyboard_visibility": True,
+        "jump_foot_clearance": True,
     }
     (build / "blend-check.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report))

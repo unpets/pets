@@ -116,6 +116,10 @@ try {
         await page.evaluate(() => window.kernelViewer.serverVisible),
         state === 'running',
       );
+      assert.equal(
+        await page.evaluate(() => window.kernelViewer.parts.keyboard.visible),
+        state === 'running',
+      );
     }
     await page.locator('[data-state="running"]').click();
     await page.evaluate(() => window.kernelViewer.seek(0.25));

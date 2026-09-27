@@ -30,5 +30,6 @@ test('exported model is glTF 2 and has the screen attached to its head', () => {
   const head = gltf.nodes.find((n) => n.extras?.rig_part === 'head');
   expect(screen).toBeGreaterThanOrEqual(0);
   expect(head.children).toContain(screen);
-  expect(gltf.nodes.filter((n) => n.extras?.rig_part).length).toBe(45);
+  expect(gltf.nodes.filter((n) => n.extras?.rig_part).length).toBe(46);
+  expect(gltf.nodes.some((n) => n.extras?.rig_part === 'keyboard')).toBe(true);
 });

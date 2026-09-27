@@ -37,6 +37,11 @@ export function parseKernelProject(value: unknown): AnimationProject {
       .map((c) => c.data.source),
   );
   const targets = new Set<string>();
+  const props = new Set(
+    Object.values(defaults.components)
+      .filter((component) => component.kind === 'visibility')
+      .map((component) => component.data.node),
+  );
   for (const [id, component] of Object.entries(project.components)) {
     if (component.kind === 'rig') {
       if (
@@ -71,7 +76,7 @@ export function parseKernelProject(value: unknown): AnimationProject {
       )
         throw new Error(`Invalid layer placement: ${id}`);
     } else if (component.kind === 'visibility') {
-      if (!['server', 'cable'].includes(component.data.node as string))
+      if (!props.has(component.data.node))
         throw new Error(`Unknown prop: ${id}`);
     } else
       throw new Error(

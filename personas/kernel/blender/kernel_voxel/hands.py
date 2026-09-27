@@ -2,10 +2,11 @@
 
 import math
 from dataclasses import dataclass
+from functools import cache
 
 import numpy as np
 
-from .transforms import transform
+from .transforms import point, transform
 
 
 @dataclass(frozen=True)
@@ -21,12 +22,17 @@ class HandBone:
 
 
 # Local Z follows the digit. The palm faces -Y; flexion rotates about +X.
+PALM_CENTER = (0, -0.022, 0.065)
+PALM_SIZE = (0.21, 0.085, 0.15)
+PALM_CONTACT = np.array([0, -0.066, 0.071])
+FINGER_BASE = 0.133
+KEYBOARD_DEPTH = 0.052
 DIGITS = {
-    "index": ((0.047, 0.034, 0.026), -0.072, 0.038),
-    "middle": ((0.052, 0.038, 0.028), -0.024, 0.040),
-    "ring": ((0.048, 0.034, 0.026), 0.024, 0.038),
-    "little": ((0.037, 0.028, 0.023), 0.072, 0.034),
-    "thumb": ((0.040, 0.035, 0.028), -0.110, 0.044),
+    "index": ((0.051, 0.037, 0.028), -0.072, 0.038),
+    "middle": ((0.056, 0.041, 0.030), -0.024, 0.040),
+    "ring": ((0.052, 0.037, 0.028), 0.024, 0.038),
+    "little": ((0.040, 0.030, 0.025), 0.072, 0.034),
+    "thumb": ((0.043, 0.038, 0.030), -0.110, 0.044),
 }
 HAND_BONES = {}
 for side, suffix in ((-1, "L"), (1, "R")):
@@ -35,7 +41,7 @@ for side, suffix in ((-1, "L"), (1, "R")):
         for segment, length in enumerate(lengths):
             name = f"{digit}.{segment + 1:02d}.{suffix}"
             origin = (
-                (side * x, 0, 0.056 if digit == "thumb" else 0.118)
+                (side * x, 0, 0.061 if digit == "thumb" else FINGER_BASE)
                 if segment == 0
                 else (0, 0, lengths[segment - 1])
             )
@@ -50,6 +56,37 @@ for side, suffix in ((-1, "L"), (1, "R")):
                 math.radians((85, 105, 75)[segment]),
             )
             parent = name
+
+
+def fingertip(digit, curls):
+    """Contact pad position in the right palm frame for an unspread finger."""
+    lengths, x, _ = DIGITS[digit]
+    matrix = transform((x, 0, FINGER_BASE))
+    for i, (length, curl) in enumerate(zip(lengths, curls)):
+        matrix = matrix @ transform(angles=(curl, 0, 0))
+        if i < 2:
+            matrix = matrix @ transform((0, 0, length))
+    return point(matrix, (0, -0.017, lengths[-1] - 0.012))
+
+
+@cache
+def typing_press(digit):
+    """Calibrate each finger's press to the same virtual keyboard surface."""
+    ratio = np.array([1.0, 1.4, 0.7])
+    low, high = 0.0, 0.8
+    for _ in range(40):
+        bend = (low + high) / 2
+        if fingertip(digit, ratio * bend)[1] > -KEYBOARD_DEPTH:
+            low = bend
+        else:
+            high = bend
+    return ratio * ((low + high) / 2)
+
+
+def typing_weight(t, digit):
+    index = list(DIGITS).index(digit)
+    phase = (2 * t - index / 4) % 1
+    return math.sin(math.pi * phase / 0.42) ** 2 if phase < 0.42 else 0.0
 
 
 def digit_angles(state, t, digit, side):
@@ -79,7 +116,11 @@ def digit_angles(state, t, digit, side):
         opposition = 0.14
     elif state == "running":
         if side == 1:
-            curl = np.array([0.28, 1.05, 0.45])
+            curl = (
+                np.array([0.28, 1.05, 0.45])
+                if digit == "thumb"
+                else typing_press(digit) * (0.25 + 0.75 * typing_weight(t, digit))
+            )
             spread = 0
             opposition = 0.48
         else:

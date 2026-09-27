@@ -7,7 +7,7 @@ import bpy
 import numpy as np
 
 from . import __version__
-from .animation import PROJECT, prop_visible
+from .animation import PROJECT, PROPS, prop_visible
 from .rig import (
     DURATIONS,
     FRAMES,
@@ -50,7 +50,8 @@ def save_source(model, out):
             scene.frame_set(frame)
             apply_pose(model, p)
             key_pose(armature, frame)
-            for obj in (model["nodes"]["server"], model["cable"]):
+            for prop in PROPS:
+                obj = model["cable"] if prop == "cable" else model["nodes"][prop]
                 obj.keyframe_insert("hide_render", frame=frame)
                 obj.keyframe_insert("hide_viewport", frame=frame)
             for pp in model["cable"].data.splines[0].points:
@@ -110,7 +111,9 @@ def load_source(path, device=None):
     display = next(obj for obj in scene.objects if obj.get("is_display"))
     armature = next(obj for obj in scene.objects if obj.type == "ARMATURE")
     cable = scene.objects["cable"]
-    nodes["server"].animation_data_clear()
+    for prop in PROPS:
+        if prop != "cable":
+            nodes[prop].animation_data_clear()
     cable.animation_data_clear()
     cable.data.animation_data_clear()
     image = bpy.data.images.new("Kernel export framebuffer", 96, 64, alpha=True)
@@ -168,7 +171,8 @@ def sample_source(model, state, phase, update_display=True):
         point(matrices["hand.R"], ports["wrist"]),
         np.asarray(ports["server"]),
     )
-    for prop, obj in (("server", model["nodes"]["server"]), ("cable", model["cable"])):
+    for prop in PROPS:
+        obj = model["cable"] if prop == "cable" else model["nodes"][prop]
         obj.hide_render = not prop_visible(state, prop)
         obj.hide_viewport = obj.hide_render
 

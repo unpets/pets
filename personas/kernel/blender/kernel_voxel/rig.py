@@ -2,11 +2,10 @@
 
 import math
 from dataclasses import dataclass
-from itertools import pairwise
 
 import numpy as np
 
-from .hands import HAND_BONES, hand_matrices
+from .hands import HAND_BONES, PALM_CONTACT, hand_matrices
 from .transforms import point, transform
 
 CELL = (192, 208)
@@ -37,7 +36,8 @@ TAU = math.tau
 WRIST_PORT = np.array([0, 0.09, 0.055])
 SERVER_PORT = np.array([1.185, -0.427, 0.85])
 SHOULDER_PIVOT = np.array([0.60, 0, 1.50])
-REST_HEIGHT = 0.078
+HIP_PIVOT = np.array([0.25, 0, 0.895])
+REST_HEIGHT = 0.103
 LEG_REACH = 0.833
 PARENTS = {"body": None, "head": "body"}
 for side in ("L", "R"):
@@ -54,8 +54,8 @@ for side in ("L", "R"):
 PARENTS.update({name: spec.parent for name, spec in HAND_BONES.items()})
 
 # Palm contact lies on the server lid. Fingers wrap over its front edge.
-WORK_HAND = transform((1.04, -0.182, 1.1045), (math.pi / 2, 0, 0))
-WORK_CONTACT_LOCAL = np.array([0, -0.075, 0.055])
+WORK_HAND = transform((1.04, -0.182, 1.0295 - PALM_CONTACT[1]), (math.pi / 2, 0, 0))
+WORK_CONTACT_LOCAL = PALM_CONTACT
 WORK_CONTACT = point(WORK_HAND, WORK_CONTACT_LOCAL)
 
 
@@ -81,6 +81,12 @@ def limb_matrices(root, joint, end, hinge_sign=1):
     return bone_matrix(root, joint, hinge), bone_matrix(joint, end, hinge)
 
 
+def orient_palm(hand, direction):
+    """Roll the hand toward a direction while preserving its finger axis."""
+    local = hand[:3, :3].T @ direction
+    return hand @ transform(angles=(0, 0, math.atan2(local[0], -local[1])))
+
+
 def two_bone(a, b, l1, l2, pole):
     """Analytic IK. No stretch; caller targets must stay in the reachable annulus."""
     a, b, pole = (np.asarray(v, dtype=float) for v in (a, b, pole))
@@ -96,6 +102,37 @@ def two_bone(a, b, l1, l2, pole):
 
 def smooth(t):
     return t * t * (3 - 2 * t)
+
+
+def jump_motion(t):
+    """Return compression, flight height, and ankle pitch through a grounded jump."""
+    crouch, takeoff, touchdown, landing = 0.22, 0.34, 0.70, 0.80
+    height = 0.35
+    launch_speed = 4 * height / (touchdown - takeoff)
+    compression, lift, pitch = 0.0, 0.0, 0.0
+    if t < crouch:
+        compression = -0.18 * smooth(t / crouch)
+    elif t < takeoff:
+        u = (t - crouch) / (takeoff - crouch)
+        # Match vertical takeoff velocity without pausing at full extension.
+        compression = -0.18 * (1 - smooth(u)) + launch_speed * (takeoff - crouch) * (
+            u**3 - u**2
+        )
+        pitch = 0.50 * smooth(u)
+    elif t < touchdown:
+        u = (t - takeoff) / (touchdown - takeoff)
+        lift = 4 * height * u * (1 - u)
+        compression = -0.035 * math.sin(math.pi * u) ** 2
+        pitch = 0.50 * (1 - smooth(u))
+    elif t < landing:
+        u = (t - touchdown) / (landing - touchdown)
+        # Continue the descent into knee compression while the feet plant.
+        compression = -0.14 * smooth(u) - launch_speed * (landing - touchdown) * (
+            u**3 - 2 * u**2 + u
+        )
+    else:
+        compression = -0.14 * (1 - smooth((t - landing) / (1 - landing)))
+    return compression, lift, pitch
 
 
 def look_angle(t):
@@ -174,16 +211,15 @@ def pose_at(state, t):
         head_pitch = -0.055
         roll = -0.025
     elif state == "jumping":
-        # Rest -> launch -> apex -> landing compression -> rest. C1 interpolation.
-        keys = [(0, 0), (0.13, -0.07), (0.50, 0.35), (0.86, -0.06), (1, 0)]
-        for (ta, za), (tb, zb) in pairwise(keys):
-            if ta <= t <= tb:
-                root_z = za + (zb - za) * smooth((t - ta) / (tb - ta))
-                break
-        air = max(0, root_z)
-        root_z += REST_HEIGHT
+        compression, air, pitch = jump_motion(t)
+        # Rock around the front of the sole, then lift the same foot frame.
+        toe = np.array([0, -0.34, -0.17])
+        rocker = toe - point(transform(angles=(pitch, 0, 0)), toe)
+        root_z = REST_HEIGHT + compression + air + rocker[2]
+        root_y = rocker[1]
         for side in (-1, 1):
-            ankles[side][2] += air
+            ankles[side] += rocker + np.array([0, 0, air])
+            feet_pitch[side] = pitch
             hands[side] = np.array(
                 [
                     side * (0.78 + 0.13 * math.sin(math.pi * t)),
@@ -206,8 +242,8 @@ def pose_at(state, t):
     elif state == "running":
         head_yaw = 0.13
         head_pitch = 0.035 + 0.02 * s
-        root_z = 0.070 + 0.007 * s
-        root_x = 0.025
+        root_z = REST_HEIGHT - 0.008 + 0.007 * s
+        root_x = 0.055
         hands[1] = WORK_HAND[:3, 3].copy()
         hands[-1] = np.array([-0.62, -0.41, 1.32 + 0.024 * math.sin(2 * TAU * t)])
     elif state == "review":
@@ -220,7 +256,9 @@ def pose_at(state, t):
         angle = look_angle(t)
         head_yaw = 0.216 + 0.66 * math.sin(angle)
         head_pitch = -0.02 - 0.34 * math.cos(angle)
-    elif state != "idle":
+    elif state == "idle":
+        head_pitch = -0.018 * math.sin(2 * TAU * t)
+    else:
         raise ValueError(state)
     gaze = gaze_at(state, t)
     heading = transform(angles=(0, 0, yaw))
@@ -228,7 +266,7 @@ def pose_at(state, t):
     # This also allows the support leg to extend during the walking cycle.
     tilted = transform((root_x, root_y, 0), (lean, roll, 0))
     for side in (-1, 1):
-        hip = point(tilted, (side * 0.25, 0, 0.92))
+        hip = point(tilted, HIP_PIVOT * (side, 1, 1))
         offset = hip[:2] - ankles[side][:2]
         height = math.sqrt(LEG_REACH**2 - float(offset @ offset))
         root_z = min(root_z, ankles[side][2] + height - hip[2])
@@ -240,7 +278,7 @@ def pose_at(state, t):
     joints = {}
     for side in (-1, 1):
         name = "L" if side == -1 else "R"
-        hip = point(body, (side * 0.25, 0, 0.92))
+        hip = point(body, HIP_PIVOT * (side, 1, 1))
         ankle = point(heading, ankles[side])
         knee = two_bone(hip, ankle, 0.42, 0.42, point(heading, (0, -1, 0)))
         shoulder = point(body, SHOULDER_PIVOT * (side, 1, 1))
@@ -279,6 +317,10 @@ def pose_at(state, t):
         )
         matrices[f"hand.{name}"] = matrices[f"forearm.{name}"].copy()
         matrices[f"hand.{name}"][:3, 3] = hand
+        if state == "idle":
+            matrices[f"hand.{name}"] = orient_palm(
+                matrices[f"hand.{name}"], -side * body[:3, 0]
+            )
         if state == "running" and side == 1:
             matrices[f"hand.{name}"] = WORK_HAND.copy()
         if state == "waving" and side == 1:
@@ -288,7 +330,10 @@ def pose_at(state, t):
                 hands[side], (math.pi / 2, 0, side * 0.2)
             )
         if state == "review" and side == 1:
-            matrices[f"hand.{name}"] = transform(hand, (0, -0.20, 0.08))
+            matrices[f"hand.{name}"] = orient_palm(
+                transform(hand, (0, -0.20, 0.08)),
+                matrices["head"][:3, 3] - hand,
+            )
         for joint, pos in [
             ("hip", hip),
             ("knee", knee),

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.3
+
+- Turn idle and review palms inward and give the idle head a smooth figure-eight motion.
+- Deepen jump preparation and landing, with grounded toe push-off and articulated ankles.
+- Refine palm and finger proportions and add a virtual keyboard with independent finger presses.
+- Thin the feet, narrow the lower torso, and expose the hips with filled joint connections.
+- Fill shoulder gaps and give elbow hinges circular cross-sections with finer voxel detail.
+- Center the display near the bezel surface and balance framebuffer margins.
+
 ## 0.8.2
 
 - Keep the clip editor aligned with the active composition binding when switching animations or importing projects.

@@ -14,6 +14,7 @@ LABELS = {
     "review": "Review",
     "look": "Look around",
 }
+PROPS = ("server", "cable", "keyboard")
 SCREEN_CLIPS = {
     "background": [("rails", "Status rails", 1)],
     "activity": [
@@ -84,7 +85,7 @@ def animation_project():
                 "looping": True,
                 "data": {"generator": generator, "row": row},
             }
-    for prop in ("server", "cable"):
+    for prop in PROPS:
         component = f"prop/{prop}"
         components[component] = {
             "label": prop.capitalize(),
@@ -125,7 +126,7 @@ def animation_project():
         }.items():
             clock = "composition" if source in ("look", "checklist") else "independent"
             bindings[f"screen/{layer}"] = binding(f"screen/{layer}/{source}", clock)
-        for prop in ("server", "cable"):
+        for prop in PROPS:
             bindings[f"prop/{prop}"] = binding(
                 f"prop/{prop}/{str(state == 'running').lower()}"
             )

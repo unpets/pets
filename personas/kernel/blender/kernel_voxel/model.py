@@ -6,8 +6,9 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-from .animation import prop_visible
+from .animation import PROPS, prop_visible
 from .hand_mesh import build_hand
+from .keyboard import build_keyboard
 from .rig import SERVER_PORT, SHOULDER_PIVOT, WRIST_PORT, cable_points, pose_for
 from .screen import framebuffer
 from .surfaces import resolve_coplanar
@@ -139,7 +140,7 @@ class Builder:
 
 
 def shoulder_socket(builder, side):
-    center = SHOULDER_PIVOT * (side, 1, 1) - np.array([side * 0.095, 0, 0])
+    center = SHOULDER_PIVOT * (side, 1, 1) - np.array([side * 0.105, 0, 0])
     builder.voxel(
         "body",
         center,
@@ -147,7 +148,6 @@ def shoulder_socket(builder, side):
         "joint",
         0.11,
         step=0.010,
-        cut=lambda point: side * (point[0] - center[0]) < 0,
     )
 
 
@@ -155,7 +155,7 @@ def build_model():
     b = Builder()
     b.voxel("body", (0, 0, 1.44), (1.04, 0.68, 0.39), "shell", 0.14)
     b.voxel("body", (0, 0, 1.15), (0.91, 0.63, 0.19), "dark", 0.07)
-    b.voxel("body", (0, 0, 0.95), (0.79, 0.58, 0.20), "shell", 0.07)
+    b.voxel("body", (0, 0, 0.95), (0.72, 0.58, 0.20), "shell", 0.07)
     b.box("body", (0, -0.327, 1.20), (0.70, 0.018, 0.034), "violet")
     b.box("body", (0, -0.330, 1.105), (0.62, 0.019, 0.025), "violet_dim")
     b.voxel("body", (0, 0, 1.735), (0.24, 0.27, 0.19), "metal", 0.04, step=0.022)
@@ -175,7 +175,7 @@ def build_model():
             )
         for z in (1.32, 1.57):
             b.box("body", (side * 0.36, -0.326, z), (0.030, 0.025, 0.030), "metal")
-        b.box("body", (side * 0.365, 0, 0.95), (0.03, 0.25, 0.07), "violet_dim")
+        b.box("body", (side * 0.330, 0, 0.95), (0.03, 0.25, 0.07), "violet_dim")
     # Rounded contours are sampled on a fine cubic lattice, never chamfered.
     b.voxel(
         "head",
@@ -249,13 +249,14 @@ def build_model():
                 b.voxel(part, (0, 0, 0), (0.21, 0.21, 0.21), "metal", 0.105, step=0.010)
                 b.box(part, (0, 0, 0.142), (0.10, 0.10, 0.096), "dark")
             else:
+                diameter = 0.18 if arm else 0.20
                 b.voxel(
                     part,
                     (0, 0, 0),
-                    (0.25, 0.16 if arm else 0.20, 0.20),
+                    (0.25, diameter, diameter),
                     "joint",
                     0.035,
-                    step=0.020,
+                    step=0.005 if arm else 0.020,
                     shape="motor",
                 )
                 for side2 in (-1, 1):
@@ -265,7 +266,7 @@ def build_model():
                         (0.025, 0.122, 0.122),
                         "metal",
                         0.0,
-                        step=0.017,
+                        step=0.005 if arm else 0.017,
                         shape="motor",
                     )
                     b.box(
@@ -280,22 +281,32 @@ def build_model():
         b.box(f"forearm.{n}", (0, 0, 0.295), (0.095, 0.095, 0.06), "metal")
         build_hand(b, n)
         b.voxel(
-            f"foot.{n}",
-            (0, -0.09, -0.075),
-            (0.37, 0.54, 0.18),
-            "dark",
-            0.05,
-            step=0.025,
+            f"shin.{n}",
+            (0, 0, 0.42),
+            (0.19, 0.19, 0.19),
+            "joint",
+            0.095,
+            step=0.010,
+            cut=lambda p: p[2] > 0.42,
         )
         b.voxel(
             f"foot.{n}",
-            (0, -0.10, -0.01),
-            (0.30, 0.41, 0.11),
-            "shell",
-            0.04,
-            step=0.025,
+            (0, -0.09, -0.10),
+            (0.37, 0.54, 0.13),
+            "dark",
+            0.035,
+            step=0.020,
         )
-        b.box(f"foot.{n}", (0, -0.351, -0.075), (0.22, 0.015, 0.034), "cyan_dim")
+        b.voxel(
+            f"foot.{n}",
+            (0, -0.10, -0.055),
+            (0.30, 0.41, 0.08),
+            "shell",
+            0.030,
+            step=0.020,
+        )
+        b.voxel(f"foot.{n}", (0, 0, 0), (0.17, 0.17, 0.17), "metal", 0.085, step=0.010)
+        b.box(f"foot.{n}", (0, -0.351, -0.10), (0.22, 0.015, 0.025), "cyan_dim")
         for x in (-0.10, 0, 0.10):
             b.box(f"foot.{n}", (x, -0.10, -0.15), (0.06, 0.38, 0.025), "joint")
     # Small three-bay server: work-state-only and attached by a real cable.
@@ -315,12 +326,13 @@ def build_model():
     b.box("hand.R", WRIST_PORT + (0, -0.027, 0), (0.078, 0.018, 0.078), "screen")
     b.box("hand.R", WRIST_PORT + (0, -0.012, 0), (0.060, 0.024, 0.060), "cyan_dim")
     b.box("server", (1.18, -0.01, 1.017), (0.36, 0.52, 0.025), "shell")
+    build_keyboard(b)
     nodes = b.finish()
     # One screen plane with one local transform, packed texture and UVs.
     mesh = bpy.data.meshes.new("display")
-    w, h = 1.095, 0.600
-    y = -0.408
-    z = 0.32
+    w, h = 1.166, 0.627
+    y = -0.4665
+    z = 0.33
     mesh.from_pydata(
         [
             (-w / 2, y, z - h / 2),
@@ -389,7 +401,8 @@ def apply_pose(model, pose):
     else:
         for name, m in pose.matrices.items():
             model["nodes"][name].matrix_world = Matrix(m.tolist())
-    for prop, obj in (("server", model["nodes"]["server"]), ("cable", model["cable"])):
+    for prop in PROPS:
+        obj = model["cable"] if prop == "cable" else model["nodes"][prop]
         obj.hide_render = not prop_visible(pose.state, prop)
         obj.hide_viewport = obj.hide_render
 

@@ -143,7 +143,10 @@ export async function createCharacter(canvas: HTMLCanvasElement) {
           Object.entries(samples).map(([id, sample]) => [id, sample.phase]),
         ),
       );
-      parts.server.visible = false;
+      for (const component of Object.values(data.project.components)) {
+        if (component.kind === 'visibility' && component.data.node !== 'cable')
+          parts[component.data.node as string].visible = false;
+      }
       cable.mesh.visible = false;
       for (const [id, sample] of Object.entries(samples)) {
         const component = project.components[id];

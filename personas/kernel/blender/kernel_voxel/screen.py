@@ -69,12 +69,12 @@ def draw_clip(layer, generator, t):
     layers["background"].paste((*BG, 255), (0, 0, *SIZE))
     d = ImageDraw.Draw(layers["background-lines"])
     # Glass is flush inside a centered opening. Status rail stays on the display.
-    d.line((5, 8, 90, 8), fill=(21, 53, 66))
-    d.line((5, 56, 90, 56), fill=(21, 53, 66))
+    d.line((6, 13, 89, 13), fill=(21, 53, 66))
+    d.line((6, 57, 89, 57), fill=(21, 53, 66))
     text = ImageDraw.Draw(layers["background-text"])
     for i, ch in enumerate("KRNL"):
-        glyph(text, (6 + i * 4, 2), ch, DIM)
-    d.rectangle((83, 3, 89, 4), fill=CYAN)
+        glyph(text, (6 + i * 4, 6), ch, DIM)
+    d.rectangle((83, 7, 89, 8), fill=CYAN)
     if layer == "background":
         return {
             name: image
@@ -92,7 +92,7 @@ def draw_clip(layer, generator, t):
         for col in range(7):
             head = (tick * 2 + col * 13) % 48
             for tail in range(4):
-                y = 11 + (head - tail * 7) % 43
+                y = 16 + (head - tail * 7) % 35
                 color = (
                     (99, 255, 179)
                     if tail == 0
@@ -102,13 +102,13 @@ def draw_clip(layer, generator, t):
                     d, (61 + col * 4, y), str((col * 7 + tail * 3 + tick) % 10), color
                 )
         lines = ImageDraw.Draw(layers["activity-lines"])
-        lines.line((55, 12, 55, 53), fill=DIM)
+        lines.line((55, 16, 55, 54), fill=DIM)
         tokens = [">{01}", "/1010", "{0:1}", ">101_", "/0110", "{1:0}"]
         for r in range(5):
             line = tokens[(r + tick // 4) % len(tokens)]
             for j, ch in enumerate(line):
-                glyph(d, (7 + 5 * j, 13 + r * 8), ch, CYAN if j == 0 else GREEN)
-        lines.rectangle((7, 51, 7 + int(40 * t), 52), fill=CYAN)
+                glyph(d, (7 + 5 * j, 16 + r * 7), ch, CYAN if j == 0 else GREEN)
+        lines.rectangle((7, 53, 7 + int(40 * t), 54), fill=CYAN)
     else:
         d = ImageDraw.Draw(layers["eyes"])
         gaze = (

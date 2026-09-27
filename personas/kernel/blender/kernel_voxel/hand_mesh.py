@@ -1,16 +1,14 @@
 """Fine voxel palms and rigid phalanges sharing the hand rig's dimensions."""
 
-from .hands import HAND_BONES
+from .hands import HAND_BONES, PALM_CENTER, PALM_CONTACT, PALM_SIZE
 
 
 def build_hand(builder, suffix):
     part = f"hand.{suffix}"
-    builder.voxel(part, (0, 0, 0), (0.13, 0.10, 0.13), "joint", 0.05, step=0.010)
-    builder.voxel(
-        part, (0, -0.025, 0.055), (0.21, 0.10, 0.135), "dark", 0.025, step=0.010
-    )
-    builder.box(part, (0, 0.035, 0.055), (0.12, 0.026, 0.060), "violet")
-    builder.box(part, (0, -0.071, 0.061), (0.135, 0.008, 0.060), "joint")
+    builder.voxel(part, (0, 0, 0), (0.13, 0.09, 0.13), "joint", 0.045, step=0.010)
+    builder.voxel(part, PALM_CENTER, PALM_SIZE, "dark", 0.025, step=0.005)
+    builder.box(part, (0, 0.029, 0.065), (0.12, 0.022, 0.075), "violet")
+    builder.box(part, PALM_CONTACT + (0, 0.004, 0), (0.135, 0.008, 0.070), "joint")
     for name, bone in HAND_BONES.items():
         if not name.endswith(f".{suffix}"):
             continue

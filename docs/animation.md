@@ -32,6 +32,10 @@ Clip data can be imported and exported separately.
 Save animations exports the full project as `pets-animation.json`.  
 Import the project in either the studio or the companion.  
 
+Kernel exposes the server, cable, and virtual keyboard as separate visibility components.  
+Active work uses an anchored right palm and individually articulated typing fingers.  
+Each finger joint clip can be reused or replaced independently of the body motion.  
+
 A rotation clip's data contains ordered keyframes in seconds.  
 
 ```json
