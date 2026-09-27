@@ -35,9 +35,9 @@
   <div class="pointer-events-none absolute top-7 left-[4vw]">
     <span class="eyebrow">YOUR WORKSPACE COMPANION</span>
     <h1
-      class="mt-3 text-[26px] leading-tight font-normal tracking-tight text-ink sm:text-4xl"
+      class="mt-3 text-xl leading-tight font-normal tracking-tight text-ink sm:text-4xl"
     >
-      Small robot.<br />Real character.
+      Small robot.<br class="hidden sm:block" /> Real character.
     </h1>
   </div>
   {#if !studio}
