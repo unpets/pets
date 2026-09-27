@@ -4,12 +4,17 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the GitHub Release and deploy its site when Pages is enabled
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: kernel-release
   cancel-in-progress: false
 
 jobs:
@@ -17,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
+      publish: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       states: ${{ steps.version.outputs.states }}
@@ -127,7 +133,7 @@ jobs:
           if-no-files-found: error
       - name: Check Pages configuration
         id: pages
-        if: startsWith(github.ref, 'refs/tags/')
+        if: needs.check.outputs.publish == 'true'
         uses: actions/github-script@v9.0.0
         with:
           script: |
@@ -147,7 +153,7 @@ jobs:
           path: dist/
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: needs.check.outputs.publish == 'true'
     needs: [check, package]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -161,6 +167,37 @@ jobs:
       - name: Verify download checksums
         working-directory: release
         run: sha256sum --check SHA256SUMS
+      - name: Ensure the release tag matches the verified build
+        uses: actions/github-script@v9.0.0
+        env:
+          RELEASE_TAG: ${{ needs.check.outputs.tag }}
+          RELEASE_SHA: ${{ github.sha }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const tag = process.env.RELEASE_TAG;
+            const sha = process.env.RELEASE_SHA;
+            const manifest = JSON.parse(fs.readFileSync('release/release.json', 'utf8'));
+            if (`v${manifest.version}` !== tag || manifest.commit !== sha) {
+              throw new Error('Release packages do not match the selected version and commit.');
+            }
+            let object;
+            try {
+              const {data} = await github.rest.git.getRef({...context.repo, ref: `tags/${tag}`});
+              object = data.object;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.git.createRef({...context.repo, ref: `refs/tags/${tag}`, sha});
+              core.info(`Created ${tag} at the verified commit ${sha}.`);
+              return;
+            }
+            while (object.type === 'tag') {
+              const {data} = await github.rest.git.getTag({...context.repo, tag_sha: object.sha});
+              object = data.object;
+            }
+            if (object.type !== 'commit' || object.sha !== sha) {
+              throw new Error(`${tag} already points to another commit; refusing to move it.`);
+            }
       - name: Publish the complete release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -6,6 +6,7 @@ Pushes and pull requests build a preview site and run source, rig, asset, and br
 Preview sites are available as workflow artifacts.  
 
 Stable releases use tags in the form `vMAJOR.MINOR.PATCH`.  
+Manual runs publish by default and create the tag after the build passes validation.  
 The tag must match the versions in `pyproject.toml`, `package.json`, and `web/package.json`.  
 The release workflow rejects mismatched versions before rendering.  
 
@@ -42,6 +43,12 @@ Rendering on different hardware is not guaranteed to produce identical image byt
 Update the three project version fields together.  
 Refresh the lockfiles and commit the release changes.  
 
+Open **Actions → Release Kernel → Run workflow** and select the release branch or tag.  
+Leave `publish` enabled to create the GitHub Release and deploy its site when Pages is configured.  
+Disable `publish` to build downloadable workflow artifacts without creating a tag or release.  
+
+Alternatively, push a version tag to start the release.  
+
 ```sh
 uv lock
 bun install
@@ -52,7 +59,8 @@ git push origin v0.3.0
 
 Replace the example version with the intended release version.  
 The tag starts the complete release workflow.  
-A manual **Release Kernel** workflow run builds the same packages for review without publishing.  
+The workflow checks that an existing tag points to the exact commit used to build the packages.  
+It refuses to move an existing tag or replace a published release.  
 
 ## Static site deployment
 
@@ -60,7 +68,7 @@ Production Pages deployment uses the tested site from a published release.
 Development commits do not replace the production site.  
 
 Select **Settings → Pages → Build and deployment → GitHub Actions** to enable deployment.  
-Allow release tags in the `github-pages` environment deployment rules.  
+Allow the selected release branch or tag in the `github-pages` environment deployment rules.  
 The source repository can remain private.  
 Pages availability and website visibility depend on the GitHub account plan.  
 

@@ -50,8 +50,8 @@ Three.js and all model assets are bundled locally.
 
 ```sh
 uv run kernel-render --output build --site-output web/public
-uv run ruff check kernel_voxel tests/test_render.py
-uv run ruff format --check kernel_voxel tests/test_render.py
+uv run ruff check kernel_voxel scripts tests
+uv run ruff format --check kernel_voxel scripts tests
 uv run python -m unittest discover -s tests -v
 ```
 
