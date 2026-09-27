@@ -8,6 +8,8 @@ import numpy as np
 
 from . import __version__
 from .animation import PROJECT, PROPS, prop_visible
+from .emission import apply_values, bake_clips, read_clips
+from .framing import fit_camera
 from .rig import (
     DURATIONS,
     FRAMES,
@@ -27,9 +29,10 @@ def save_source(model, out):
     """Bake rigid transforms, cable vertices, and framebuffer sequence into the .blend."""
     import bpy
 
-    from .armature import bake_actions, key_pose, linear_keys
+    from .armature import bake_actions, compose_timeline, key_pose, linear_keys
 
     bake_actions(model)
+    emission_targets = bake_clips(PROJECT)
     from .model import apply_pose
 
     scene = bpy.context.scene
@@ -50,6 +53,9 @@ def save_source(model, out):
             scene.frame_set(frame)
             apply_pose(model, p)
             key_pose(armature, frame)
+            apply_values(emission_targets, PROJECT, state, p.t)
+            for socket in emission_targets.values():
+                socket.keyframe_insert("default_value", frame=frame)
             for prop in PROPS:
                 obj = model["cable"] if prop == "cable" else model["nodes"][prop]
                 obj.keyframe_insert("hide_render", frame=frame)
@@ -60,6 +66,10 @@ def save_source(model, out):
             timeline.append({"frame": frame, "state": state, "t": p.t})
             frame += 1
     linear_keys(timeline_action)
+    for socket in emission_targets.values():
+        linear_keys(socket.id_data.animation_data.action)
+    compose_timeline(model, timeline)
+    fit_camera(scene, timeline)
     scene.frame_start = 1
     scene.frame_end = frame - 1
     img = bpy.data.images.load(str(frames_dir / "screen-0001.png"))
@@ -122,11 +132,13 @@ def load_source(path, device=None):
         n for n in display.data.materials[0].node_tree.nodes if n.type == "TEX_IMAGE"
     )
     texture.image = image
+    for track in list(armature.animation_data.nla_tracks):
+        armature.animation_data.nla_tracks.remove(track)
     actions = {name: bpy.data.actions[name] for name in [*FRAMES, "look"]}
     # Runtime tracks reference the same curves through their full source actions.
     # The editable source retains the separate joint assets in its Action library.
     for action in list(bpy.data.actions):
-        if action.get("pets_component"):
+        if action.get("pets_component") or action.get("pets_layer"):
             bpy.data.actions.remove(action)
     # The combined preview belongs in the editable source, not the exported clip list.
     armature.animation_data.action = actions["idle"]
@@ -135,7 +147,9 @@ def load_source(path, device=None):
         bpy.data.actions.remove(timeline)
     if device is not None:
         configure_render_device(scene, device)
+    project = json.loads(bpy.data.texts["pets-animation.json"].as_string())
     return {
+        "emission": read_clips(project),
         "nodes": nodes,
         "display": display,
         "armature": armature,
@@ -143,7 +157,7 @@ def load_source(path, device=None):
         "texture": image,
         "actions": actions,
         "metadata": metadata,
-        "project": json.loads(bpy.data.texts["pets-animation.json"].as_string()),
+        "project": project,
         "voxel_count": metadata["voxel_count"],
     }
 
@@ -176,6 +190,7 @@ def sample_source(model, state, phase, update_display=True):
         obj.hide_render = not prop_visible(state, prop)
         obj.hide_viewport = obj.hide_render
 
+    apply_values(model["emission"], model["project"], state, phase)
     for vertex, position in zip(
         model["cable"].data.splines[0].points, cable_points(pose)
     ):

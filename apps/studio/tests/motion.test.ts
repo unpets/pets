@@ -63,11 +63,11 @@ function assertConnections() {
       }
     }
     for (const [digit, lengths] of Object.entries({
-      index: [0.051, 0.037],
-      middle: [0.056, 0.041],
-      ring: [0.052, 0.037],
-      little: [0.04, 0.03],
-      thumb: [0.043, 0.038],
+      index: [0.057, 0.041],
+      middle: [0.062, 0.046],
+      ring: [0.058, 0.041],
+      little: [0.045, 0.034],
+      thumb: [0.048, 0.042],
     })) {
       for (let segment = 0; segment < 2; segment++) {
         const first = parts[`${digit}.0${segment + 1}.${side}`];

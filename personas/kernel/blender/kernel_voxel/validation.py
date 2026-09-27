@@ -7,6 +7,8 @@ import bpy
 import numpy as np
 
 from .animation import PROJECT, PROPS, prop_visible
+from .emission import sockets, values_at
+from .framing import verify_frame
 from .rig import FRAMES, pose_at
 
 
@@ -60,14 +62,21 @@ def verify(build):
         raise ValueError("Screen must use a portable relative image sequence")
     if not Path(bpy.path.abspath(texture.image.filepath)).is_file():
         raise FileNotFoundError("Blender display image reference cannot be resolved")
+    emission_targets = sockets(PROJECT)
     for sample in timeline:
         scene.frame_set(sample["frame"])
+        verify_frame(scene)
         for prop in PROPS:
             obj = scene.objects["cable"] if prop == "cable" else parts[prop]
             hidden = not prop_visible(sample["state"], prop)
             if obj.hide_render != hidden or obj.hide_viewport != hidden:
                 raise ValueError(
                     f"Incorrect {prop} visibility at frame {sample['frame']}"
+                )
+        for name, expected in values_at(PROJECT, sample["state"], sample["t"]).items():
+            if abs(emission_targets[name].default_value - expected) > 1e-5:
+                raise ValueError(
+                    f"Incorrect key emission at frame {sample['frame']}: {name}"
                 )
         pose = pose_at(sample["state"], sample["t"])
         for name, matrix in pose.matrices.items():
@@ -94,7 +103,9 @@ def verify(build):
         "relative_screen_sequence": True,
         "server_and_cable_visibility": True,
         "keyboard_visibility": True,
+        "key_emission_curves": True,
         "jump_foot_clearance": True,
+        "sprite_camera_margin": True,
     }
     (build / "blend-check.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report))

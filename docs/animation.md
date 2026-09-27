@@ -14,7 +14,7 @@ A composition clock explicitly coordinates clips with the composition's duration
 Speed, phase offset, looping, and enabled state are separate controls.  
 Pausing freezes both clocks, and seeking places both clocks at the selected time.  
 
-Kernel synchronizes the rig clips that maintain foot placement and server contact.  
+Kernel synchronizes the rig clips that maintain foot placement, server contact, and fingertip contact.  
 Display activity and blinking use independent clocks.  
 The look and review presets explicitly coordinate display cues with their gestures.  
 Changing a shared clip affects every composition that references it.  
@@ -23,7 +23,11 @@ Changing a shared clip affects every composition that references it.
 
 Open the Animation workspace to inspect a composition's component bindings.  
 Duplicate a composition to create a new behavior.  
-Select a component and assign a reusable clip, clock, speed, and phase offset.  
+Use Motion layers to combine posture, left arm action, right arm action, and head movement.  
+Each layer has its own motion, enabled state, clock, speed, and phase offset.  
+Selecting a layer motion preserves the other layers and starts with an independent clock.  
+Select a component for individual joint, material, visibility, or screen control.  
+Assign a reusable clip, clock, speed, and phase offset.  
 Create pixel clips for eyes, mouths, screen activity, or additional display layers.  
 The pixel editor supports painting, erasing, brush sizes, and frame creation.  
 Create rotation clips for individual joints and edit local Euler keyframes in degrees through Clip data.  
@@ -32,8 +36,11 @@ Clip data can be imported and exported separately.
 Save animations exports the full project as `pets-animation.json`.  
 Import the project in either the studio or the companion.  
 
-Kernel exposes the server, cable, and virtual keyboard as separate visibility components.  
-Active work uses an anchored right palm and individually articulated typing fingers.  
+Kernel exposes the server, cable, and both virtual keyboards as separate visibility components.  
+Active work fixes both palms while the body moves and the fingers type.  
+Each key has an independent emission clip synchronized to fingertip contact.  
+Lookaround combines idle posture and resting arms with a separate head clip.  
+Wave is a reusable arm action that can accompany other postures and screen content.  
 Each finger joint clip can be reused or replaced independently of the body motion.  
 
 A rotation clip's data contains ordered keyframes in seconds.  
@@ -61,7 +68,12 @@ A pixel clip's data contains frames of `[x, y, color]` pixels on a transparent 9
 
 ## Blender
 
-`kernel.blend` contains reusable slotted joint action assets and a combined preview timeline.  
+`kernel.blend` contains reusable slotted joint and material action assets.  
+The preview timeline uses separate NLA tracks for posture, each arm, and head movement.  
+Layer masks assign each bone to one track and use local transforms with quaternion rotations.  
+Runtime transitions blend from the displayed pose, including interrupted transitions.  
+Material emission curves are read from the saved Blender actions for each export.  
+Layer action names use `layer/<layer>/<source>`.  
 Joint action names use `rig/<joint>/<source>` and animate local transforms.  
 The `pets-animation.json` text block records the component library and default compositions.  
 Web motion tracks are selected from the saved model's action curves.  

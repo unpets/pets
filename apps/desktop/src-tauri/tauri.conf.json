@@ -1,7 +1,7 @@
 {
   "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Pets",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "identifier": "io.github.gglinnk.kernel",
   "build": {
     "frontendDist": "../../../dist-pet",

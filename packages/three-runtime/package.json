@@ -1,11 +1,12 @@
 {
   "name": "@pets/three-runtime",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "private": true,
   "type": "module",
   "exports": {
     "./motion": "./src/motion.ts",
-    "./project": "./src/project.ts"
+    "./project": "./src/project.ts",
+    "./layers": "./src/layers.ts"
   },
   "dependencies": {
     "three": "0.186.1"

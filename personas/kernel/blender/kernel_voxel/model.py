@@ -8,8 +8,15 @@ from mathutils import Matrix, Vector
 
 from .animation import PROPS, prop_visible
 from .hand_mesh import build_hand
-from .keyboard import build_keyboard
-from .rig import SERVER_PORT, SHOULDER_PIVOT, WRIST_PORT, cable_points, pose_for
+from .keyboard import KEY_MATERIALS, build_keyboards
+from .rig import (
+    HIP_PIVOT,
+    SERVER_PORT,
+    SHOULDER_PIVOT,
+    WRIST_PORT,
+    cable_points,
+    pose_for,
+)
 from .screen import framebuffer
 from .surfaces import resolve_coplanar
 
@@ -26,6 +33,7 @@ PALETTE = {
     "cyan_dim": "347888",
     "screen": "07151d",
     "green": "6bf1a0",
+    **{name: "55e9eb" for name in KEY_MATERIALS},
 }
 
 
@@ -49,6 +57,10 @@ def material(name, hexcode, variation=0):
     if name.startswith(("cyan", "green")):
         p.inputs["Emission Color"].default_value = (*linear, 1)
         p.inputs["Emission Strength"].default_value = 0.50
+    if name.startswith("key."):
+        p.inputs["Base Color"].default_value = (0.008, 0.025, 0.030, 1)
+        p.inputs["Emission Color"].default_value = (*linear, 1)
+        p.inputs["Emission Strength"].default_value = 0
     m.diffuse_color = (*linear, 1)
     return m
 
@@ -222,6 +234,15 @@ def build_model():
     for side in (-1, 1):
         n = "L" if side < 0 else "R"
         shoulder_socket(b, side)
+        b.voxel(
+            "body",
+            HIP_PIVOT * (side, 1, 1),
+            (0.25, 0.25, 0.25),
+            "joint",
+            0.125,
+            step=0.010,
+            cut=lambda p: p[2] < HIP_PIVOT[2],
+        )
         for part, length, width in [
             (f"thigh.{n}", 0.42, 0.235),
             (f"shin.{n}", 0.42, 0.22),
@@ -248,15 +269,16 @@ def build_model():
             if shoulder:
                 b.voxel(part, (0, 0, 0), (0.21, 0.21, 0.21), "metal", 0.105, step=0.010)
                 b.box(part, (0, 0, 0.142), (0.10, 0.10, 0.096), "dark")
+            elif part.startswith("thigh"):
+                b.voxel(part, (0, 0, 0), (0.22, 0.22, 0.22), "metal", 0.11, step=0.010)
             else:
-                diameter = 0.18 if arm else 0.20
                 b.voxel(
                     part,
                     (0, 0, 0),
-                    (0.25, diameter, diameter),
+                    (0.25, 0.20, 0.20),
                     "joint",
                     0.035,
-                    step=0.005 if arm else 0.020,
+                    step=0.005,
                     shape="motor",
                 )
                 for side2 in (-1, 1):
@@ -266,7 +288,7 @@ def build_model():
                         (0.025, 0.122, 0.122),
                         "metal",
                         0.0,
-                        step=0.005 if arm else 0.017,
+                        step=0.005,
                         shape="motor",
                     )
                     b.box(
@@ -278,7 +300,23 @@ def build_model():
                 (0.085, 0.052, length * 0.56),
                 "dark",
             )
-        b.box(f"forearm.{n}", (0, 0, 0.295), (0.095, 0.095, 0.06), "metal")
+        b.voxel(
+            f"forearm.{n}",
+            (0, 0, 0.275),
+            (0.10, 0.10, 0.10),
+            "metal",
+            0.05,
+            step=0.005,
+            cut=lambda p: p[2] < 0.275,
+        )
+        b.voxel(
+            f"forearm.{n}",
+            (0, 0, 0.3275),
+            (0.025, 0.025, 0.040),
+            "joint",
+            0.01,
+            step=0.005,
+        )
         build_hand(b, n)
         b.voxel(
             f"shin.{n}",
@@ -287,7 +325,10 @@ def build_model():
             "joint",
             0.095,
             step=0.010,
-            cut=lambda p: p[2] > 0.42,
+            cut=lambda p: p[2] < 0.42,
+        )
+        b.voxel(
+            f"shin.{n}", (0, 0, 0.37), (0.115, 0.115, 0.12), "dark", 0.025, step=0.010
         )
         b.voxel(
             f"foot.{n}",
@@ -326,7 +367,7 @@ def build_model():
     b.box("hand.R", WRIST_PORT + (0, -0.027, 0), (0.078, 0.018, 0.078), "screen")
     b.box("hand.R", WRIST_PORT + (0, -0.012, 0), (0.060, 0.024, 0.060), "cyan_dim")
     b.box("server", (1.18, -0.01, 1.017), (0.36, 0.52, 0.025), "shell")
-    build_keyboard(b)
+    build_keyboards(b)
     nodes = b.finish()
     # One screen plane with one local transform, packed texture and UVs.
     mesh = bpy.data.meshes.new("display")

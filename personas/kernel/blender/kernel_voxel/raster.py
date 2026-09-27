@@ -39,7 +39,17 @@ def render_states(source, out, record, states, device):
             scene.render.filepath = str((masters / f"{i:02d}.png").resolve())
             bpy.ops.render.render(write_still=True)
             with Image.open(scene.render.filepath) as image:
-                alpha_downsample(image).save(folder / f"{i:02d}.png", optimize=True)
+                frame = alpha_downsample(image)
+                bounds = frame.getchannel("A").getbbox()
+                if (
+                    not bounds
+                    or bounds[0] == 0
+                    or bounds[1] == 0
+                    or bounds[2] == CELL[0]
+                    or bounds[3] == CELL[1]
+                ):
+                    raise ValueError(f"Empty or clipped sprite: {state}/{i}")
+                frame.save(folder / f"{i:02d}.png", optimize=True)
             print(f"FRAME {state} {i + 1}/{count}", flush=True)
         write_cache(
             out / f"render-{state}.json",

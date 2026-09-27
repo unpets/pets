@@ -22,17 +22,17 @@ class HandBone:
 
 
 # Local Z follows the digit. The palm faces -Y; flexion rotates about +X.
-PALM_CENTER = (0, -0.022, 0.065)
-PALM_SIZE = (0.21, 0.085, 0.15)
-PALM_CONTACT = np.array([0, -0.066, 0.071])
-FINGER_BASE = 0.133
+PALM_CENTER = (0, -0.022, 0.140)
+PALM_SIZE = (0.21, 0.085, 0.18)
+PALM_CONTACT = np.array([0, -0.066, 0.086])
+FINGER_BASE = 0.223
 KEYBOARD_DEPTH = 0.052
 DIGITS = {
-    "index": ((0.051, 0.037, 0.028), -0.072, 0.038),
-    "middle": ((0.056, 0.041, 0.030), -0.024, 0.040),
-    "ring": ((0.052, 0.037, 0.028), 0.024, 0.038),
-    "little": ((0.040, 0.030, 0.025), 0.072, 0.034),
-    "thumb": ((0.043, 0.038, 0.030), -0.110, 0.044),
+    "index": ((0.057, 0.041, 0.031), -0.072, 0.038),
+    "middle": ((0.062, 0.046, 0.034), -0.024, 0.040),
+    "ring": ((0.058, 0.041, 0.031), 0.024, 0.038),
+    "little": ((0.045, 0.034, 0.028), 0.072, 0.034),
+    "thumb": ((0.048, 0.042, 0.034), -0.110, 0.044),
 }
 HAND_BONES = {}
 for side, suffix in ((-1, "L"), (1, "R")):
@@ -41,7 +41,7 @@ for side, suffix in ((-1, "L"), (1, "R")):
         for segment, length in enumerate(lengths):
             name = f"{digit}.{segment + 1:02d}.{suffix}"
             origin = (
-                (side * x, 0, 0.061 if digit == "thumb" else FINGER_BASE)
+                (side * x, 0, 0.136 if digit == "thumb" else FINGER_BASE)
                 if segment == 0
                 else (0, 0, lengths[segment - 1])
             )
@@ -83,10 +83,22 @@ def typing_press(digit):
     return ratio * ((low + high) / 2)
 
 
-def typing_weight(t, digit):
+def typing_phase(t, digit, side=1):
     index = list(DIGITS).index(digit)
-    phase = (2 * t - index / 4) % 1
-    return math.sin(math.pi * phase / 0.42) ** 2 if phase < 0.42 else 0.0
+    return (2 * t + (0.125 if side < 0 else 0) - index / 4) % 1
+
+
+def typing_weight(t, digit, side=1):
+    phase = typing_phase(t, digit, side)
+    if phase < 0.15:
+        u = phase / 0.15
+        return u * u * (3 - 2 * u)
+    if phase < 0.24:
+        return 1.0
+    if phase < 0.42:
+        u = (phase - 0.24) / 0.18
+        return 1 - u * u * (3 - 2 * u)
+    return 0.0
 
 
 def digit_angles(state, t, digit, side):
@@ -115,19 +127,13 @@ def digit_angles(state, t, digit, side):
         spread = 0.04
         opposition = 0.14
     elif state == "running":
-        if side == 1:
-            curl = (
-                np.array([0.28, 1.05, 0.45])
-                if digit == "thumb"
-                else typing_press(digit) * (0.25 + 0.75 * typing_weight(t, digit))
-            )
-            spread = 0
-            opposition = 0.48
-        else:
-            curl = np.array([0.20, 0.34, 0.17]) + 0.09 * (
-                1 + math.sin(2 * phase - index * 0.8)
-            )
-            opposition = 0.35
+        curl = (
+            np.array([0.28, 1.05, 0.45])
+            if digit == "thumb"
+            else typing_press(digit) * (0.25 + 0.75 * typing_weight(t, digit, side))
+        )
+        spread = 0
+        opposition = 0.48 if side > 0 else 0.35
     elif state == "review" and side == 1:
         curl = (
             np.array([0.06, 0.10, 0.08])

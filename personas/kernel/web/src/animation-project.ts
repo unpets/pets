@@ -42,6 +42,12 @@ export function parseKernelProject(value: unknown): AnimationProject {
       .filter((component) => component.kind === 'visibility')
       .map((component) => component.data.node),
   );
+  const emissionTargets = new Set(
+    Object.values(defaults.components)
+      .filter((c) => c.kind === 'emission')
+      .map((c) => c.data.material),
+  );
+  const usedMaterials = new Set();
   for (const [id, component] of Object.entries(project.components)) {
     if (component.kind === 'rig') {
       if (
@@ -75,6 +81,13 @@ export function parseKernelProject(value: unknown): AnimationProject {
               style.opacity > 1)))
       )
         throw new Error(`Invalid layer placement: ${id}`);
+    } else if (component.kind === 'emission') {
+      if (
+        !emissionTargets.has(component.data.material) ||
+        usedMaterials.has(component.data.material)
+      )
+        throw new Error(`Invalid or overlapping emission target: ${id}`);
+      usedMaterials.add(component.data.material);
     } else if (component.kind === 'visibility') {
       if (!props.has(component.data.node))
         throw new Error(`Unknown prop: ${id}`);
@@ -144,6 +157,26 @@ export function parseKernelProject(value: unknown): AnimationProject {
         )
       )
         throw new Error(`Unknown display source: ${id}`);
+    } else if (kind === 'emission') {
+      const frames = clip.data.keyframes as [number, number][];
+      if (
+        !Array.isArray(frames) ||
+        !frames.length ||
+        frames.length > 2048 ||
+        frames.some(
+          (frame, i) =>
+            !Array.isArray(frame) ||
+            frame.length !== 2 ||
+            !Number.isFinite(frame[0]) ||
+            !Number.isFinite(frame[1]) ||
+            frame[0] < 0 ||
+            frame[0] > clip.duration ||
+            (i > 0 && frame[0] <= frames[i - 1][0]) ||
+            frame[1] < 0 ||
+            frame[1] > 16,
+        )
+      )
+        throw new Error(`Invalid emission keyframes: ${id}`);
     } else if (typeof clip.data.visible !== 'boolean')
       throw new Error(`Invalid visibility clip: ${id}`);
   }

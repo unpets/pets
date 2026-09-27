@@ -1,5 +1,6 @@
 """Kernel's reusable clip catalog and explicit composition bindings."""
 
+from .keyboard import KEY_MATERIALS, key_intensity
 from .rig import DURATIONS, FRAMES, PARENTS
 
 LABELS = {
@@ -14,7 +15,33 @@ LABELS = {
     "review": "Review",
     "look": "Look around",
 }
-PROPS = ("server", "cable", "keyboard")
+PROPS = ("server", "cable", "keyboard", "keyboard.L")
+
+RIG_LAYERS = {
+    "posture": "Posture",
+    "arm.L": "Left arm action",
+    "arm.R": "Right arm action",
+    "head": "Head movement",
+}
+
+
+def rig_layer(name):
+    if name == "head":
+        return "head"
+    if name == "body" or name.startswith(("thigh.", "shin.", "foot.")):
+        return "posture"
+    return f"arm.{name[-1]}"
+
+
+def rig_source(state, name):
+    layer = rig_layer(name)
+    if state == "look" and layer != "head":
+        return "idle"
+    if state == "waving" and layer in ("posture", "arm.L"):
+        return "idle"
+    return state
+
+
 SCREEN_CLIPS = {
     "background": [("rails", "Status rails", 1)],
     "activity": [
@@ -60,7 +87,11 @@ def animation_project():
         components[component] = {
             "label": name.replace("_", " "),
             "kind": "rig",
-            "data": {"nodes": [name]},
+            "data": {
+                "nodes": [name],
+                "layer": rig_layer(name),
+                "layerLabel": RIG_LAYERS[rig_layer(name)],
+            },
         }
         for state, count in states.items():
             clips[f"{component}/{state}"] = {
@@ -100,9 +131,37 @@ def animation_project():
                 "looping": True,
                 "data": {"visible": visible},
             }
+    for material, (side, digit) in KEY_MATERIALS.items():
+        component = f"emission/{material}"
+        components[component] = {
+            "label": f"{side} {digit} key",
+            "kind": "emission",
+            "data": {"material": f"{material}.1"},
+        }
+        duration = states["running"] * DURATIONS["running"] / 1000
+        for mode in ("off", "typing"):
+            clips[f"{component}/{mode}"] = {
+                "label": "Typing" if mode == "typing" else "Off",
+                "component": component,
+                "duration": duration,
+                "looping": True,
+                "data": {
+                    "keyframes": [
+                        [
+                            i * duration / 120,
+                            key_intensity(i / 120, digit, 1 if side == "R" else -1)
+                            if mode == "typing"
+                            else 0,
+                        ]
+                        for i in range(121)
+                    ]
+                },
+            }
     for state, count in states.items():
         bindings = {
-            f"rig/{name}": binding(f"rig/{name}/{state}", "composition")
+            f"rig/{name}": binding(
+                f"rig/{name}/{rig_source(state, name)}", "composition"
+            )
             for name in PARENTS
         }
         eye = {
@@ -129,6 +188,12 @@ def animation_project():
         for prop in PROPS:
             bindings[f"prop/{prop}"] = binding(
                 f"prop/{prop}/{str(state == 'running').lower()}"
+            )
+        for material in KEY_MATERIALS:
+            component = f"emission/{material}"
+            bindings[component] = binding(
+                f"{component}/{'typing' if state == 'running' else 'off'}",
+                "composition",
             )
         project["compositions"][state] = {
             "label": LABELS[state],

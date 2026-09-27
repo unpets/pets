@@ -121,7 +121,27 @@ try {
     project.compositions['custom-greeting'].bindings['screen/eyes'].clock,
     'independent',
   );
+  await page.getByText('Right arm action', { exact: true }).click();
+  await page.getByLabel('Right arm action motion').selectOption('waving');
+  await page.getByLabel('Head movement motion').selectOption('look');
+  await page.getByLabel('Head movement speed').fill('0.5');
+  await page.getByLabel('Head movement speed').press('Tab');
+  await page.getByLabel('Animation component').selectOption('rig/hand.R');
+  assert.equal(
+    await page.getByLabel('Component clip').inputValue(),
+    'rig/hand.R/waving',
+  );
+  assert.equal(
+    await page.getByLabel('Component clock').inputValue(),
+    'independent',
+  );
   await page.getByLabel('Animation component').selectOption('rig/head');
+  assert.equal(
+    await page.getByLabel('Component clip').inputValue(),
+    'rig/head/look',
+  );
+  assert.equal(await page.getByLabel('Component speed').inputValue(), '0.5');
+
   await page.getByLabel('New animation name').fill('Head tilt');
   await page
     .getByRole('button', { name: 'New rotation clip', exact: true })

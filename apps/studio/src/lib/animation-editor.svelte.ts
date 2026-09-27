@@ -110,7 +110,15 @@ export class AnimationEditorState {
                 { time: 1, rotation: [0, 0, 0] },
               ],
             }
-          : { visible: true };
+          : kind === 'emission'
+            ? {
+                keyframes: [
+                  [0, 0],
+                  [0.5, 4],
+                  [1, 0],
+                ],
+              }
+            : { visible: true };
     project.clips[id] = {
       label,
       component: this.component,

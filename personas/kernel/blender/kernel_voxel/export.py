@@ -25,6 +25,8 @@ def export_site(model, site_out):
     assets.mkdir(exist_ok=True)
     sample_source(model, "idle", 0)
     model["texture"].pack()
+    for socket in model["emission"].values():
+        socket.default_value = 1.0
     bpy.ops.object.select_all(action="DESELECT")
     for obj in [model["armature"], *model["nodes"].values(), model["display"]]:
         obj.hide_viewport = False

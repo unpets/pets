@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CompositionLayers from './CompositionLayers.svelte';
   import { Layers3, Plus, Copy, Upload, Download } from '@lucide/svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
   import type { StudioController } from '../lib/types';
@@ -109,6 +110,7 @@
     /></label
   >
 </section>
+<CompositionLayers {editor} {mode} />
 <section class="inspector-section">
   <h3>Component binding</h3>
   <label class="field-label"
@@ -247,7 +249,9 @@
       ? 'pixel'
       : component.kind === 'rig'
         ? 'rotation'
-        : 'visibility'} clip</button
+        : component.kind === 'emission'
+          ? 'emission'
+          : 'visibility'} clip</button
   >
   <button
     class="button mt-2 w-full"

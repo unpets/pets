@@ -12,6 +12,7 @@ import {
 import { loadAssets } from './assets';
 import { createMotion } from '@pets/three-runtime/motion';
 import { createCable } from './cable';
+import { createEmission } from './emission';
 import { createScreen } from './screen';
 import type { AnimationMode } from './types';
 import {
@@ -42,6 +43,7 @@ export async function createCharacter(canvas: HTMLCanvasElement) {
     toneMapped: false,
   });
   const motion = createMotion(model, clips, 'running');
+  const updateEmission = createEmission(model, data.project);
   let project = data.project;
   let selected = '';
   let samples: ReturnType<typeof sampleComposition> = {};
@@ -158,6 +160,7 @@ export async function createCharacter(canvas: HTMLCanvasElement) {
         target.visible = project.clips[sample.clip].data.visible as boolean;
       }
       if (cable.mesh.visible) cable.update();
+      updateEmission(project, samples);
       screen.update(project, samples, screenSeconds);
     },
     dispose() {

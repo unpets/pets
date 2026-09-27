@@ -36,8 +36,8 @@ TAU = math.tau
 WRIST_PORT = np.array([0, 0.09, 0.055])
 SERVER_PORT = np.array([1.185, -0.427, 0.85])
 SHOULDER_PIVOT = np.array([0.60, 0, 1.50])
-HIP_PIVOT = np.array([0.25, 0, 0.895])
-REST_HEIGHT = 0.103
+HIP_PIVOT = np.array([0.25, 0, 0.865])
+REST_HEIGHT = 0.133
 LEG_REACH = 0.833
 PARENTS = {"body": None, "head": "body"}
 for side in ("L", "R"):
@@ -55,6 +55,7 @@ PARENTS.update({name: spec.parent for name, spec in HAND_BONES.items()})
 
 # Palm contact lies on the server lid. Fingers wrap over its front edge.
 WORK_HAND = transform((1.04, -0.182, 1.0295 - PALM_CONTACT[1]), (math.pi / 2, 0, 0))
+FREE_HAND = transform((-0.62, -0.41, 1.32), (math.pi / 2, 0, 0))
 WORK_CONTACT_LOCAL = PALM_CONTACT
 WORK_CONTACT = point(WORK_HAND, WORK_CONTACT_LOCAL)
 
@@ -209,7 +210,6 @@ def pose_at(state, t):
         hands[1] = np.array([0.94 + 0.09 * s, -0.02, 1.93 + 0.065 * c])
         head_yaw = 0.07
         head_pitch = -0.055
-        roll = -0.025
     elif state == "jumping":
         compression, air, pitch = jump_motion(t)
         # Rock around the front of the sole, then lift the same foot frame.
@@ -242,17 +242,16 @@ def pose_at(state, t):
     elif state == "running":
         head_yaw = 0.13
         head_pitch = 0.035 + 0.02 * s
-        root_z = REST_HEIGHT - 0.008 + 0.007 * s
+        root_z = REST_HEIGHT - 0.038 + 0.007 * s
         root_x = 0.055
         hands[1] = WORK_HAND[:3, 3].copy()
-        hands[-1] = np.array([-0.62, -0.41, 1.32 + 0.024 * math.sin(2 * TAU * t)])
+        hands[-1] = FREE_HAND[:3, 3].copy()
     elif state == "review":
         nod = math.sin(math.pi * (t - 0.5) / 0.32) ** 2 if 0.5 < t < 0.82 else 0
         head_pitch = 0.08 + 0.035 * c + 0.08 * nod
         head_yaw = -0.045 + 0.12 * s
         hands[1] = np.array([0.43, -0.48, 1.515 + 0.012 * s])
     elif state == "look":
-        root_z = REST_HEIGHT
         angle = look_angle(t)
         head_yaw = 0.216 + 0.66 * math.sin(angle)
         head_pitch = -0.02 - 0.34 * math.cos(angle)
@@ -317,12 +316,11 @@ def pose_at(state, t):
         )
         matrices[f"hand.{name}"] = matrices[f"forearm.{name}"].copy()
         matrices[f"hand.{name}"][:3, 3] = hand
-        if state == "idle":
-            matrices[f"hand.{name}"] = orient_palm(
-                matrices[f"hand.{name}"], -side * body[:3, 0]
-            )
-        if state == "running" and side == 1:
-            matrices[f"hand.{name}"] = WORK_HAND.copy()
+        matrices[f"hand.{name}"] = orient_palm(
+            matrices[f"hand.{name}"], -side * body[:3, 0]
+        )
+        if state == "running":
+            matrices[f"hand.{name}"] = (WORK_HAND if side == 1 else FREE_HAND).copy()
         if state == "waving" and side == 1:
             matrices[f"hand.{name}"] = transform(hand, (0, 0.22 * s, 0.05 * s))
         if state == "waiting":

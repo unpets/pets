@@ -117,7 +117,11 @@ try {
         state === 'running',
       );
       assert.equal(
-        await page.evaluate(() => window.kernelViewer.parts.keyboard.visible),
+        await page.evaluate(
+          () =>
+            window.kernelViewer.parts.keyboard.visible &&
+            window.kernelViewer.parts['keyboard.L'].visible,
+        ),
         state === 'running',
       );
     }

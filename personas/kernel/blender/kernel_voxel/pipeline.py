@@ -21,6 +21,8 @@ def model_key(scale, samples):
             "hands.py",
             "hand_mesh.py",
             "keyboard.py",
+            "emission.py",
+            "framing.py",
             "transforms.py",
             "surfaces.py",
             "armature.py",
@@ -47,6 +49,8 @@ def render_keys(scale, samples):
             "animation.py",
             "hand_mesh.py",
             "keyboard.py",
+            "emission.py",
+            "framing.py",
             "surfaces.py",
             "armature.py",
             "scene.py",
@@ -131,7 +135,9 @@ def state_cached(out, record, state):
 def export_viewer(source, site_out, record):
     key = fingerprint(
         record["files"][source.name],
-        source_hash("export.py", "scene.py", "screen.py", "animation.py"),
+        source_hash(
+            "export.py", "scene.py", "screen.py", "animation.py", "emission.py"
+        ),
     )
     site_out.mkdir(parents=True, exist_ok=True)
     if read_cache(site_out / "site-cache.json", key):

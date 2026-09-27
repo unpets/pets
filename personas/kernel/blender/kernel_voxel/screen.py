@@ -120,7 +120,7 @@ def draw_clip(layer, generator, t):
         dy = round(gaze[1] * 9)
         blink = generator == "blink" and (0.46 < t < 0.485 or 0.815 < t < 0.835)
         ey = 23 + dy
-        for x in (25 + dx, 62 + dx):
+        for x in (29 + dx, 66 + dx):
             if generator in ("tired", "frown"):
                 # Compressed tired eyelids, never detached error symbols.
                 d.rectangle((x - 7, ey + 4, x + 6, ey + 7), fill=(175, 116, 238))
@@ -137,11 +137,11 @@ def draw_clip(layer, generator, t):
                 d.rectangle((x - 3, ey + 2, x + 3, ey + 10), fill=(148, 255, 251))
         d = ImageDraw.Draw(layers["mouth"])
         if generator == "open":
-            d.rectangle((43, 45, 50, 49), fill=CYAN)
+            d.rectangle((44, 45, 51, 49), fill=CYAN)
         elif generator in ("tired", "frown"):
-            d.line((38, 49, 46, 45, 54, 49), fill=(175, 116, 238), width=2)
+            d.line((39, 49, 47, 45, 55, 49), fill=(175, 116, 238), width=2)
         elif generator in ("focused", "line", "checklist"):
-            d.line((42, 37, 51, 37), fill=CYAN)
+            d.line((43, 37, 52, 37), fill=CYAN)
         else:
             d.line((37, 43, 40, 47, 53, 47, 57, 43), fill=CYAN, width=2)
         if generator in ("focused", "line", "checklist"):
