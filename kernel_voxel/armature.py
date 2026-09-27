@@ -5,6 +5,7 @@ import math
 import bpy
 from mathutils import Matrix
 
+from .hands import HAND_BONES
 from .rig import DURATIONS, FRAMES, PARENTS, pose_at
 
 BONE_BASIS = Matrix.Rotation(math.pi / 2, 4, "X")
@@ -24,19 +25,30 @@ def create_armature(model):
         bone.head = (0, 0, 0)
         bone.tail = (0, 0.2, 0)
         bone.matrix = Matrix(rest.matrices[name].tolist()) @ BONE_BASIS
-        bone.length = {
-            "upper_arm": 0.33,
-            "forearm": 0.34,
-            "thigh": 0.42,
-            "shin": 0.42,
-        }.get(name.split(".")[0], 0.2)
+        bone.length = (
+            HAND_BONES[name].length
+            if name in HAND_BONES
+            else {
+                "upper_arm": 0.33,
+                "forearm": 0.34,
+                "thigh": 0.42,
+                "shin": 0.42,
+            }.get(name.split(".")[0], 0.2)
+        )
         if parent:
             bone.parent = data.edit_bones[parent]
-            bone.use_connect = name.split(".")[0] in ("forearm", "hand", "shin", "foot")
+            bone.use_connect = (
+                name in HAND_BONES and HAND_BONES[name].segment > 0
+            ) or name.split(".")[0] in ("forearm", "hand", "shin", "foot")
     bpy.ops.object.mode_set(mode="OBJECT")
     for name in PARENTS:
         bone = data.bones[name]
         bone["joint"] = name
+        if name in HAND_BONES:
+            spec = HAND_BONES[name]
+            bone["digit"] = spec.digit
+            bone["segment"] = spec.segment + 1
+            bone["flexion_limit"] = spec.flexion_limit
         obj = model["nodes"][name]
         obj.parent = armature
         obj.parent_type = "BONE"
@@ -53,11 +65,23 @@ def create_armature(model):
 
 def apply_armature_pose(model, pose):
     armature = model["armature"]
-    for name in PARENTS:
-        armature.pose.bones[name].matrix = (
-            Matrix(pose.matrices[name].tolist()) @ BONE_BASIS
+    targets = {
+        name: Matrix(pose.matrices[name].tolist()) @ BONE_BASIS for name in PARENTS
+    }
+    for name, parent in PARENTS.items():
+        bone = armature.pose.bones[name]
+        parent_args = (
+            {}
+            if parent is None
+            else {
+                "parent_matrix": targets[parent],
+                "parent_matrix_local": bone.parent.bone.matrix_local,
+            }
         )
-        bpy.context.view_layer.update()
+        bone.matrix_basis = bone.bone.convert_local_to_pose(
+            targets[name], bone.bone.matrix_local, invert=True, **parent_args
+        )
+    bpy.context.view_layer.update()
 
 
 def key_pose(armature, frame):

@@ -6,6 +6,9 @@ from itertools import pairwise
 
 import numpy as np
 
+from .hands import HAND_BONES, hand_matrices
+from .transforms import point, transform
+
 CELL = (192, 208)
 FRAMES = {
     "idle": 6,
@@ -46,32 +49,12 @@ for side in ("L", "R"):
     ):
         PARENTS[f"{child}.{side}"] = parent if parent == "body" else f"{parent}.{side}"
 
+PARENTS.update({name: spec.parent for name, spec in HAND_BONES.items()})
 
-def rotation(x=0.0, y=0.0, z=0.0):
-    cx, sx, cy, sy, cz, sz = (
-        math.cos(x),
-        math.sin(x),
-        math.cos(y),
-        math.sin(y),
-        math.cos(z),
-        math.sin(z),
-    )
-    return (
-        np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1.0]])
-        @ np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
-        @ np.array([[1.0, 0, 0], [0, cx, -sx], [0, sx, cx]])
-    )
-
-
-def transform(location=(0, 0, 0), angles=(0, 0, 0)):
-    m = np.eye(4)
-    m[:3, :3] = rotation(*angles)
-    m[:3, 3] = location
-    return m
-
-
-def point(m, p):
-    return (m @ np.r_[p, 1])[:3]
+# Palm contact lies on the server lid. Fingers wrap over its front edge.
+WORK_HAND = transform((1.04, -0.182, 1.1045), (math.pi / 2, 0, 0))
+WORK_CONTACT_LOCAL = np.array([0, -0.075, 0.055])
+WORK_CONTACT = point(WORK_HAND, WORK_CONTACT_LOCAL)
 
 
 def bone_matrix(a, b, hinge_axis=None):
@@ -224,7 +207,7 @@ def pose_at(state, t):
         head_yaw = 0.13
         head_pitch = 0.035 + 0.02 * s
         root_z = 0.007 * s
-        hands[1] = np.array([0.96, -0.21, 1.10 + 0.012 * s])
+        hands[1] = WORK_HAND[:3, 3].copy()
         hands[-1] = np.array([-0.62, -0.41, 1.32 + 0.024 * math.sin(2 * TAU * t)])
     elif state == "review":
         nod = math.sin(math.pi * (t - 0.5) / 0.32) ** 2 if 0.5 < t < 0.82 else 0
@@ -260,9 +243,8 @@ def pose_at(state, t):
             heading,
             hands[side] + np.array([0, 0, max(0, root_z) if state == "jumping" else 0]),
         )
-        elbow = two_bone(
-            shoulder, hand, 0.33, 0.34, point(heading, (side * 0.3, 0.8, 0))
-        )
+        pole = (1, 0, -1) if state == "review" and side == 1 else (side * 0.3, 0.8, 0)
+        elbow = two_bone(shoulder, hand, 0.33, 0.34, point(heading, pole))
         matrices[f"thigh.{name}"], matrices[f"shin.{name}"] = limb_matrices(
             hip, knee, ankle
         )
@@ -274,6 +256,8 @@ def pose_at(state, t):
         )
         matrices[f"hand.{name}"] = matrices[f"forearm.{name}"].copy()
         matrices[f"hand.{name}"][:3, 3] = hand
+        if state == "running" and side == 1:
+            matrices[f"hand.{name}"] = WORK_HAND.copy()
         if state == "waving" and side == 1:
             matrices[f"hand.{name}"] = transform(hand, (0, 0.22 * s, 0.05 * s))
         if state == "waiting":
@@ -291,6 +275,7 @@ def pose_at(state, t):
             ("wrist", hand),
         ]:
             joints[f"{joint}.{name}"] = pos
+    matrices.update(hand_matrices(matrices, state, t))
     # The plug is mounted on the right wrist housing, so its cable follows the rig.
     cable_start = point(matrices["hand.R"], WRIST_PORT)
     cable_end = SERVER_PORT.copy()

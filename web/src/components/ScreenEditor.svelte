@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import ScreenPalette from './ScreenPalette.svelte';
   import { Download, Upload, RotateCcw, Layers } from '@lucide/svelte';
   import { animationModes, type StudioController } from '../lib/types';
   import {
@@ -8,6 +9,7 @@
     parseScreenProject,
     saveScreenProject,
     screenLayers,
+    updatePalette,
     type ScreenProject,
   } from '../lib/screen-project';
   let { studio }: { studio?: StudioController } = $props();
@@ -22,9 +24,12 @@
   $effect(() => {
     studio?.setScreenProject($state.snapshot(project));
   });
-  function change(update: Partial<ScreenProject['layers']['eyes']>) {
+  function checkpoint() {
     undo.push(parseScreenProject($state.snapshot(project)));
     undo = undo.slice(-40);
+  }
+  function change(update: Partial<ScreenProject['layers']['eyes']>) {
+    checkpoint();
     project.layers[selected] = { ...project.layers[selected], ...update };
     saveScreenProject($state.snapshot(project));
   }
@@ -82,7 +87,7 @@
       >
       <button
         onclick={() => {
-          undo.push(parseScreenProject($state.snapshot(project)));
+          checkpoint();
           project = defaultScreenProject();
           saveScreenProject(project);
         }}>Reset</button
@@ -102,6 +107,14 @@
       />
     </div>
   </div>
+  <ScreenPalette
+    palette={project.palette}
+    onchange={(update) => {
+      checkpoint();
+      project.palette = updatePalette(project.palette, update);
+      saveScreenProject($state.snapshot(project));
+    }}
+  />
   <div class="grid gap-5 md:grid-cols-[200px_1fr]">
     <div
       class="grid grid-cols-2 gap-2 md:grid-cols-1"
@@ -131,15 +144,17 @@
           onchange={(event) => change({ visible: event.currentTarget.checked })}
         />Visible</label
       >
-      <label class="flex items-center gap-2"
-        >Color<input
-          aria-label="Layer color"
-          type="color"
-          value={project.layers[selected].color ?? '#4feff3'}
-          oninput={(event) => change({ color: event.currentTarget.value })}
-        /><button onclick={() => change({ color: null })}>Original</button
-        ></label
-      >
+      {#if selected === 'eyes' || selected === 'mouth'}
+        <label class="flex items-center gap-2"
+          >Color<input
+            aria-label="Layer color"
+            type="color"
+            value={project.layers[selected].color ?? '#4feff3'}
+            oninput={(event) => change({ color: event.currentTarget.value })}
+          /><button onclick={() => change({ color: null })}>Original</button
+          ></label
+        >
+      {/if}
       <label class="grid gap-2"
         >Expression<select
           aria-label="Layer expression"

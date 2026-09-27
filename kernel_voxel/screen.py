@@ -50,18 +50,28 @@ def glyph(draw, xy, char, color, scale=1):
 LAYERS = ("background", "activity", "eyes", "mouth")
 
 
-def screen_layers(state, t, gaze=(0.0, 0.0)):
+PALETTE_LAYERS = (
+    "background-lines",
+    "background-text",
+    "activity-lines",
+    "activity-text",
+)
+COMPONENTS = ("background", *PALETTE_LAYERS, "eyes", "mouth")
+
+
+def screen_components(state, t, gaze=(0.0, 0.0)):
     t %= 1
-    layers = {name: Image.new("RGBA", SIZE) for name in LAYERS}
+    layers = {name: Image.new("RGBA", SIZE) for name in COMPONENTS}
     layers["background"].paste((*BG, 255), (0, 0, *SIZE))
-    d = ImageDraw.Draw(layers["background"])
+    d = ImageDraw.Draw(layers["background-lines"])
     # Glass is flush inside a centered opening. Status rail stays on the display.
     d.line((5, 8, 90, 8), fill=(21, 53, 66))
     d.line((5, 56, 90, 56), fill=(21, 53, 66))
+    text = ImageDraw.Draw(layers["background-text"])
     for i, ch in enumerate("KRNL"):
-        glyph(d, (6 + i * 4, 2), ch, DIM)
+        glyph(text, (6 + i * 4, 2), ch, DIM)
     d.rectangle((83, 3, 89, 4), fill=CYAN)
-    d = ImageDraw.Draw(layers["activity"])
+    d = ImageDraw.Draw(layers["activity-text"])
     if state == "running":
         # Cyclic digital rain on the right, syntax-like terminal tokens on the left.
         tick = int((t % 1) * 24)
@@ -77,13 +87,14 @@ def screen_layers(state, t, gaze=(0.0, 0.0)):
                 glyph(
                     d, (61 + col * 4, y), str((col * 7 + tail * 3 + tick) % 10), color
                 )
-        d.line((55, 12, 55, 53), fill=DIM)
+        lines = ImageDraw.Draw(layers["activity-lines"])
+        lines.line((55, 12, 55, 53), fill=DIM)
         tokens = [">{01}", "/1010", "{0:1}", ">101_", "/0110", "{1:0}"]
         for r in range(5):
             line = tokens[(r + tick // 4) % len(tokens)]
             for j, ch in enumerate(line):
                 glyph(d, (7 + 5 * j, 13 + r * 8), ch, CYAN if j == 0 else GREEN)
-        d.rectangle((7, 51, 7 + int(40 * t), 52), fill=CYAN)
+        lines.rectangle((7, 51, 7 + int(40 * t), 52), fill=CYAN)
     else:
         d = ImageDraw.Draw(layers["eyes"])
         dx = round(gaze[0] * 10)
@@ -115,7 +126,7 @@ def screen_layers(state, t, gaze=(0.0, 0.0)):
         else:
             d.line((37, 43, 40, 47, 53, 47, 57, 43), fill=CYAN, width=2)
         if state == "review":
-            d = ImageDraw.Draw(layers["activity"])
+            d = ImageDraw.Draw(layers["activity-lines"])
             selected = min(2, int(t * 4))
             for row, width in enumerate((25, 34, 21)):
                 y = 43 + row * 4
@@ -124,6 +135,15 @@ def screen_layers(state, t, gaze=(0.0, 0.0)):
                 d.line((29, y, 29 + width, y), fill=color)
             if 0.5 < t < 0.82:
                 d.line((70, 46, 73, 49, 79, 42), fill=GREEN, width=2)
+    return layers
+
+
+def screen_layers(state, t, gaze=(0.0, 0.0)):
+    components = screen_components(state, t, gaze)
+    layers = {name: Image.new("RGBA", SIZE) for name in LAYERS}
+    for name, image in components.items():
+        layer = name.split("-")[0]
+        layers[layer] = Image.alpha_composite(layers[layer], image)
     return layers
 
 

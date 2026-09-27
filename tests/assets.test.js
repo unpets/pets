@@ -7,7 +7,7 @@ test('every animation has complete finite rigid transforms and cable anchors', (
   for (const state of Object.values(data.states)) {
     expect(state.samples.length).toBe(121);
     for (const sample of state.samples) {
-      expect(Object.keys(sample.parts).length).toBe(14);
+      expect(Object.keys(sample.parts).length).toBe(44);
       for (const transform of Object.values(sample.parts)) {
         expect(transform.p.length).toBe(3);
         expect(transform.q.length).toBe(4);
@@ -30,5 +30,5 @@ test('exported model is glTF 2 and has the screen attached to its head', () => {
   const head = gltf.nodes.find((n) => n.extras?.rig_part === 'head');
   expect(screen).toBeGreaterThanOrEqual(0);
   expect(head.children).toContain(screen);
-  expect(gltf.nodes.filter((n) => n.extras?.rig_part).length).toBe(15);
+  expect(gltf.nodes.filter((n) => n.extras?.rig_part).length).toBe(45);
 });

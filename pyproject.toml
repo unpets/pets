@@ -1,6 +1,6 @@
 [project]
 name = "kernel-voxel-pet"
-version = "0.4.0"
+version = "0.5.0"
 description = "Deterministic voxel model and animated sprite renderer for Kernel"
 requires-python = ">=3.13,<3.14"
 dependencies = ["Pillow==12.3.0", "numpy>=2.0", "bpy==5.2.2"]

@@ -74,12 +74,62 @@ try {
     .click();
   const download = await downloadPromise;
   assert.equal(download.suggestedFilename(), 'kernel-screen.json');
+  await studio
+    .getByLabel('Screen background color', { exact: true })
+    .fill('#182430');
+  await studio
+    .getByLabel('Screen lines color', { exact: true })
+    .fill('#ff4400');
+  assert.equal(
+    await studio.getByLabel('Screen text color', { exact: true }).inputValue(),
+    '#ff4400',
+  );
+  const sampleScreen = () =>
+    studio.evaluate(() => {
+      const canvas = [...document.querySelectorAll('canvas')].find(
+        (canvas) => canvas.width === 96 && canvas.height === 64,
+      );
+      return [...canvas.getContext('2d').getImageData(0, 0, 96, 64).data];
+    });
+  await studio.evaluate(() => {
+    window.kernelViewer.setMode('running');
+    window.kernelViewer.setPlaying(false);
+    window.kernelViewer.seek(0);
+  });
+  await studio.waitForTimeout(60);
+  const firstScreen = await sampleScreen();
+  assert.deepEqual(firstScreen.slice(0, 3), [24, 36, 48]);
+  const railPixel = (8 * 96 + 6) * 4;
+  assert.ok(firstScreen[railPixel] > firstScreen[railPixel + 1]);
+  await studio.evaluate(() => window.kernelViewer.seek(0.5));
+  await studio.waitForTimeout(60);
+  const nextScreen = await sampleScreen();
+  assert.notDeepEqual(firstScreen, nextScreen);
+  await studio
+    .getByRole('button', { name: 'Link line and text colors', exact: true })
+    .click();
+  await studio.getByLabel('Screen text color', { exact: true }).fill('#00ff88');
+  assert.equal(
+    await studio.getByLabel('Screen lines color', { exact: true }).inputValue(),
+    '#ff4400',
+  );
+  await studio.waitForTimeout(60);
+  const splitScreen = await sampleScreen();
+  assert.ok(splitScreen[railPixel] > splitScreen[railPixel + 1]);
+  assert.ok(
+    splitScreen.some(
+      (value, index) =>
+        index % 4 === 1 && value > 150 && splitScreen[index - 1] === 0,
+    ),
+  );
   await studio.screenshot({
     path: 'test-results/studio-editor.png',
     fullPage: true,
   });
   assert.deepEqual(errors, []);
-  console.log('Standalone gaze, all modes, and screen editing passed.');
+  console.log(
+    'Standalone gaze, all modes, screen layers and dynamic palette passed.',
+  );
 } finally {
   await browser.close();
 }

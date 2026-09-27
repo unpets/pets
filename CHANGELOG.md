@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Articulate both hands with independent finger chains and opposing thumbs.
+- Add bounded finger gestures to every animation.
+- Keep the working hand planted on the server while the torso bounces.
+- Correct the review elbow bend and preserve the hand beneath the chin.
+- Replace hollow shoulder cups with smaller solid bearing housings.
+- Add independent background, line, and text palette controls with linked line and text colors.
+- Preserve animated screen detail and support earlier screen project files.
+- Evaluate the complete rig with one dependency update per authored pose.
 
 ## 0.4.0
 

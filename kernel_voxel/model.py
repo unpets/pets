@@ -6,6 +6,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
+from .hand_mesh import build_hand
 from .rig import SERVER_PORT, SHOULDER_PIVOT, WRIST_PORT, cable_points, pose_for
 from .screen import framebuffer
 from .surfaces import resolve_coplanar
@@ -137,17 +138,15 @@ class Builder:
 
 
 def shoulder_socket(builder, side):
-    center = SHOULDER_PIVOT * (side, 1, 1)
+    center = SHOULDER_PIVOT * (side, 1, 1) - np.array([side * 0.045, 0, 0])
     builder.voxel(
         "body",
         center,
-        (0.32, 0.32, 0.32),
+        (0.14, 0.26, 0.26),
         "joint",
-        0.16,
-        step=0.012,
-        cut=lambda p: (
-            np.linalg.norm(p - center) < 0.142 or side * (p[0] - center[0]) > -0.04
-        ),
+        0,
+        step=0.010,
+        shape="motor",
     )
 
 
@@ -273,15 +272,7 @@ def build_model():
                 part, (0, 0.095, length * 0.48), (0.085, 0.052, length * 0.56), "dark"
             )
         b.box(f"forearm.{n}", (0, 0, 0.295), (0.095, 0.095, 0.06), "metal")
-        b.voxel(f"hand.{n}", (0, 0, 0), (0.13, 0.13, 0.13), "joint", 0.065, step=0.013)
-        b.voxel(
-            f"hand.{n}", (0, 0, 0.055), (0.21, 0.15, 0.135), "dark", 0.025, step=0.020
-        )
-        b.box(f"hand.{n}", (0, -0.085, 0.055), (0.12, 0.026, 0.060), "violet")
-        for x in (-0.065, 0, 0.065):
-            b.box(f"hand.{n}", (x, 0, 0.145), (0.05, 0.105, 0.060), "metal")
-            b.box(f"hand.{n}", (x, -0.018, 0.198), (0.05, 0.07, 0.055), "shell")
-        b.box(f"hand.{n}", (-side * 0.13, -0.012, 0.08), (0.07, 0.085, 0.055), "metal")
+        build_hand(b, n)
         b.voxel(
             f"foot.{n}",
             (0, -0.09, -0.075),

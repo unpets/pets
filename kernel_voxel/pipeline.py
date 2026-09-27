@@ -8,7 +8,7 @@ import numpy as np
 from . import __version__
 from .cache import file_hash, fingerprint, read_cache, source_hash, write_cache
 from .rig import DURATIONS, FRAMES, SERVER_PORT, WRIST_PORT, pose_at
-from .screen import framebuffer
+from .screen import LAYERS, PALETTE_LAYERS, framebuffer
 
 STATES = {**FRAMES, "look": 16}
 
@@ -17,6 +17,9 @@ def model_key(scale, samples):
     return fingerprint(
         source_hash(
             "model.py",
+            "hands.py",
+            "hand_mesh.py",
+            "transforms.py",
             "surfaces.py",
             "armature.py",
             "rig.py",
@@ -35,7 +38,14 @@ def model_key(scale, samples):
 
 def render_keys(scale, samples):
     common = fingerprint(
-        source_hash("model.py", "surfaces.py", "armature.py", "scene.py", "raster.py"),
+        source_hash(
+            "model.py",
+            "hand_mesh.py",
+            "surfaces.py",
+            "armature.py",
+            "scene.py",
+            "raster.py",
+        ),
         version("bpy"),
         version("Pillow"),
         scale,
@@ -133,10 +143,7 @@ def export_viewer(source, site_out, record):
                 "kernel.glb",
                 "animations.json",
                 "screens.png",
-                "screen-background.png",
-                "screen-activity.png",
-                "screen-eyes.png",
-                "screen-mouth.png",
+                *(f"screen-{name}.png" for name in (*LAYERS, *PALETTE_LAYERS)),
             )
         ],
     )

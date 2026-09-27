@@ -15,7 +15,7 @@ from PIL import Image
 
 from kernel_voxel.cache import read_cache
 from kernel_voxel.rig import CELL, FRAMES
-from kernel_voxel.screen import LAYERS
+from kernel_voxel.screen import LAYERS, PALETTE_LAYERS
 from kernel_voxel.shimeji import validate_package
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -161,7 +161,7 @@ def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site
                     "kernel.glb",
                     "animations.json",
                     "screens.png",
-                    *(f"screen-{name}.png" for name in LAYERS),
+                    *(f"screen-{name}.png" for name in (*LAYERS, *PALETTE_LAYERS)),
                 )
             ],
         ),

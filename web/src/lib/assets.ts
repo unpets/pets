@@ -2,11 +2,13 @@ import { ImageLoader } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { AnimationData } from './types';
 import modelUrl from '../../public/assets/kernel.glb?inline';
-import backgroundUrl from '../../public/assets/screen-background.png?inline';
-import activityUrl from '../../public/assets/screen-activity.png?inline';
 import eyesUrl from '../../public/assets/screen-eyes.png?inline';
 import mouthUrl from '../../public/assets/screen-mouth.png?inline';
-import { screenLayers } from './screen-project';
+import backgroundLinesUrl from '../../public/assets/screen-background-lines.png?inline';
+import backgroundTextUrl from '../../public/assets/screen-background-text.png?inline';
+import activityLinesUrl from '../../public/assets/screen-activity-lines.png?inline';
+import activityTextUrl from '../../public/assets/screen-activity-text.png?inline';
+import { screenSources, type ScreenSource } from './screen';
 import animationText from '../../public/assets/animations.json?raw';
 
 export const animationData: AnimationData = JSON.parse(animationText);
@@ -25,16 +27,21 @@ export async function loadAssets() {
   const [model, screenImage] = await Promise.all([
     new GLTFLoader().parseAsync(modelBuffer(), ''),
     Promise.all(
-      [backgroundUrl, activityUrl, eyesUrl, mouthUrl].map((url) =>
-        new ImageLoader().loadAsync(url),
-      ),
+      [
+        eyesUrl,
+        mouthUrl,
+        backgroundLinesUrl,
+        backgroundTextUrl,
+        activityLinesUrl,
+        activityTextUrl,
+      ].map((url) => new ImageLoader().loadAsync(url)),
     ),
   ]);
   const data = animationData;
   if (!data.states?.running?.samples?.length)
     throw new Error('Animation data is incomplete.');
   const screenImages = Object.fromEntries(
-    screenLayers.map((name, index) => [name, screenImage[index]]),
-  ) as Record<(typeof screenLayers)[number], HTMLImageElement>;
+    screenSources.map((name, index) => [name, screenImage[index]]),
+  ) as Record<ScreenSource, HTMLImageElement>;
   return { model: model.scene, clips: model.animations, data, screenImages };
 }

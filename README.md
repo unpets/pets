@@ -131,6 +131,9 @@ The screen editor provides independent background, activity, eyes, and mouth lay
 Each layer has visibility, opacity, color, position, and expression controls.  
 Changes appear on the 3D model and display preview.  
 Export a screen project as JSON and import it in the studio or desktop pet.  
+Background, line, and text colors can be edited independently.  
+Line and text colors are linked by default.  
+Palette changes preserve animated text and line brightness.  
 Layer assets are generated from the deterministic screen renderer.  
 
 ## Shimeji

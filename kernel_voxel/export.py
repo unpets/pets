@@ -7,7 +7,13 @@ from PIL import Image
 
 from .rig import DURATIONS, FRAMES, cable_points
 from .scene import sample_source
-from .screen import LAYERS, framebuffer, screen_layers
+from .screen import (
+    LAYERS,
+    PALETTE_LAYERS,
+    framebuffer,
+    screen_components,
+    screen_layers,
+)
 
 
 def export_site(model, site_out):
@@ -46,6 +52,9 @@ def export_site(model, site_out):
     }
     screen_sheet = Image.new("RGB", (96 * 48, 64 * 10))
     layer_sheets = {name: Image.new("RGBA", screen_sheet.size) for name in LAYERS}
+    component_sheets = {
+        name: Image.new("RGBA", screen_sheet.size) for name in PALETTE_LAYERS
+    }
     for row, (state, count) in enumerate({**FRAMES, "look": 16}.items()):
         samples = []
         for i in range(121):
@@ -69,6 +78,9 @@ def export_site(model, site_out):
             screen_sheet.paste(framebuffer(state, t, p.gaze), (96 * i, 64 * row))
             for name, layer in screen_layers(state, t, p.gaze).items():
                 layer_sheets[name].paste(layer, (96 * i, 64 * row))
+            for name, image in screen_components(state, t, p.gaze).items():
+                if name in component_sheets:
+                    component_sheets[name].paste(image, (96 * i, 64 * row))
         data["states"][state] = {
             "duration": count * DURATIONS[state] / 1000,
             "frames": count,
@@ -76,7 +88,7 @@ def export_site(model, site_out):
             "samples": samples,
         }
     (assets / "animations.json").write_text(json.dumps(data, separators=(",", ":")))
-    for name, sheet in layer_sheets.items():
+    for name, sheet in {**layer_sheets, **component_sheets}.items():
         sheet.save(assets / f"screen-{name}.png")
     screen_sheet.save(assets / "screens.png", optimize=True)
     return data

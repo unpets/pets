@@ -9,6 +9,7 @@ import {
 import {
   defaultScreenProject,
   parseScreenProject,
+  updatePalette,
 } from '../src/lib/screen-project';
 
 describe('desktop gaze', () => {
@@ -60,5 +61,36 @@ test('screen projects reject invalid values and keep independent layer settings'
   expect(loaded.layers.mouth.visible).toBe(false);
   loaded.layers.eyes.opacity = NaN;
   expect(() => parseScreenProject(loaded)).toThrow();
-  expect(() => parseScreenProject({ ...project, version: 2 })).toThrow();
+  expect(() => parseScreenProject({ ...project, version: 3 })).toThrow();
+});
+
+test('screen palette links colors, allows independent colors, and migrates earlier projects', () => {
+  const project = defaultScreenProject();
+  const linked = updatePalette(project.palette, { lines: '#ff2200' });
+  expect(linked.text).toBe('#ff2200');
+  const independent = updatePalette(
+    { ...linked, linked: false },
+    { text: '#00ff88' },
+  );
+  expect(independent.lines).toBe('#ff2200');
+  expect(independent.text).toBe('#00ff88');
+  expect(updatePalette(independent, { linked: true }).text).toBe('#ff2200');
+  const legacy = {
+    format: 'kernel-screen',
+    version: 1,
+    layers: project.layers,
+  };
+  legacy.layers.background.color = '#112233';
+  legacy.layers.activity.color = '#abcdef';
+  const upgraded = parseScreenProject(legacy);
+  expect(upgraded.version).toBe(2);
+  expect(upgraded.palette).toEqual({
+    background: '#112233',
+    lines: '#abcdef',
+    text: '#abcdef',
+    linked: true,
+  });
+  expect(() =>
+    parseScreenProject({ ...project, palette: { ...linked, text: '#000000' } }),
+  ).toThrow();
 });

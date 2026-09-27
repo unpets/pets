@@ -62,6 +62,24 @@ function assertConnections() {
         expect(firstAxis.distanceTo(secondAxis)).toBeLessThan(0.0001);
       }
     }
+    for (const [digit, lengths] of Object.entries({
+      index: [0.047, 0.034],
+      middle: [0.052, 0.038],
+      ring: [0.048, 0.034],
+      little: [0.037, 0.028],
+      thumb: [0.04, 0.035],
+    })) {
+      for (let segment = 0; segment < 2; segment++) {
+        const first = parts[`${digit}.0${segment + 1}.${side}`];
+        const second = parts[`${digit}.0${segment + 2}.${side}`];
+        const tip = new Vector3(0, 0, lengths[segment]).applyMatrix4(
+          first.matrixWorld,
+        );
+        expect(
+          tip.distanceTo(second.getWorldPosition(new Vector3())),
+        ).toBeLessThan(0.00001);
+      }
+    }
   }
 }
 
@@ -126,4 +144,25 @@ test('waiting to waving raises the hand in front without dropping behind the tor
       assertConnections();
     }
   }
+});
+
+test('active work keeps the hand planted between baked samples while the torso moves', () => {
+  motion.setMode('running');
+  motion.cancelTransition();
+  motion.update(0, 0);
+  const anchor = parts['hand.R'].getWorldPosition(new Vector3());
+  const orientation = parts['hand.R'].getWorldQuaternion(new Quaternion());
+  const heights: number[] = [];
+  for (let i = 0; i <= 240; i++) {
+    motion.update(0, i / 240);
+    expect(
+      parts['hand.R'].getWorldPosition(new Vector3()).distanceTo(anchor),
+    ).toBeLessThan(0.00001);
+    expect(
+      parts['hand.R'].getWorldQuaternion(new Quaternion()).angleTo(orientation),
+    ).toBeLessThan(0.00001);
+    heights.push(parts.body.getWorldPosition(new Vector3()).z);
+    assertConnections();
+  }
+  expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(0.013);
 });
