@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish the GitHub Release and deploy its site when Pages is enabled
+        description: Publish release
         type: boolean
         default: true
 
