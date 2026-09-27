@@ -1,4 +1,4 @@
-name: Build Kernel and model studio
+name: Build Kernel model studio
 
 on:
   push:
@@ -14,80 +14,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  studio:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      pages: read
-    outputs:
-      pages: ${{ steps.pages.outputs.enabled }}
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2.2.0
         with:
-          bun-version: 1.3.11
+          bun-version: 1.4.2
       - name: Install locked dependencies
         run: |
           uv sync --frozen
           bun install --frozen-lockfile
       - name: Test rig, screen and transparency
-        run: uv run python -m unittest discover -s tests -v
-      - name: Generate model, animations and sprite sheet
-        run: uv run kernel-render --output build --site-output web/public
+        run: |
+          uv run ruff check kernel_voxel scripts tests
+          uv run ruff format --check kernel_voxel scripts tests
+          uv run python -m unittest discover -s tests -v
+      - name: Generate model and animation assets
+        run: bun run generate
       - name: Test generated assets
         run: bun test
-      - name: Build the Vite site
+      - name: Check Svelte and TypeScript
+        run: |
+          bun run format:check
+          bun run check
+      - name: Build the Svelte site
         run: bun run build
       - name: Browser checks
         run: |
           bunx playwright install --with-deps chromium
           bun run test:viewer
-      - name: Save model and render package
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-model-and-pet
-          path: build/
       - name: Save generated site
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: kernel-model-studio
           path: dist/
-      - name: Check Pages configuration
-        id: pages
-        if: github.event_name != 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            try {
-              const {data} = await github.rest.repos.getPages(context.repo);
-              core.setOutput('enabled', data.build_type === 'workflow' ? 'true' : 'false');
-              if (data.build_type !== 'workflow') core.notice('Select GitHub Actions in Settings > Pages to publish this viewer.');
-            } catch (error) {
-              if (![403,404].includes(error.status)) throw error;
-              core.setOutput('enabled', 'false');
-              core.notice('Viewer built and available as an artifact. To publish, enable Settings > Pages > GitHub Actions. GitHub Pages for a private personal repository needs GitHub Pro; its website is public.');
-            }
-      - name: Upload Pages artifact
-        if: steps.pages.outputs.enabled == 'true'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist/
-
-  deploy:
-    if: needs.build.outputs.pages == 'true' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy generated site
-        id: deployment
-        uses: actions/deploy-pages@v4

@@ -1,0 +1,8 @@
+node_modules
+dist
+build*
+web/public
+bun.lock
+uv.lock
+.svelte-check
+release

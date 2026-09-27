@@ -14,3 +14,5 @@ test-*.png
 new-idle.png
 playwright-report/
 test-results/
+.svelte-check/
+release/

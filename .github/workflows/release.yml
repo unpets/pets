@@ -1,0 +1,198 @@
+name: Release Kernel
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      states: ${{ steps.version.outputs.states }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Install locked dependencies
+        run: |
+          uv sync --frozen
+          bun install --frozen-lockfile
+      - name: Validate release version
+        id: version
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          if [[ "$RELEASE_REF" == refs/tags/* ]]; then
+            uv run python scripts/release.py check --tag "${RELEASE_REF#refs/tags/}"
+          else
+            uv run python scripts/release.py check
+          fi
+      - name: Check source and rig
+        run: |
+          uv run ruff check kernel_voxel scripts tests
+          uv run ruff format --check kernel_voxel scripts tests
+          uv run python -m unittest discover -s tests -v
+          bun run format:check
+          bun run check
+
+  render:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        state: ${{ fromJSON(needs.check.outputs.states) }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Render state from the Blender model
+        env:
+          ANIMATION_STATE: ${{ matrix.state }}
+          OPENBLAS_NUM_THREADS: '1'
+          OMP_NUM_THREADS: '4'
+        run: uv run kernel-render --render-only --states "$ANIMATION_STATE" --output build
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: kernel-frames-${{ matrix.state }}
+          path: |
+            build/frames/
+            build/masters/
+          if-no-files-found: error
+          retention-days: 7
+
+  package:
+    needs: [check, render]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      pages: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Install locked dependencies
+        run: |
+          uv sync --frozen
+          bun install --frozen-lockfile
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: kernel-frames-*
+          merge-multiple: true
+          path: build/
+      - name: Assemble sprites and export the editable scene
+        run: uv run kernel-render --assemble-only --output build --site-output web/public
+      - name: Reopen and verify the Blender animation
+        run: uv run python scripts/verify_blend.py --build build
+      - name: Build and test the static site
+        run: |
+          bun test
+          bun run build
+          bunx playwright install --with-deps chromium
+          bun run test:viewer
+      - name: Package versioned downloads
+        env:
+          RELEASE_TAG: ${{ needs.check.outputs.tag }}
+        run: uv run python scripts/release.py bundle --tag "$RELEASE_TAG"
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: kernel-release-${{ needs.check.outputs.version }}
+          path: release/
+          if-no-files-found: error
+      - name: Check Pages configuration
+        id: pages
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            try {
+              const {data} = await github.rest.repos.getPages(context.repo);
+              core.setOutput('enabled', data.build_type === 'workflow' ? 'true' : 'false');
+              if (data.build_type !== 'workflow') core.notice('Select GitHub Actions in Settings > Pages to publish release sites.');
+            } catch (error) {
+              if (![403,404].includes(error.status)) throw error;
+              core.setOutput('enabled', 'false');
+              core.notice('Release site is packaged. Enable Settings > Pages > GitHub Actions to deploy it.');
+            }
+      - name: Upload the tested release site
+        if: steps.pages.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: dist/
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [check, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: kernel-release-${{ needs.check.outputs.version }}
+          path: release/
+      - name: Verify download checksums
+        working-directory: release
+        run: sha256sum --check SHA256SUMS
+      - name: Publish the complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          if existing=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [[ "$existing" != true ]]; then
+              echo "Release $RELEASE_TAG is already published; refusing to replace it."
+              exit 1
+            fi
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes --title "Kernel $RELEASE_TAG"
+          fi
+          gh release upload "$RELEASE_TAG" release/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+
+  deploy:
+    needs: [package, publish]
+    if: needs.package.outputs.pages == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the released static site
+        id: deployment
+        uses: actions/deploy-pages@v5.0.1
