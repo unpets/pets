@@ -249,6 +249,8 @@ def build_model():
             b.box(
                 part, (0, 0.095, length * 0.48), (0.085, 0.052, length * 0.56), "dark"
             )
+        b.box(f"forearm.{n}", (0, 0, 0.295), (0.095, 0.095, 0.06), "metal")
+        b.voxel(f"hand.{n}", (0, 0, 0), (0.13, 0.13, 0.13), "joint", 0.065, step=0.013)
         b.voxel(
             f"hand.{n}", (0, 0, 0.055), (0.21, 0.15, 0.135), "dark", 0.025, step=0.020
         )
@@ -385,12 +387,14 @@ def apply_pose(model, pose):
     bpy.context.view_layer.update()
 
 
-def setup_scene(scale=4, samples=32):
+def setup_scene(scale=4, samples=32, device="auto"):
+    from .devices import configure_render_device
+
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.render.fps = 60
-    scene.cycles.device = "CPU"
+    configure_render_device(scene, device)
     scene.cycles.samples = samples
     scene.cycles.seed = 17
     scene.cycles.use_animated_seed = False

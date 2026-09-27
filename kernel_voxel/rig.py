@@ -73,10 +73,10 @@ def point(m, p):
     return (m @ np.r_[p, 1])[:3]
 
 
-def bone_matrix(a, b):
+def bone_matrix(a, b, hinge_axis=None):
     a, b = np.asarray(a), np.asarray(b)
     z = (b - a) / np.linalg.norm(b - a)
-    ref = np.array([1.0, 0, 0])
+    ref = np.array([1.0, 0, 0]) if hinge_axis is None else np.asarray(hinge_axis)
     if abs(z @ ref) > 0.98:
         ref = np.array([0.0, 1, 0])
     y = np.cross(z, ref)
@@ -86,6 +86,13 @@ def bone_matrix(a, b):
     m[:3, :3] = np.column_stack((x, y, z))
     m[:3, 3] = a
     return m
+
+
+def limb_matrices(root, joint, end, hinge_sign=1):
+    """Keep hinge axes shared and flexion signed consistently across every pose."""
+    hinge = np.cross(joint - root, end - joint)
+    hinge *= hinge_sign / np.linalg.norm(hinge)
+    return bone_matrix(root, joint, hinge), bone_matrix(joint, end, hinge)
 
 
 def two_bone(a, b, l1, l2, pole):
@@ -235,14 +242,16 @@ def pose_at(state, t):
         elbow = two_bone(
             shoulder, hand, 0.33, 0.34, point(heading, (side * 0.3, 0.8, 0))
         )
-        matrices[f"thigh.{name}"] = bone_matrix(hip, knee)
-        matrices[f"shin.{name}"] = bone_matrix(knee, ankle)
+        matrices[f"thigh.{name}"], matrices[f"shin.{name}"] = limb_matrices(
+            hip, knee, ankle
+        )
         matrices[f"foot.{name}"] = heading @ transform(
             ankles[side], (feet_pitch[side], 0, 0)
         )
-        matrices[f"upper_arm.{name}"] = bone_matrix(shoulder, elbow)
-        matrices[f"forearm.{name}"] = bone_matrix(elbow, hand)
-        matrices[f"hand.{name}"] = bone_matrix(elbow, hand)
+        matrices[f"upper_arm.{name}"], matrices[f"forearm.{name}"] = limb_matrices(
+            shoulder, elbow, hand, hinge_sign=-1
+        )
+        matrices[f"hand.{name}"] = matrices[f"forearm.{name}"].copy()
         matrices[f"hand.{name}"][:3, 3] = hand
         if state == "waving" and side == 1:
             matrices[f"hand.{name}"] = transform(hand, (0, 0.22 * s, 0.05 * s))

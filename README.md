@@ -46,9 +46,21 @@ Use `bun run preview` to serve the production build locally.
 uv run kernel-render --output build --site-output web/public
 ```
 
-The full render generates the sprite sheet, preview animations, and editable Blender scene.  
-Use `--states jumping` to render one animation state.  
-Use `bun run generate` when only the web assets are needed.  
+The build creates and verifies `build/kernel.blend` before generating downstream outputs.  
+Sprites and web assets are generated from that saved scene and its animation actions.  
+Unchanged outputs are reused after their inputs and checksums are verified.  
+Rendering automatically uses a supported GPU when available and falls back to CPU.  
+Use `--device cpu` or select `optix`, `cuda`, `hip`, `oneapi`, or `metal` explicitly.  
+
+| Target | Command |
+| --- | --- |
+| Blender source | `uv run kernel-render --model-only` |
+| Viewer assets | `bun run generate` |
+| One animation | `uv run kernel-render --render-only --states jumping` |
+| Assemble existing frames | `uv run kernel-render --assemble-only` |
+
+Use `--blend build/kernel.blend` to consume an existing verified source without rebuilding it.  
+Selected animation renders do not assemble the atlas or export web assets.  
 
 | Output | Contents |
 | --- | --- |

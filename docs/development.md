@@ -53,9 +53,12 @@ uv run ruff format --check kernel_voxel scripts tests
 uv run python -m unittest discover -s tests -v
 ```
 
-Use `bun run generate` to rebuild only the viewer assets.  
-Use `--states jumping` to render one state.  
-The complete atlas is assembled when every required frame exists.  
+Use `bun run generate` to build the Blender source and export only the viewer assets.  
+Use `--render-only --states jumping` to render one state without other exports.  
+Use `--assemble-only` to assemble verified existing frames.  
+Every target checks content fingerprints and output hashes before reusing artifacts.  
+Missing or modified outputs invalidate their stage.  
+An animation change invalidates its frames while unrelated states remain reusable.  
 
 | Output | Contents |
 | --- | --- |
@@ -78,25 +81,36 @@ GIF previews are also written to the render directory.
 | `kernel_voxel/surfaces.py` | Coplanar face resolution and shared interface removal |
 | `kernel_voxel/rig.py` | Continuous poses, limb constraints, foot placement, and wrist cable |
 | `kernel_voxel/screen.py` | Deterministic expressions, terminal output, and digital rain |
-| `kernel_voxel/render.py` | Rendering, alpha reduction, previews, and asset export |
+| `kernel_voxel/render.py` | Command targets and dependency orchestration |
+| `kernel_voxel/scene.py` | Canonical Blender source and saved action evaluation |
+| `kernel_voxel/pipeline.py` | Stage dependencies and artifact reuse |
+| `kernel_voxel/cache.py` | Content fingerprints and output verification |
+| `kernel_voxel/devices.py` | Cycles GPU selection and CPU fallback |
+| `kernel_voxel/raster.py` | Frame rendering and premultiplied alpha reduction |
+| `kernel_voxel/export.py` | glTF clips and web display assets |
+| `kernel_voxel/previews.py` | Preview images and animations from encoded frames |
+| `kernel_voxel/validation.py` | Saved rig, screen, and visibility checks |
 | `web/src/components/` | Svelte viewport, playback controls, and display preview |
 | `web/src/lib/studio.ts` | Three.js scene and renderer lifecycle |
 | `web/src/lib/motion.ts` | AnimationMixer transitions and cable geometry |
 | `web/src/lib/screen.ts` | Shared framebuffer canvas and display texture |
 | `web/src/lib/assets.ts` | Model, animation, and framebuffer loading |
 
-Every view comes from the same model.  
+The canonical Blender scene is built and verified before downstream generation.  
+Every view evaluates the bones and actions loaded from that saved file.  
 Only exposed cube faces are emitted.  
 The screen is parented to the head inside a fixed aperture.  
 Transparent renders are reduced in premultiplied alpha.  
 
 The mechanical rig uses fixed limb lengths and authored joint motion.  
+Upper and lower segments share a hinge axis with a consistent flexion direction.  
 Stationary states keep both feet planted.  
 The GLB contains ten named clips and the complete bone hierarchy.  
 Rigid bone parenting preserves the mechanical parts and fixed limb lengths.  
 The viewer blends local bone transforms from the displayed pose, including interrupted transitions.  
 The cable is evaluated from the transformed wrist connector.  
 Blender stores editable slotted actions and a baked preview timeline.  
+Server and cable visibility follow active work in both the viewport and rendered timeline.  
 The pet runtime uses fixed frame counts and 192 × 208 cells.  
 
 ## GitHub Actions

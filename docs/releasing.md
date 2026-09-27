@@ -6,9 +6,11 @@
 Start it manually from GitHub Actions or push a `vMAJOR.MINOR.PATCH` tag.  
 The version must match `pyproject.toml`, `package.json`, and `web/package.json`.  
 
-Animation states render in parallel from the Blender model.  
-The packaging job assembles the sprite sheet and exports the editable scene.  
-It verifies the baked animation, display references, generated assets, and web viewer.  
+The source job builds and verifies the canonical Blender scene once.  
+Render jobs load that shared artifact and process only their assigned animation state.  
+The packaging job assembles verified frames and exports the web assets from the saved scene.  
+Content fingerprints and output checksums allow unchanged artifacts to be reused.  
+Checks cover baked animation, display references, visibility, generated assets, and the web viewer.  
 The publish job uploads the packages and checksums, then publishes the GitHub Release.  
 The deploy job publishes the released site to GitHub Pages.  
 

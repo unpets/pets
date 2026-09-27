@@ -52,6 +52,15 @@ function assertConnections() {
       const start = parts[`${a}.${side}`].getWorldPosition(new Vector3());
       const end = parts[`${b}.${side}`].getWorldPosition(new Vector3());
       expect(start.distanceTo(end)).toBeCloseTo(length, 5);
+      if (a === 'upper_arm' || a === 'thigh') {
+        const firstAxis = new Vector3(1, 0, 0).transformDirection(
+          parts[`${a}.${side}`].matrixWorld,
+        );
+        const secondAxis = new Vector3(1, 0, 0).transformDirection(
+          parts[`${b}.${side}`].matrixWorld,
+        );
+        expect(firstAxis.distanceTo(secondAxis)).toBeLessThan(0.0001);
+      }
     }
   }
 }
@@ -98,4 +107,23 @@ test('every transition and interrupted transition keeps joints connected', () =>
         if (i === 5) motion.setMode('review');
       }
     }
+});
+
+test('waiting to waving raises the hand in front without dropping behind the torso', () => {
+  for (const phase of [0, 0.25, 0.5, 0.75]) {
+    motion.setMode('waiting');
+    motion.cancelTransition();
+    motion.update(0, phase);
+    const initial = parts['hand.R'].getWorldPosition(new Vector3());
+    let previousHeight = initial.z;
+    motion.setMode('waving');
+    for (let i = 0; i <= 30; i++) {
+      motion.update(i === 0 ? 0 : 0.24 / 30, 0);
+      const hand = parts['hand.R'].getWorldPosition(new Vector3());
+      expect(hand.y).toBeLessThan(0);
+      expect(hand.z).toBeGreaterThanOrEqual(previousHeight - 0.00001);
+      previousHeight = hand.z;
+      assertConnections();
+    }
+  }
 });

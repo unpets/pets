@@ -37,6 +37,33 @@ class RigTests(unittest.TestCase):
                     )
                     self.assertAlmostEqual(np.linalg.det(m[:3, :3]), 1, places=7)
 
+    def test_limb_hinges_share_one_axis_across_every_motion(self):
+        for state in [*FRAMES, "look"]:
+            for t in np.linspace(0, 1, 121):
+                pose = pose_at(state, t)
+                for side in ["L", "R"]:
+                    for upper, lower, length in [
+                        ("thigh", "shin", 0.42),
+                        ("upper_arm", "forearm", 0.33),
+                    ]:
+                        first = pose.matrices[f"{upper}.{side}"]
+                        second = pose.matrices[f"{lower}.{side}"]
+                        np.testing.assert_allclose(
+                            first[:3, 0], second[:3, 0], atol=1e-7
+                        )
+                        relative_rotation = first[:3, :3].T @ second[:3, :3]
+                        np.testing.assert_allclose(
+                            relative_rotation[:, 0], [1, 0, 0], atol=1e-7
+                        )
+                        # Flexion cannot change sign when moving between authored poses.
+                        expected_sign = -1 if upper == "upper_arm" else 1
+                        self.assertGreater(relative_rotation[2, 1] * expected_sign, 0)
+                        np.testing.assert_allclose(
+                            first[:3, 3] + first[:3, 2] * length,
+                            second[:3, 3],
+                            atol=1e-7,
+                        )
+
     def test_stationary_states_keep_feet_planted(self):
         for state in [
             "idle",

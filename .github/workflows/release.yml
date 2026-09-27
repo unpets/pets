@@ -49,6 +49,30 @@ jobs:
           uv run python -m unittest discover -s tests -v
           bun run format:check
           bun run check
+      - name: Restore Blender source cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            build/kernel.blend
+            build/blend-screens/
+            build/timeline.json
+            build/blend-check.json
+            build/model-cache.json
+          key: kernel-source-${{ runner.os }}-${{ hashFiles('kernel_voxel/**', 'uv.lock', 'pyproject.toml') }}
+          restore-keys: kernel-source-${{ runner.os }}-
+      - name: Build and verify the canonical Blender source
+        run: uv run kernel-render --model-only --output build
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: kernel-source
+          path: |
+            build/kernel.blend
+            build/blend-screens/
+            build/timeline.json
+            build/blend-check.json
+            build/model-cache.json
+          if-no-files-found: error
+          retention-days: 7
 
   render:
     needs: check
@@ -65,18 +89,32 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: kernel-source
+          path: build/
+      - name: Restore animation frame cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            build/frames/${{ matrix.state }}/
+            build/masters/${{ matrix.state }}/
+            build/render-${{ matrix.state }}.json
+          key: kernel-frames-${{ runner.os }}-${{ matrix.state }}-${{ hashFiles('kernel_voxel/**', 'uv.lock', 'pyproject.toml') }}
+          restore-keys: kernel-frames-${{ runner.os }}-${{ matrix.state }}-
       - name: Render state from the Blender model
         env:
           ANIMATION_STATE: ${{ matrix.state }}
           OPENBLAS_NUM_THREADS: '1'
           OMP_NUM_THREADS: '4'
-        run: uv run kernel-render --render-only --states "$ANIMATION_STATE" --output build
+        run: uv run kernel-render --render-only --blend build/kernel.blend --states "$ANIMATION_STATE" --output build
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: kernel-frames-${{ matrix.state }}
           path: |
             build/frames/
             build/masters/
+            build/render-*.json
           if-no-files-found: error
           retention-days: 7
 
@@ -98,13 +136,17 @@ jobs:
           bun install --frozen-lockfile
       - uses: actions/download-artifact@v8.0.1
         with:
+          name: kernel-source
+          path: build/
+      - uses: actions/download-artifact@v8.0.1
+        with:
           pattern: kernel-frames-*
           merge-multiple: true
           path: build/
-      - name: Assemble sprites and export the editable scene
-        run: uv run kernel-render --assemble-only --output build --site-output web/public
-      - name: Reopen and verify the Blender animation
-        run: uv run python scripts/verify_blend.py --build build
+      - name: Assemble sprites and export the saved Blender source
+        run: |
+          uv run kernel-render --assemble-only --output build
+          uv run kernel-render --site-only --blend build/kernel.blend --site-output web/public
       - name: Build and test the static site
         run: |
           bun test

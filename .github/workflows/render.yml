@@ -34,6 +34,19 @@ jobs:
           uv run ruff check kernel_voxel scripts tests
           uv run ruff format --check kernel_voxel scripts tests
           uv run python -m unittest discover -s tests -v
+      - name: Restore model and viewer cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            build/kernel.blend
+            build/blend-screens/
+            build/timeline.json
+            build/blend-check.json
+            build/model-cache.json
+            web/public/assets/
+            web/public/site-cache.json
+          key: kernel-studio-${{ runner.os }}-${{ hashFiles('kernel_voxel/**', 'uv.lock', 'pyproject.toml') }}
+          restore-keys: kernel-studio-${{ runner.os }}-
       - name: Generate model and animation assets
         run: bun run generate
       - name: Test generated assets
