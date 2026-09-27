@@ -47,7 +47,7 @@ git push origin "v${release_version}"
 
 | Download | Contents |
 | --- | --- |
-| `kernel-VERSION-blender.zip` | Editable scene, display sequence, timeline, and verification report |
+| `kernel-VERSION-blender.zip` | Editable scene, display sequence, timeline, verification report, and build record |
 | `kernel-VERSION-pet.zip` | Sprite sheet, native frames, high-resolution masters, previews, and render manifest |
 | `kernel-VERSION-model.zip` | GLB geometry, continuous motion data, and display atlas |
 | `kernel-VERSION.html` | Self-contained interactive viewer |

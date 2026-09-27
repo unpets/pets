@@ -12,6 +12,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from kernel_voxel.cache import read_cache
 from kernel_voxel.rig import CELL, FRAMES
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +109,12 @@ def bundle(build, site, destination, version, assets):
     verification = json.loads((build / "blend-check.json").read_text())
     if not verification.get("ok"):
         raise ValueError("Blender scene verification did not pass")
+    source = read_cache(build / "model-cache.json")
+    if (
+        not source
+        or manifest.get("source_blend_sha256") != source["files"]["kernel.blend"]
+    ):
+        raise ValueError("Rendered outputs do not match the verified Blender source")
     required = [build / "kernel.blend", build / "timeline.json", site / "index.html"]
     required.extend(
         assets / name for name in ("kernel.glb", "animations.json", "screens.png")
@@ -126,7 +133,7 @@ def bundle(build, site, destination, version, assets):
             build,
             required[:2]
             + files_under(build / "blend-screens")
-            + [build / "blend-check.json"],
+            + [build / "blend-check.json", build / "model-cache.json"],
         ),
         "pet": (
             build,
