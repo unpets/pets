@@ -217,8 +217,8 @@
     />
   </label>
   <p class="mt-2 text-xs text-muted">
-    Travel independently of facing to sidestep or walk backward. The viewport
-    previews motion in place.
+    Travel independently of facing to sidestep or walk backward. Animation speed
+    sets cadence; walk speed sets distance per second.
   </p>
   {#if composition.properties && Object.keys(composition.properties).length}
     <button

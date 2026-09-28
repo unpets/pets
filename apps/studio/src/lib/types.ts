@@ -11,6 +11,7 @@ export interface ViewSettings {
   wireframe: boolean;
   joints: boolean;
   orbit: boolean;
+  travel: boolean;
   lighting: number;
   fov: number;
 }
@@ -19,6 +20,7 @@ export const defaultViewSettings = (): ViewSettings => ({
   wireframe: false,
   joints: false,
   orbit: false,
+  travel: true,
   lighting: 1,
   fov: 32,
 });
@@ -53,4 +55,5 @@ export interface StudioController {
   readonly state: AnimationMode;
   readonly serverVisible: boolean;
   readonly ready: boolean;
+  readonly travelDistance: number;
 }

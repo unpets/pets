@@ -21,7 +21,15 @@ export function motionLayers(project: AnimationProject) {
 }
 
 export function layerSources(project: AnimationProject, components: string[]) {
-  const sources = Object.values(project.clips)
+  const clips = Object.values(project.clips);
+  const available = new Map<string, Set<string>>();
+  for (const clip of clips) {
+    if (typeof clip.data.source !== 'string') continue;
+    if (!available.has(clip.component))
+      available.set(clip.component, new Set());
+    available.get(clip.component)!.add(clip.data.source);
+  }
+  const sources = clips
     .filter(
       (clip) =>
         clip.component === components[0] &&
@@ -29,11 +37,7 @@ export function layerSources(project: AnimationProject, components: string[]) {
     )
     .map((clip) => ({ source: clip.data.source as string, label: clip.label }));
   return sources.filter(({ source }) =>
-    components.every((component) =>
-      Object.values(project.clips).some(
-        (clip) => clip.component === component && clip.data.source === source,
-      ),
-    ),
+    components.every((component) => available.get(component)?.has(source)),
   );
 }
 

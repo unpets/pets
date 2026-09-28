@@ -11,10 +11,9 @@
     $props();
   let expanded = $state<Record<string, boolean>>({ head: true });
   const layers = $derived(motionLayers(editor.project));
+  const composition = $derived(resolveComposition(editor.project, mode));
   function bindings(components: string[]) {
-    return components.map(
-      (id) => resolveComposition(editor.project, mode).bindings[id],
-    );
+    return components.map((id) => composition.bindings[id]);
   }
   function shared(components: string[], field: keyof Binding) {
     const values = bindings(components).map((binding) => binding?.[field]);

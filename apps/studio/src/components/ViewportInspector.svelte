@@ -85,6 +85,21 @@
     >{/each}
 </section>
 <section class="inspector-section">
+  <h3>Movement</h3>
+  <label class="toggle-row"
+    ><span>Preview travel</span><input
+      type="checkbox"
+      aria-label="Preview travel"
+      checked={settings.travel}
+      onchange={(event) => update({ travel: event.currentTarget.checked })}
+    /></label
+  >
+  <p class="mt-2 text-xs text-muted">
+    Follow the character as it moves across the ground. Disable to inspect
+    motion in place.
+  </p>
+</section>
+<section class="inspector-section">
   <h3>Lighting</h3>
   <label class="range-label"
     ><span

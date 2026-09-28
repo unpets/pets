@@ -46,7 +46,7 @@ export function parseStudioProject(value: unknown): StudioProject {
   const assets = parseAssets(project.assets);
   const view = { ...defaultViewSettings(), ...project.view };
   if (
-    ['grid', 'wireframe', 'joints', 'orbit'].some(
+    ['grid', 'wireframe', 'joints', 'orbit', 'travel'].some(
       (k) => typeof view[k as keyof ViewSettings] !== 'boolean',
     ) ||
     !Number.isFinite(view.lighting) ||

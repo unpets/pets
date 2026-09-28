@@ -20,6 +20,15 @@ page.on('pageerror', (error) => errors.push(error.message));
 try {
   await page.goto(pathToFileURL(resolve('dist/index.html')).href);
   await page.waitForFunction(() => window.kernelViewer?.ready);
+  await page.evaluate(() => {
+    window.assetSerializations = 0;
+    const stringify = JSON.stringify;
+    JSON.stringify = function (value, ...args) {
+      if (value?.ports && value?.states && value?.project)
+        window.assetSerializations++;
+      return stringify.call(JSON, value, ...args);
+    };
+  });
   assert.ok(
     (await page.locator('.studio-status').textContent()).includes(
       `${version} [`,
@@ -69,6 +78,43 @@ try {
       .inputValue(),
     '1',
   );
+  assert.equal(await page.evaluate(() => window.assetSerializations), 0);
+  async function walkSpeed(speed) {
+    const input = page.getByLabel('Composition walk speed', { exact: true });
+    await input.fill(String(speed));
+    await input.press('Tab');
+    await page.waitForTimeout(800);
+  }
+  async function travelled() {
+    const start = await page.evaluate(() => window.kernelViewer.travelDistance);
+    await page.waitForTimeout(700);
+    return (
+      (await page.evaluate(() => window.kernelViewer.travelDistance)) - start
+    );
+  }
+  await walkSpeed(0);
+  assert.ok((await travelled()) < 0.02, 'zero walk speed stops translation');
+  await walkSpeed(0.7);
+  const slow = await travelled();
+  await walkSpeed(1.4);
+  const fast = await travelled();
+  assert.ok(
+    slow > 0.1 && fast > slow * 1.5,
+    `walk speed changes actual travel: ${slow} m versus ${fast} m`,
+  );
+  await page.evaluate(() => window.kernelViewer.setPlaying(false));
+  assert.equal(await travelled(), 0, 'paused playback stops travel');
+  await page.evaluate(() => window.kernelViewer.seek(0));
+  assert.equal(
+    await page.evaluate(() => window.kernelViewer.travelDistance),
+    0,
+  );
+  await page.getByRole('button', { name: 'Scene', exact: true }).click();
+  await page.getByLabel('Preview travel', { exact: true }).uncheck();
+  await page.evaluate(() => window.kernelViewer.setPlaying(true));
+  assert.equal(await travelled(), 0, 'in-place preview disables translation');
+  await page.getByLabel('Preview travel', { exact: true }).check();
+  await page.getByRole('button', { name: 'Animation', exact: true }).click();
   await page.evaluate(() => window.kernelViewer.setMode('flying'));
   await page.waitForFunction(() =>
     window.kernelViewer.parts['foot.L'].children.some(

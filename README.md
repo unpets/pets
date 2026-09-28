@@ -50,25 +50,20 @@ For subsequent sessions, run this command from the repository root.
 bun run dev
 ```
 
-Drag to orbit, scroll to zoom, and select or scrub an animation.  
-Use the Scene workspace to inspect camera views, lighting, the ground grid, wireframes, and joints.  
-The timeline supports frame stepping, playback speed, and loop control.  
-Space plays or pauses the animation.  
-Use the Screen workspace for an enlarged display canvas and a dedicated layer inspector.  
-The display editor controls independent background, activity, eyes, and mouth layers.  
-Background, line, and text colors are editable, with line and text colors linked by default.  
-Layer controls include visibility, solo preview, opacity, color, and exact pixel offsets.  
-Undo and redo apply to screen and animation edits.  
-Screen projects can be saved as JSON and imported into the companion.  
-Use the Animation workspace to combine independent joint, display, prop, and FX clips.  
-Create parented compositions, reusable pixel clips, screen layers, and joint rotation clips.  
-Children inherit parent content and override selected components and movement properties.  
-Move supports smooth turning, sidesteps, backward travel, and diagonals.  
-Animation speed and walk speed have separate controls.  
-Fly and Climb include reusable motion, with Rope, Ladder, and Border climbing variants.  
-[Animation composition](docs/animation.md) describes properties, effects, and skeletal character exports.  
-Import / export saves complete projects, reusable assets, offline applications, and rendered Codex or Shimeji packages.  
-[Animation projects](docs/animation.md) describes clocks, reusable assets, and project import and export.  
+### Studio workspaces
+
+| Workspace | Purpose |
+| --- | --- |
+| Scene | Inspect the model, camera, lighting, and joints. |
+| Screen | Edit the background, activity, eyes, and mouth. |
+| Animation | Compose motion, expressions, props, and effects. |
+| Import / export | Save projects, reusable assets, and application packages. |
+
+Drag to orbit and scroll to zoom.  
+Use the timeline to scrub or step through frames.  
+Press `Space` to play or pause.  
+
+See the [Studio guide](docs/studio.md) for editing controls and export options.  
 
 ## Build the applications
 

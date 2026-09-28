@@ -1,7 +1,7 @@
 import { playbackDuration } from '@pets/three-runtime/project';
 import { sharesMotionClock } from '@pets/three-runtime/project';
 import type { CharacterAssets } from '@pets/kernel/assets';
-import { resolveComposition } from '@pets/three-runtime/project';
+import { createTravelPreview } from './travel-preview';
 import {
   DirectionalLight,
   GridHelper,
@@ -117,15 +117,22 @@ export async function createStudio(
   let previousTime = performance.now();
   let destroyed = false;
   let suspended = false;
+  let previewTravel = true;
+  const travel = createTravelPreview(model, camera, controls.target, grid);
 
   function setCamera(view: CameraView) {
     camera.position.set(...cameraPositions[view]);
+    camera.position.add(model.position);
     controls.target.set(0.1, 0, 1.43);
+    controls.target.add(model.position);
     controls.update();
   }
   function update(elapsed: number) {
-    const clip = resolveComposition(character.project, mode);
     character.update(mode, elapsed, phase, independentSeconds);
+    if (playing && previewTravel && elapsed > 0) {
+      travel.advance(character.velocity, elapsed);
+      if (cable.mesh.visible) cable.update();
+    }
     markers.children.forEach((marker, index) =>
       parts[jointNames[index]].getWorldPosition(marker.position),
     );
@@ -195,7 +202,10 @@ export async function createStudio(
       const preservePhase = sharesMotionClock(character.project, mode, next);
       character.setMode(next);
       mode = next;
-      if (!preservePhase) phase = 0;
+      if (!preservePhase) {
+        phase = 0;
+        travel.reset();
+      }
       update(0);
     },
     setSuspended(value) {
@@ -227,6 +237,7 @@ export async function createStudio(
       update(0);
     },
     seek(value) {
+      travel.reset();
       playing = false;
       phase = Math.max(0, Math.min(1, value));
       independentSeconds = phase * playbackDuration(character.project, mode);
@@ -243,6 +254,8 @@ export async function createStudio(
       markers.visible = visible;
     },
     setViewSettings(settings) {
+      previewTravel = settings.travel;
+      if (!previewTravel) travel.reset();
       setWireframe(settings.wireframe);
       markers.visible = settings.joints;
       grid.visible = settings.grid;
@@ -277,6 +290,9 @@ export async function createStudio(
     },
     get ready() {
       return !destroyed;
+    },
+    get travelDistance() {
+      return travel.distance;
     },
   };
 }

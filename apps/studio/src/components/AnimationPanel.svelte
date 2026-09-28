@@ -14,6 +14,7 @@
     Box,
   } from '@lucide/svelte';
   import { compositionTree } from '@pets/three-runtime/project';
+  import { download } from '../lib/files';
   import type { AnimationProject } from '@pets/three-runtime/project';
   import type { CharacterAssets } from '@pets/kernel/assets';
   import { type PlaybackState, type StudioController } from '../lib/types';
@@ -41,9 +42,6 @@
     review: ScanEye,
     look: Compass,
   };
-  const animationUrl = $derived(
-    `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ ...assets.data, project }))}`,
-  );
   const modes = $derived(compositionTree(project));
 </script>
 
@@ -103,7 +101,14 @@
     >
     <a
       class="asset-link mt-3"
-      href={animationUrl}
+      href="#animation-data"
+      onclick={(event) => {
+        event.preventDefault();
+        download(
+          'animations.json',
+          JSON.stringify({ ...assets.data, project }),
+        );
+      }}
       download="animations.json"
       aria-label="Animation data"
       ><Download size={13} />Animation data<span class="ml-auto text-[9px]"

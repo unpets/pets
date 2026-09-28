@@ -15,11 +15,11 @@ import {
 } from '@pets/kernel/animation-project';
 
 export class AnimationEditorState {
-  project = $state<AnimationProject>(defaultAnimationProject());
+  project = $state.raw<AnimationProject>(defaultAnimationProject());
   component = $state('screen/eyes');
   clip = $state('screen/eyes/blink');
-  private past = $state<AnimationProject[]>([]);
-  private future = $state<AnimationProject[]>([]);
+  private past = $state.raw<AnimationProject[]>([]);
+  private future = $state.raw<AnimationProject[]>([]);
   private group: string | undefined;
   private reconcileSelection() {
     if (!this.project.components[this.component])

@@ -28,7 +28,8 @@ A child can change direction or speed while retaining its parent's rig, screen, 
 Placement-only changes preserve gait phase.  
 Live turns use the shortest angular path with bounded angular speed, acceleration, and braking.  
 Travel speed changes ease independently of the animation clock.  
-The Studio previews movement in place.  
+The Studio previews travel in metres while its camera follows the character.  
+Disable **Preview travel** in the Scene workspace to inspect movement in place.  
 Character hosts apply the returned velocity to their own movement and collision systems.  
 
 To sidestep right while facing forward, set `heading` to `0` and `travelHeading` to `90`.  
