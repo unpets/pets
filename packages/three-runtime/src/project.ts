@@ -41,8 +41,14 @@ export interface Composition {
   label: string;
   description: string;
   parent?: string;
+  screen?: string;
   duration?: number;
   properties?: CompositionProperties;
+  bindings: Record<string, Binding>;
+}
+export interface ScreenAsset {
+  label: string;
+  data: Record<string, unknown>;
   bindings: Record<string, Binding>;
 }
 export interface AnimationProject {
@@ -50,6 +56,7 @@ export interface AnimationProject {
   version: 1 | 2 | 3;
   components: Record<string, Component>;
   clips: Record<string, Clip>;
+  screens?: Record<string, ScreenAsset>;
   compositions: Record<string, Composition>;
   exports: Record<string, Record<string, ExportBinding>>;
 }
@@ -71,6 +78,23 @@ const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 const positive = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+export function compatibleClip(
+  project: AnimationProject,
+  target: string,
+  clip: string,
+) {
+  const source = project.clips[clip]?.component;
+  if (!source) return false;
+  if (source === target) return true;
+  const a = project.components[target],
+    b = project.components[source];
+  return (
+    a?.kind === 'screen' &&
+    b?.kind === 'screen' &&
+    (a.data.family ?? a.data.layer) === (b.data.family ?? b.data.layer)
+  );
+}
 
 function validateProperties(value: unknown) {
   if (value === undefined) return;
@@ -115,7 +139,8 @@ export function parseAnimationProject(value: unknown): AnimationProject {
     JSON.stringify(value),
   ) as unknown as AnimationProject;
   if (
-    !Object.keys(project.components).length ||
+    (!Object.keys(project.components).length &&
+      !Object.keys(project.screens ?? {}).length) ||
     !Object.keys(project.compositions).length
   )
     throw new Error('Components and compositions are required.');
@@ -153,6 +178,9 @@ export function parseAnimationProject(value: unknown): AnimationProject {
       (composition.duration !== undefined && !positive(composition.duration)) ||
       (composition.parent !== undefined &&
         typeof composition.parent !== 'string') ||
+      (composition.screen !== undefined &&
+        (typeof composition.screen !== 'string' ||
+          !Object.hasOwn(project.screens ?? {}, composition.screen))) ||
       !record(composition.bindings)
     )
       throw new Error(`Invalid composition: ${id}`);
@@ -162,7 +190,7 @@ export function parseAnimationProject(value: unknown): AnimationProject {
       const b = Object.assign(binding(''), source);
       if (
         !project.clips[b.clip] ||
-        project.clips[b.clip].component !== component ||
+        !compatibleClip(project, component, b.clip) ||
         !['independent', 'composition'].includes(b.clock) ||
         !Number.isFinite(b.speed) ||
         b.speed < 0 ||
@@ -171,6 +199,34 @@ export function parseAnimationProject(value: unknown): AnimationProject {
       )
         throw new Error(`Invalid binding: ${id}/${component}`);
       composition.bindings[component] = b;
+    }
+  }
+  if (project.screens !== undefined) {
+    if (!record(project.screens)) throw new Error('Invalid screen library.');
+    for (const [id, screen] of Object.entries(project.screens)) {
+      if (
+        !identifier(id) ||
+        !record(screen) ||
+        typeof screen.label !== 'string' ||
+        !screen.label.trim() ||
+        !record(screen.data) ||
+        !record(screen.bindings)
+      )
+        throw new Error(`Invalid screen: ${id}`);
+      for (const [component, source] of Object.entries(screen.bindings)) {
+        const b = Object.assign(binding(''), source);
+        if (
+          project.components[component]?.kind !== 'screen' ||
+          !compatibleClip(project, component, b.clip) ||
+          !['independent', 'composition'].includes(b.clock) ||
+          !Number.isFinite(b.speed) ||
+          b.speed < 0 ||
+          !Number.isFinite(b.offset) ||
+          typeof b.enabled !== 'boolean'
+        )
+          throw new Error(`Invalid screen binding: ${id}/${component}`);
+        screen.bindings[component] = b;
+      }
     }
   }
   for (const id of Object.keys(project.compositions))
@@ -220,9 +276,19 @@ export function resolveComposition(
   const bindings: Record<string, Binding> = {};
   const origins: Record<string, string> = {};
   let duration: number | undefined;
+  let screen: string | undefined;
   const properties: CompositionProperties = {};
   for (const entry of chain.reverse()) {
     const composition = project.compositions[entry];
+    if (composition.screen !== undefined) {
+      screen = composition.screen;
+      applyScreenBindings(project, bindings, screen);
+      for (const component of Object.keys(origins))
+        if (project.components[component].kind === 'screen')
+          delete origins[component];
+      for (const component of Object.keys(project.screens![screen].bindings))
+        origins[component] = entry;
+    }
     duration = composition.duration ?? duration;
     Object.assign(properties, composition.properties);
     for (const [component, value] of Object.entries(composition.bindings)) {
@@ -235,10 +301,24 @@ export function resolveComposition(
   return {
     ...project.compositions[id],
     duration,
+    ...(screen ? { screen } : {}),
     properties,
     bindings,
     origins,
   };
+}
+
+function applyScreenBindings(
+  project: AnimationProject,
+  bindings: Record<string, Binding>,
+  id: string,
+) {
+  const screen = project.screens?.[id];
+  if (!screen) throw new Error(`Unknown screen: ${id}`);
+  for (const component of Object.keys(bindings))
+    if (project.components[component].kind === 'screen')
+      delete bindings[component];
+  Object.assign(bindings, structuredClone(screen.bindings));
 }
 
 export function compositionTree(project: AnimationProject) {
@@ -260,8 +340,18 @@ export function sampleComposition(
   id: string,
   seconds: number,
   independentSeconds: number,
+  screenOverride?: string,
+  overrides?: Record<string, Binding>,
 ): Record<string, ComponentSample> {
   const composition = resolveComposition(project, id);
+  if (screenOverride)
+    applyScreenBindings(project, composition.bindings, screenOverride);
+  if (overrides) {
+    for (const component of Object.keys(composition.bindings))
+      if (project.components[component].kind === 'screen')
+        delete composition.bindings[component];
+    Object.assign(composition.bindings, overrides);
+  }
   if (
     !composition ||
     !Number.isFinite(seconds) ||

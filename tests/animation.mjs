@@ -109,14 +109,9 @@ try {
   );
   await page.screenshot({ path: 'build/studio-animation.png' });
   const pending = page.waitForEvent('download');
+  await page.getByRole('menuitem', { name: 'Export', exact: true }).click();
   await page
-    .getByRole('button', { name: 'Import and export', exact: true })
-    .click();
-  await page
-    .getByRole('button', { name: 'Save animations', exact: true })
-    .click();
-  await page
-    .getByRole('button', { name: 'Close project files', exact: true })
+    .getByRole('menuitem', { name: 'Save animations', exact: true })
     .click();
   const download = await pending;
   assert.equal(download.suggestedFilename(), 'pets-animation.json');

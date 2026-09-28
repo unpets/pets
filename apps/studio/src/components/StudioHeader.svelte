@@ -5,28 +5,25 @@
     Layers3,
     Undo2,
     Redo2,
-    Upload,
-    Download,
+    Fingerprint,
+    Smile,
   } from '@lucide/svelte';
-  import { version } from '../../package.json';
+  import StudioMenuBar from './StudioMenuBar.svelte';
+  import type { StudioMenu } from '../lib/studio-menu';
   import type { Workspace } from '../lib/types';
 
   let {
     personaName,
-    busy,
     workspace,
     onworkspace,
     editor,
-    onimport,
-    onexport,
+    menus,
   }: {
     personaName: string;
-    busy: boolean;
     workspace: Workspace;
     onworkspace: (value: Workspace) => void;
     editor: { canUndo: boolean; canRedo: boolean; undo(): void; redo(): void };
-    onimport: () => void;
-    onexport: () => void;
+    menus: StudioMenu[];
   } = $props();
 </script>
 
@@ -45,7 +42,14 @@
       </p>
     </div>
   </div>
+  <StudioMenuBar {menus} />
   <nav class="workspace-tabs" aria-label="Workspace">
+    <button
+      class:active={workspace === 'persona'}
+      aria-pressed={workspace === 'persona'}
+      onclick={() => onworkspace('persona')}
+      ><Fingerprint size={15} />Persona</button
+    >
     <button
       class:active={workspace === 'scene'}
       aria-pressed={workspace === 'scene'}
@@ -57,6 +61,12 @@
       onclick={() => onworkspace('screen')}><Monitor size={15} />Screen</button
     >
     <button
+      class:active={workspace === 'components'}
+      aria-pressed={workspace === 'components'}
+      onclick={() => onworkspace('components')}
+      ><Smile size={15} />Components</button
+    >
+    <button
       class:active={workspace === 'animation'}
       aria-pressed={workspace === 'animation'}
       onclick={() => onworkspace('animation')}
@@ -66,36 +76,21 @@
   <div class="flex items-center justify-end gap-1.5">
     <button
       class="icon-button"
-      aria-label={workspace === 'animation'
+      aria-label={workspace === 'animation' || workspace === 'components'
         ? 'Undo animation edit'
         : 'Undo screen edit'}
       title="Undo (Ctrl+Z)"
-      disabled={!editor.canUndo}
+      disabled={workspace === 'persona' || !editor.canUndo}
       onclick={() => editor.undo()}><Undo2 size={16} /></button
     >
     <button
       class="icon-button"
-      aria-label={workspace === 'animation'
+      aria-label={workspace === 'animation' || workspace === 'components'
         ? 'Redo animation edit'
         : 'Redo screen edit'}
       title="Redo (Ctrl+Shift+Z)"
-      disabled={!editor.canRedo}
+      disabled={workspace === 'persona' || !editor.canRedo}
       onclick={() => editor.redo()}><Redo2 size={16} /></button
     >
-    <span class="mx-2 h-5 w-px bg-line"></span>
-    <button
-      class="button header-file"
-      disabled={busy}
-      aria-label="Import project"
-      onclick={onimport}><Upload size={14} /><span>Import project</span></button
-    >
-    <button
-      class="button primary header-file"
-      disabled={busy}
-      aria-label="Import and export"
-      onclick={onexport}
-      ><Download size={14} /><span>Import / export</span></button
-    >
-    <span class="ml-2 hidden text-[10px] text-muted xl:block">v{version}</span>
   </div>
 </header>

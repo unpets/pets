@@ -1,1 +1,1 @@
-declare const __PETS_COMMIT_TAG__: string;
+declare const __PETS_COMMIT_SHA__: string | null;

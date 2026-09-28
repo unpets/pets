@@ -249,6 +249,10 @@ export async function createStudio(
       screen.setProject(project);
       update(0);
     },
+    setScreenPreview(id, project, bindings) {
+      character.setScreenPreview(id, project, bindings);
+      update(0);
+    },
     setWireframe,
     setJoints(visible) {
       markers.visible = visible;

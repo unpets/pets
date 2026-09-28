@@ -61,7 +61,7 @@ test('screen projects reject invalid values and keep independent layer settings'
   expect(loaded.layers.mouth.visible).toBe(false);
   loaded.layers.eyes.opacity = NaN;
   expect(() => parseScreenProject(loaded)).toThrow();
-  expect(() => parseScreenProject({ ...project, version: 3 })).toThrow();
+  expect(() => parseScreenProject({ ...project, version: 4 })).toThrow();
 });
 
 test('screen palette links colors, allows independent colors, and migrates earlier projects', () => {
@@ -83,7 +83,7 @@ test('screen palette links colors, allows independent colors, and migrates earli
   legacy.layers.background.color = '#112233';
   legacy.layers.activity.color = '#abcdef';
   const upgraded = parseScreenProject(legacy);
-  expect(upgraded.version).toBe(2);
+  expect(upgraded.version).toBe(3);
   expect(upgraded.palette).toEqual({
     background: '#112233',
     lines: '#abcdef',

@@ -31,7 +31,11 @@ Studio builds compile the Rust core for `wasm32-unknown-unknown`.
 The build uses Cargo's reported artifact path and stages the module in `apps/studio/generated/`.  
 Custom Cargo target directories are supported without changing Vite imports.  
 Tailwind scans the application and persona components.  
-Screen projects retain the versioned `kernel-screen` format.  
+The footer uses the checkout commit SHA.  
+Set `PETS_COMMIT_SHA` when building from a source archive without Git metadata.  
+Screen projects use the versioned `kernel-screen` format.  
+The screen library stores reusable palettes, layers, and face component bindings.  
+Compositions reference screens by ID, including inherited assignments.  
 
 ```sh
 bun run check
@@ -119,3 +123,4 @@ Export checks verify frame preservation, directional references, timing, and rej
 Generator tests cover rig constraints, screen data, transparency, and target isolation.  
 Frontend tests verify exported clips and continuous joint connections during transitions.  
 [Architecture](architecture.md) describes module ownership and dependency rules.  
+

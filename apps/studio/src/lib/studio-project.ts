@@ -15,6 +15,10 @@ import {
   type ViewSettings,
   type Workspace,
 } from './types';
+import {
+  compatibleClip,
+  resolveComposition,
+} from '@pets/three-runtime/project';
 export interface StudioProject {
   format: 'pets-studio';
   version: 1;
@@ -28,6 +32,7 @@ export interface StudioProject {
     component: string;
     clip: string;
     workspace: Workspace;
+    screen?: string;
   };
 }
 export function parseStudioProject(value: unknown): StudioProject {
@@ -43,6 +48,10 @@ export function parseStudioProject(value: unknown): StudioProject {
     throw new Error('Invalid Studio project.');
   const animations = parseKernelProject(project.animations);
   const screen = parseScreenProject(project.screen);
+  if (!project.animations.screens) {
+    for (const asset of Object.values(animations.screens ?? {}))
+      asset.data = { ...screen };
+  }
   const assets = parseAssets(project.assets);
   const view = { ...defaultViewSettings(), ...project.view };
   if (
@@ -63,11 +72,26 @@ export function parseStudioProject(value: unknown): StudioProject {
     !animations.compositions[selection.composition] ||
     !animations.components[selection.component] ||
     (selection.clip &&
-      animations.clips[selection.clip]?.component !== selection.component) ||
-    !['scene', 'screen', 'animation'].includes(selection.workspace)
+      !compatibleClip(animations, selection.component, selection.clip)) ||
+    !['persona', 'scene', 'screen', 'components', 'animation'].includes(
+      selection.workspace,
+    )
   )
     throw new Error('Invalid project selection.');
-  return structuredClone({ ...project, animations, screen, assets, view });
+  const selectedScreen =
+    selection.screen ??
+    resolveComposition(animations, selection.composition).screen ??
+    Object.keys(animations.screens!)[0];
+  if (!Object.hasOwn(animations.screens!, selectedScreen))
+    throw new Error('Unknown selected screen.');
+  return structuredClone({
+    ...project,
+    animations,
+    screen: parseScreenProject(animations.screens![selectedScreen].data),
+    assets,
+    view,
+    selection: { ...selection, screen: selectedScreen },
+  });
 }
 export function defaultStudioProject(): StudioProject {
   return {

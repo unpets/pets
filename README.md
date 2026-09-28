@@ -54,10 +54,13 @@ bun run dev
 
 | Workspace | Purpose |
 | --- | --- |
+| Persona | Browse persona information and workspace entry points. |
 | Scene | Inspect the model, camera, lighting, and joints. |
-| Screen | Edit the background, activity, eyes, and mouth. |
+| Screen | Compose reusable screens from independent face components. |
+| Components | Create and edit eyes, mouth, background, and activity assets. |
 | Animation | Compose motion, expressions, props, and effects. |
-| Import / export | Save projects, reusable assets, and application packages. |
+
+Use **File**, **Export**, and **Assets** in the menu bar to import projects, save work, and download source files.  
 
 Drag to orbit and scroll to zoom.  
 Use the timeline to scrub or step through frames.  

@@ -148,7 +148,7 @@ export async function createPetScene(
       looping = compositionLoops(character.project, mode);
     },
     setScreenProject(project: ScreenProject) {
-      character.screen.setProject(project);
+      character.setScreenPreview(undefined, project);
     },
     get heading() {
       return (

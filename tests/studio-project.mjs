@@ -17,15 +17,15 @@ const errors = [];
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
 page.on('pageerror', (e) => errors.push(e.message));
 await mkdir('build/studio-project', { recursive: true });
-const openFiles = () =>
-  page.getByRole('button', { name: 'Import and export', exact: true }).click();
-const closeFiles = () =>
-  page
-    .getByRole('button', { name: 'Close project files', exact: true })
-    .click();
 async function download(name) {
   const pending = page.waitForEvent('download', { timeout: 180000 });
-  await page.getByRole('button', { name, exact: true }).click();
+  await page
+    .getByRole('menuitem', {
+      name: name === 'Save complete project' ? 'File' : 'Export',
+      exact: true,
+    })
+    .click();
+  await page.getByRole('menuitem', { name, exact: true }).click();
   const file = await Promise.race([
     pending,
     page
@@ -59,10 +59,8 @@ try {
   );
   await page.getByText('Right arm action', { exact: true }).click();
   await page.getByLabel('Right arm action motion').selectOption('waving');
-  await openFiles();
   let file = await download('Save complete project');
   let project = JSON.parse(file.bytes);
-  await closeFiles();
   assert.equal(project.format, 'pets-studio');
   assert.equal(
     project.animations.compositions['inherited-greeting'].parent,
@@ -105,7 +103,6 @@ try {
   await page.waitForFunction(
     () => window.kernelViewer?.state === 'inherited-greeting',
   );
-  await openFiles();
   const restored = JSON.parse((await download('Save complete project')).bytes);
   assert.deepEqual(restored, project);
   const asset = JSON.parse((await download('Export composition')).bytes);
@@ -151,7 +148,6 @@ try {
     );
     assert.equal(await page.getByRole('alert').count(), 0);
   }
-  await closeFiles();
   project.animations.compositions.idle.parent = 'inherited-greeting';
   await writeFile(
     'build/studio-project/cycle.pets.json',

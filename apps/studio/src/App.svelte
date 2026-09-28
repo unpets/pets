@@ -1,15 +1,23 @@
 <script lang="ts">
   import { version } from '../package.json';
-  const buildLabel = `${version} [${__PETS_COMMIT_TAG__}]${import.meta.env.DEV ? ' (dev)' : ''}`;
-  import ProjectFiles from './components/ProjectFiles.svelte';
+  const buildLabel = `${version}${__PETS_COMMIT_SHA__ ? ` [${__PETS_COMMIT_SHA__}]` : ''}${import.meta.env.DEV ? ' (dev)' : ''}`;
+  import ExportProgress from './components/ExportProgress.svelte';
+  import PersonaPage from './components/PersonaPage.svelte';
+  import ScreenBrowser from './components/ScreenBrowser.svelte';
+  import ScreenComposition from './components/ScreenComposition.svelte';
+  import FaceBrowser from './components/FaceBrowser.svelte';
+  import FaceInspector from './components/FaceInspector.svelte';
+  import { download } from './lib/files';
+  import { saveProject, type ProjectExport } from './lib/project-export';
+  import type { StudioMenu } from './lib/studio-menu';
   import {
     parseStudioProject,
     embeddedProject,
     type StudioProject,
   } from './lib/studio-project';
   import { defaultStudioAssets } from './lib/studio-assets';
-  import { importAsset } from '@pets/three-runtime/assets';
-  import { resolveComposition } from '@pets/three-runtime/project';
+  import { importAsset, exportAsset } from '@pets/three-runtime/assets';
+  import { resolveComposition, binding } from '@pets/three-runtime/project';
   import { coreRequest } from './lib/core';
   import { onMount } from 'svelte';
   import { AnimationEditorState } from './lib/animation-editor.svelte';
@@ -23,7 +31,7 @@
   import ScreenPreview from '@pets/kernel/components/ScreenPreview.svelte';
   import { ScreenEditorState } from '@pets/kernel/screen-editor';
   import {
-    loadScreenProject,
+    defaultScreenProject,
     parseScreenProject,
   } from '@pets/kernel/screen-project';
   import StudioHeader from './components/StudioHeader.svelte';
@@ -45,7 +53,7 @@
   let studio = $state<StudioController>();
   let error = $state('');
   let projectError = $state('');
-  let filesOpen = $state(false);
+  let renderTarget = $state<'codex' | 'shimeji'>();
   let assets = $state.raw(defaultStudioAssets());
   let persona = $state({ id: 'kernel', name: 'Kernel' });
   let importBusy = $state(false);
@@ -64,17 +72,29 @@
         component: animations.component,
         clip: animations.clip,
         workspace,
+        screen: selectedScreen,
       },
     };
   }
   let voxelCount = $state(0);
   let workspace = $state<Workspace>('scene');
   let settings = $state(defaultViewSettings());
-  const editor = new ScreenEditorState();
   const animations = new AnimationEditorState();
-  const history = $derived(workspace === 'animation' ? animations : editor);
+  let selectedScreen = $state('');
+  let faceKind = $state('eyes');
+  const editor = new ScreenEditorState(
+    (project, group) => {
+      if (selectedScreen)
+        animations.updateScreen(selectedScreen, project, group);
+    },
+    () => animations.endGesture(),
+  );
+  const history = animations;
+  const screenWorkspace = $derived(
+    workspace === 'screen' || workspace === 'components',
+  );
   const editingPixels = $derived(
-    workspace === 'animation' &&
+    (workspace === 'animation' || workspace === 'components') &&
       !!animations.project.clips[animations.clip]?.data.frames,
   );
   let playback = $state<PlaybackState>({
@@ -88,19 +108,187 @@
     looping: true,
   });
 
-  $effect(() => studio?.setSuspended(filesOpen || importBusy));
+  $effect(() =>
+    studio?.setSuspended(
+      !!renderTarget || importBusy || workspace === 'persona',
+    ),
+  );
   $effect(() => {
     studio?.setAnimationProject(animations.project);
   });
   $effect(() => {
-    studio?.setScreenProject(editor.preview);
+    const screens = animations.project.screens!;
+    if (!screens[selectedScreen])
+      selectedScreen =
+        resolveComposition(animations.project, playback.mode).screen ??
+        Object.keys(screens)[0];
+    const settings = parseScreenProject(screens[selectedScreen].data);
+    if (JSON.stringify(settings) !== JSON.stringify(editor.project))
+      editor.load(settings);
+    const visibleLayers =
+      editor.project.eyeMode === 'paired'
+        ? ['background', 'activity', 'eyes', 'mouth']
+        : ['background', 'activity', 'eyeLeft', 'eyeRight', 'mouth'];
+    if (!visibleLayers.includes(editor.selected))
+      editor.selected =
+        editor.project.eyeMode === 'paired' ? 'eyes' : 'eyeLeft';
+  });
+  $effect(() => {
+    const face =
+      workspace === 'components' &&
+      animations.project.components[animations.component]?.kind === 'screen' &&
+      animations.clip
+        ? { [animations.component]: binding(animations.clip) }
+        : undefined;
+    studio?.setScreenPreview(
+      screenWorkspace ? selectedScreen : undefined,
+      workspace === 'components'
+        ? defaultScreenProject()
+        : workspace === 'screen'
+          ? editor.preview
+          : undefined,
+      face,
+    );
   });
   $effect(() => {
     studio?.setViewSettings(settings);
   });
 
-  function exportScreen() {
-    filesOpen = true;
+  const menus = $derived<StudioMenu[]>([
+    {
+      id: 'file',
+      label: 'File',
+      groups: [
+        [
+          {
+            label: 'Import project or asset',
+            action: () => input?.click(),
+            disabled: importBusy,
+          },
+          {
+            label: 'Save complete project',
+            action: () => save('project'),
+            disabled: importBusy,
+            hint: 'JSON',
+          },
+        ],
+      ],
+    },
+    {
+      id: 'export',
+      label: 'Export',
+      groups: [
+        [
+          {
+            label: 'Save animations',
+            action: () => save('animation'),
+            disabled: importBusy,
+            hint: 'JSON',
+          },
+          {
+            label: 'Save screen',
+            action: () => save('screen'),
+            disabled: importBusy,
+            hint: 'JSON',
+          },
+          {
+            label: 'Export reusable screen',
+            action: () =>
+              download(
+                `${selectedScreen}.pets-asset.json`,
+                JSON.stringify(
+                  exportAsset(animations.project, 'screen', selectedScreen),
+                ),
+              ),
+            disabled: importBusy || !selectedScreen,
+          },
+        ],
+        [
+          {
+            label: 'Export composition',
+            action: () => save('composition'),
+            disabled: importBusy,
+          },
+          {
+            label: 'Export component',
+            action: () => save('component'),
+            disabled: importBusy,
+          },
+          {
+            label: 'Export reusable clip',
+            action: () => save('clip'),
+            disabled: importBusy || !animations.clip,
+          },
+        ],
+        [
+          {
+            label: 'Export Studio HTML',
+            action: () => save('html'),
+            disabled: importBusy,
+            hint: 'HTML',
+          },
+          {
+            label: 'Export standalone pet',
+            action: () => save('pet'),
+            disabled: importBusy,
+            hint: 'HTML',
+          },
+        ],
+        [
+          {
+            label: 'Export Codex',
+            action: () => (renderTarget = 'codex'),
+            disabled: importBusy,
+            hint: 'ZIP',
+          },
+          {
+            label: 'Export Shimeji',
+            action: () => (renderTarget = 'shimeji'),
+            disabled: importBusy,
+            hint: 'ZIP',
+          },
+        ],
+      ],
+    },
+    {
+      id: 'assets',
+      label: 'Assets',
+      groups: [
+        [
+          {
+            label: 'Download 3D model',
+            action: downloadModel,
+            disabled: importBusy,
+            hint: 'GLB',
+          },
+          {
+            label: 'Animation data',
+            action: () =>
+              download(
+                'animations.json',
+                JSON.stringify({ ...assets.data, project: animations.project }),
+              ),
+            disabled: importBusy,
+            hint: 'JSON',
+          },
+        ],
+      ],
+    },
+  ]);
+  function save(kind: ProjectExport) {
+    try {
+      saveProject(snapshot(), kind);
+      projectError = '';
+    } catch (reason) {
+      projectError =
+        reason instanceof Error ? reason.message : 'Export failed.';
+    }
+  }
+  function downloadModel() {
+    const link = document.createElement('a');
+    link.href = assets.characterModel ?? assets.model;
+    link.download = `${persona.id}.glb`;
+    link.click();
   }
   async function openProject(project: StudioProject) {
     if (!viewport || !canvas) return;
@@ -117,7 +305,6 @@
     }
     try {
       next.setAnimationProject(project.animations);
-      next.setScreenProject(project.screen);
       next.setViewSettings(project.view);
       next.setMode(project.selection.composition);
     } catch (reason) {
@@ -128,14 +315,20 @@
     assets = project.assets;
     persona = project.persona;
     animations.load(project.animations);
+    selectedScreen =
+      project.selection.screen ?? Object.keys(project.animations.screens!)[0];
     editor.load(project.screen);
     editor.solo = null;
     settings = project.view;
     animations.component = project.selection.component;
     animations.clip = project.selection.clip;
+    faceKind = String(
+      project.animations.components[animations.component].data.family ??
+        project.animations.components[animations.component].data.layer ??
+        'eyes',
+    );
     workspace = project.selection.workspace;
     next.setAnimationProject(project.animations);
-    next.setScreenProject(project.screen);
     next.setViewSettings(project.view);
     next.setMode(project.selection.composition);
     studio = next;
@@ -177,7 +370,10 @@
           await coreRequest({ operation: 'project', project });
           animations.replace(project);
           studio?.setAnimationProject(project);
-          if (result.selection.kind === 'composition')
+          if (result.selection.kind === 'screen') {
+            selectedScreen = result.selection.id;
+            workspace = 'screen';
+          } else if (result.selection.kind === 'composition')
             studio?.setMode(result.selection.id);
           else if (result.selection.kind === 'component')
             animations.component = result.selection.id;
@@ -185,24 +381,35 @@
             animations.component = project.clips[result.selection.id].component;
             animations.clip = result.selection.id;
           }
-          workspace = 'animation';
+          if (result.selection.kind !== 'screen') {
+            const component = project.components[animations.component];
+            workspace =
+              component.kind === 'screen' &&
+              result.selection.kind !== 'composition'
+                ? 'components'
+                : 'animation';
+            if (workspace === 'components')
+              faceKind = String(component.data.family ?? component.data.layer);
+          }
         } else if (value.format === 'pets-animation') {
           const project = parseKernelProject(value);
           await coreRequest({ operation: 'project', project });
           animations.replace(project);
           workspace = 'animation';
         } else {
-          editor.replace(parseScreenProject(value));
+          selectedScreen = animations.createScreen(
+            file.name.replace(/\.json$/i, ''),
+            selectedScreen,
+          );
+          animations.updateScreen(selectedScreen, parseScreenProject(value));
           editor.solo = null;
           workspace = 'screen';
         }
       }
-      filesOpen = false;
       projectError = '';
     } catch (reason) {
       projectError =
         reason instanceof Error ? reason.message : 'Invalid project.';
-      filesOpen = false;
     } finally {
       importBusy = false;
       if (input) input.value = '';
@@ -212,7 +419,12 @@
     const target = event.target as HTMLElement;
     if (target.closest('input, select, textarea, [contenteditable="true"]'))
       return;
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+    if (renderTarget || target.closest('[role="menubar"], dialog')) return;
+    if (
+      workspace !== 'persona' &&
+      (event.ctrlKey || event.metaKey) &&
+      event.key.toLowerCase() === 'z'
+    ) {
       event.preventDefault();
       if (event.shiftKey) history.redo();
       else history.undo();
@@ -220,6 +432,7 @@
       !event.ctrlKey &&
       !event.metaKey &&
       !event.altKey &&
+      workspace !== 'persona' &&
       event.code === 'Space' &&
       !target.closest('button, a')
     ) {
@@ -228,7 +441,6 @@
     }
   }
   onMount(() => {
-    editor.load(loadScreenProject());
     animations.load(loadAnimationProject());
     if (!viewport || !canvas) return;
     try {
@@ -271,19 +483,17 @@
 </script>
 
 <svelte:window onkeydown={shortcut} />
-{#if filesOpen}<ProjectFiles
+{#if renderTarget}<ExportProgress
     project={snapshot()}
-    onimport={() => input?.click()}
-    onclose={() => (filesOpen = false)}
+    target={renderTarget}
+    onclose={() => (renderTarget = undefined)}
   />{/if}
 <div class="studio-shell" aria-busy={importBusy}>
   <StudioHeader
     {workspace}
-    busy={importBusy}
     onworkspace={(value) => (workspace = value)}
     editor={history}
-    onimport={() => input?.click()}
-    onexport={exportScreen}
+    {menus}
     personaName={persona.name}
   />
   <input
@@ -294,72 +504,110 @@
     class="hidden"
     onchange={importScreen}
   />
-  <main class="studio-layout">
-    <AnimationPanel
-      {playback}
-      {studio}
-      project={animations.project}
-      {assets}
-      {persona}
-    />
-    <div class="studio-center">
-      {#if projectError}<div
-          class="border-b border-red-300/20 bg-red-300/5 px-4 py-3 text-xs text-red-200"
-          role="alert"
+  <main class="studio-main">
+    {#if projectError}<div class="project-error" role="alert">
+        {projectError}<button class="button" onclick={() => (projectError = '')}
+          >Dismiss</button
         >
-          {projectError}<button
-            class="float-right underline"
-            onclick={() => (projectError = '')}>Dismiss</button
-          >
-        </div>{/if}
-      <div
-        class="studio-stage"
-        class:editing-screen={workspace === 'screen'}
-        class:editing-clip={editingPixels}
-      >
-        <ModelViewport bind:viewport {studio} {error} {workspace} />
-        {#if editingPixels}<PixelClipEditor editor={animations} />{/if}
-        <ScreenPreview
-          bind:canvas
-          mode={playback.mode}
-          active={workspace === 'screen'}
-          solo={editor.solo}
-        />
-      </div>
-      <PlaybackControls {playback} {studio} />
-    </div>
-    <aside
-      class="studio-inspector"
-      aria-label={workspace === 'screen' ? 'Screen editor' : 'Scene settings'}
-    >
-      {#if workspace === 'animation'}<AnimationInspector
+      </div>{/if}
+    {#if workspace === 'persona'}<PersonaPage
+        {persona}
+        project={animations.project}
+        onworkspace={(value) => (workspace = value)}
+      />{/if}
+    <div class="studio-layout" class:workspace-hidden={workspace === 'persona'}>
+      {#if workspace === 'screen'}<ScreenBrowser
           editor={animations}
-          mode={playback.mode}
+          selected={selectedScreen}
+          onselect={(id) => (selectedScreen = id)}
+        />
+      {:else if workspace === 'components'}<FaceBrowser
+          editor={animations}
+          bind:kind={faceKind}
+        />
+      {:else}<AnimationPanel
+          {playback}
           {studio}
-        />{:else if workspace === 'screen'}<ScreenEditor
-          {editor}
-          onanimation={() => {
-            const id = `screen/${editor.selected}`;
-            if (animations.project.components[id]) {
-              animations.component = id;
-              animations.clip =
-                resolveComposition(animations.project, playback.mode).bindings[
-                  id
-                ]?.clip ??
-                Object.keys(animations.project.clips).find(
-                  (clip) => animations.project.clips[clip].component === id,
-                ) ??
-                '';
-            }
-            workspace = 'animation';
-          }}
-        />{:else}<ViewportInspector
-          {settings}
-          onchange={(value) => (settings = value)}
-          {studio}
-          mode={playback.mode}
+          project={animations.project}
         />{/if}
-    </aside>
+      <div class="studio-center">
+        <div
+          class="studio-stage"
+          class:editing-screen={screenWorkspace}
+          class:editing-clip={editingPixels}
+        >
+          <ModelViewport bind:viewport {studio} {error} {workspace} />
+          {#if editingPixels}<PixelClipEditor editor={animations} />{/if}
+          <ScreenPreview
+            bind:canvas
+            label={screenWorkspace
+              ? animations.project.screens?.[selectedScreen]?.label
+              : undefined}
+            mode={playback.mode}
+            active={screenWorkspace}
+            solo={editor.solo}
+          />
+        </div>
+        <PlaybackControls {playback} {studio} />
+      </div>
+      <aside
+        class="studio-inspector"
+        aria-label={workspace === 'screen'
+          ? 'Screen editor'
+          : workspace === 'components'
+            ? 'Face component editor'
+            : workspace === 'animation'
+              ? 'Animation editor'
+              : 'Scene settings'}
+      >
+        {#if workspace === 'animation'}<AnimationInspector
+            editor={animations}
+            mode={playback.mode}
+            {studio}
+          />{:else if workspace === 'components'}<FaceInspector
+            editor={animations}
+          />
+        {:else if workspace === 'screen'}<ScreenComposition
+            editor={animations}
+            selected={selectedScreen}
+            oncomponents={(component) => {
+              animations.component = component;
+              animations.clip =
+                animations.project.screens![selectedScreen].bindings[component]
+                  ?.clip ?? '';
+              faceKind = String(
+                animations.project.components[component].data.family ??
+                  animations.project.components[component].data.layer,
+              );
+              workspace = 'components';
+            }}
+          /><ScreenEditor
+            {editor}
+            onanimation={() => {
+              const id = `screen/${editor.selected}`;
+              if (animations.project.components[id]) {
+                animations.component = id;
+                animations.clip =
+                  animations.project.screens![selectedScreen].bindings[id]
+                    ?.clip ??
+                  Object.keys(animations.project.clips).find(
+                    (clip) => animations.project.clips[clip].component === id,
+                  ) ??
+                  '';
+              }
+              faceKind = editor.selected.startsWith('eye')
+                ? 'eyes'
+                : editor.selected;
+              workspace = 'components';
+            }}
+          />{:else}<ViewportInspector
+            {settings}
+            onchange={(value) => (settings = value)}
+            {studio}
+            mode={playback.mode}
+          />{/if}
+      </aside>
+    </div>
   </main>
   <footer class="studio-status">
     <span class="flex items-center gap-2"

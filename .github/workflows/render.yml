@@ -91,6 +91,7 @@ jobs:
           bun run test:pet
           bun run test:animation
           bun run test:studio
+          bun run test:studio-ui
           bun run test:locomotion
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Save generated site
@@ -109,3 +110,4 @@ jobs:
     if: github.event_name != 'push'
     needs: studio
     uses: ./.github/workflows/desktop.yml
+

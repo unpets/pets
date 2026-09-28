@@ -5,11 +5,13 @@
   let {
     canvas = $bindable(),
     mode,
+    label,
     active,
     solo,
   }: {
     canvas?: HTMLCanvasElement;
     mode: AnimationMode;
+    label?: string;
     active: boolean;
     solo: ScreenLayer | null;
   } = $props();
@@ -82,7 +84,7 @@
         width="96"
         height="64"
         class="block size-full [image-rendering:pixelated]"
-        aria-label={`${animationModes[mode]?.label ?? mode} display`}
+        aria-label={`${label ?? animationModes[mode]?.label ?? mode} display`}
       ></canvas>
       {#if grid}<div
           class="pixel-grid"
@@ -97,7 +99,7 @@
     <span
       >{solo ? `Solo preview: ${solo}` : 'Composite preview'}
       <span class="mx-1 text-line">/</span>
-      {animationModes[mode]?.label ?? mode}</span
+      {label ?? animationModes[mode]?.label ?? mode}</span
     ><span>{scale * 100}%</span>
   </div>
 </section>

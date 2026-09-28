@@ -3,6 +3,8 @@ export const screenLayers = [
   'activity',
   'eyes',
   'mouth',
+  'eyeLeft',
+  'eyeRight',
 ] as const;
 export type ScreenLayer = (typeof screenLayers)[number];
 export interface LayerSettings {
@@ -12,6 +14,11 @@ export interface LayerSettings {
   y: number;
   color: string | null;
   source: number | null;
+  mirrorX: boolean;
+  mirrorY: boolean;
+  scale: number;
+  rotation: number;
+  order: number;
 }
 export interface ScreenPalette {
   background: string;
@@ -21,19 +28,33 @@ export interface ScreenPalette {
 }
 export interface ScreenProject {
   format: 'kernel-screen';
-  version: 2;
+  version: 3;
+  eyeMode: 'paired' | 'mirrored' | 'independent';
   palette: ScreenPalette;
   layers: Record<ScreenLayer, LayerSettings>;
 }
 export function defaultScreenProject(): ScreenProject {
   return {
     format: 'kernel-screen',
-    version: 2,
+    version: 3,
+    eyeMode: 'paired',
     palette: { background: '#07151d', lines: null, text: null, linked: true },
     layers: Object.fromEntries(
       screenLayers.map((name) => [
         name,
-        { visible: true, opacity: 1, x: 0, y: 0, color: null, source: null },
+        {
+          visible: true,
+          opacity: 1,
+          x: 0,
+          y: 0,
+          color: null,
+          source: null,
+          mirrorX: false,
+          mirrorY: false,
+          scale: 1,
+          rotation: 0,
+          order: name.startsWith('eye') ? 2 : screenLayers.indexOf(name),
+        },
       ]),
     ) as ScreenProject['layers'],
   };
@@ -41,17 +62,29 @@ export function defaultScreenProject(): ScreenProject {
 export function parseScreenProject(value: unknown): ScreenProject {
   if (!value || typeof value !== 'object')
     throw new Error('Invalid screen project.');
-  const project = value as Omit<ScreenProject, 'version' | 'palette'> & {
+  const project = JSON.parse(JSON.stringify(value)) as Omit<
+    ScreenProject,
+    'version' | 'palette'
+  > & {
     version: number;
     palette?: ScreenPalette;
   };
   if (
     project.format !== 'kernel-screen' ||
-    (project.version !== 1 && project.version !== 2) ||
+    ![1, 2, 3].includes(project.version) ||
     !project.layers
   )
     throw new Error('Unsupported screen project format.');
+  project.eyeMode ??= 'paired';
+  if (!['paired', 'mirrored', 'independent'].includes(project.eyeMode))
+    throw new Error('Invalid eye layout.');
+  const defaults = defaultScreenProject();
   for (const name of screenLayers) {
+    if (project.version < 3)
+      project.layers[name] = {
+        ...defaults.layers[name],
+        ...project.layers[name],
+      };
     const layer = project.layers[name];
     if (
       !layer ||
@@ -67,7 +100,14 @@ export function parseScreenProject(value: unknown): ScreenProject {
       (layer.source !== null &&
         (!Number.isInteger(layer.source) ||
           layer.source < 0 ||
-          layer.source > 9))
+          layer.source > 9)) ||
+      typeof layer.mirrorX !== 'boolean' ||
+      typeof layer.mirrorY !== 'boolean' ||
+      !Number.isFinite(layer.scale) ||
+      layer.scale <= 0 ||
+      layer.scale > 4 ||
+      !Number.isFinite(layer.rotation) ||
+      !Number.isFinite(layer.order)
     )
       throw new Error(`Invalid ${name} layer settings.`);
   }
@@ -95,7 +135,8 @@ export function parseScreenProject(value: unknown): ScreenProject {
     throw new Error('Invalid screen palette.');
   return {
     format: 'kernel-screen',
-    version: 2,
+    version: 3,
+    eyeMode: project.eyeMode,
     palette: { ...palette },
     layers: Object.fromEntries(
       screenLayers.map((name) => [

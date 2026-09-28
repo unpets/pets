@@ -78,6 +78,56 @@ fn desktop_accepts_custom_composition_names() {
     assert_eq!(serde_json::to_string(&name).unwrap(), "\"a-new-dance\"");
 }
 
+#[test]
+fn screen_objects_inherit_sample_and_round_trip_by_reference() {
+    let mut value = project();
+    value.components.get_mut("eyes").unwrap().kind = "screen".into();
+    let binding = value
+        .compositions
+        .get_mut("greeting")
+        .unwrap()
+        .bindings
+        .remove("eyes")
+        .unwrap();
+    value.screens.insert(
+        "face".into(),
+        serde_json::from_value(serde_json::json!({
+            "label":"Face", "data":{}, "bindings":{"eyes":binding}
+        }))
+        .unwrap(),
+    );
+    value.compositions.get_mut("greeting").unwrap().screen = Some("face".into());
+    value.compositions.insert(
+        "child".into(),
+        serde_json::from_value(
+            serde_json::json!({"label":"Child", "parent":"greeting", "bindings":{}}),
+        )
+        .unwrap(),
+    );
+    value.validate().unwrap();
+    assert_eq!(
+        value.resolve("child").unwrap().screen.as_deref(),
+        Some("face")
+    );
+    value
+        .screens
+        .get_mut("face")
+        .unwrap()
+        .bindings
+        .get_mut("eyes")
+        .unwrap()
+        .speed = 0.5;
+    assert_eq!(
+        value.sample("child", 0.0, 7.0).unwrap()["eyes"].phase,
+        0.875
+    );
+    let restored: AnimationProject =
+        serde_json::from_value(serde_json::to_value(&value).unwrap()).unwrap();
+    assert_eq!(restored.screens.len(), 1);
+    value.screens.clear();
+    assert!(value.validate().is_err());
+}
+
 #[cfg(feature = "export")]
 #[test]
 fn export_bindings_resolve_custom_compositions_without_renaming_source_frames() {

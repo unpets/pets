@@ -4,7 +4,8 @@ import type { Object3D, PerspectiveCamera } from 'three';
 import type { AnimationMode } from '@pets/kernel/types';
 export * from '@pets/kernel/types';
 
-export type Workspace = 'scene' | 'screen' | 'animation';
+export type Workspace =
+  'persona' | 'scene' | 'screen' | 'components' | 'animation';
 export type CameraView = 'home' | 'front' | 'side' | 'left' | 'back' | 'top';
 export interface ViewSettings {
   grid: boolean;
@@ -37,6 +38,11 @@ export interface PlaybackState {
 }
 export interface StudioController {
   setScreenProject(project: ScreenProject): void;
+  setScreenPreview(
+    id?: string,
+    project?: ScreenProject,
+    bindings?: Record<string, import('@pets/three-runtime/project').Binding>,
+  ): void;
   setAnimationProject(project: AnimationProject): void;
   setMode(mode: AnimationMode): void;
   setPlaying(playing: boolean): void;

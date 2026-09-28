@@ -1,4 +1,6 @@
 import { migrateMovement } from './migrate-project';
+import { migrateScreens } from './screen-library';
+import { parseScreenProject, loadScreenProject } from './screen-project';
 import { validateEffect } from '@pets/three-runtime/effects';
 import {
   parseAnimationProject,
@@ -8,11 +10,18 @@ import source from '../../generated/assets/animations.json?raw';
 
 const catalog = parseAnimationProject(JSON.parse(source).project);
 export const defaultAnimationProject = (): AnimationProject =>
-  parseAnimationProject(catalog);
+  migrateScreens(parseAnimationProject(catalog), loadScreenProject());
 export function loadAnimationProject(): AnimationProject {
   try {
     const saved = localStorage.getItem('pets-animation-project');
-    if (saved) return parseKernelProject(JSON.parse(saved));
+    if (saved) {
+      const value = JSON.parse(saved);
+      const project = parseKernelProject(value);
+      if (!value.screens)
+        for (const screen of Object.values(project.screens!))
+          screen.data = { ...loadScreenProject() };
+      return project;
+    }
   } catch {
     /* Import and export remain available without browser storage. */
   }
@@ -26,7 +35,31 @@ export function saveAnimationProject(project: AnimationProject) {
   }
 }
 export function parseKernelProject(value: unknown): AnimationProject {
-  const project = migrateMovement(parseAnimationProject(value));
+  const project = migrateScreens(migrateMovement(parseAnimationProject(value)));
+  for (const screen of Object.values(project.screens ?? {})) {
+    const settings = parseScreenProject(screen.data);
+    screen.data = { ...settings };
+    const { bindings } = screen;
+    if (settings.eyeMode === 'paired') {
+      const source =
+        bindings['screen/eyes'] ??
+        bindings['screen/eyeLeft'] ??
+        bindings['screen/eyeRight'];
+      if (source) bindings['screen/eyes'] = { ...source };
+      delete bindings['screen/eyeLeft'];
+      delete bindings['screen/eyeRight'];
+    } else {
+      const source = bindings['screen/eyeLeft'] ?? bindings['screen/eyes'];
+      if (source) {
+        bindings['screen/eyeLeft'] = { ...source };
+        bindings['screen/eyeRight'] =
+          settings.eyeMode === 'mirrored'
+            ? { ...source }
+            : { ...(bindings['screen/eyeRight'] ?? source) };
+      }
+      delete bindings['screen/eyes'];
+    }
+  }
   const defaults = catalog;
   const nodes = new Set(
     Object.values(defaults.components)

@@ -25,11 +25,19 @@ Disable **Preview travel** in the Scene workspace to inspect motion in place.
 Pausing playback pauses travel.  
 Seeking or switching to a different action resets the travel origin.  
 
+## Persona
+
+The Persona workspace shows identity, asset counts, and links to editing workspaces.  
+The viewport stays loaded when changing pages.  
+
 ## Screen editor
 
-The Screen workspace provides an enlarged display canvas and a layer inspector.  
+The Screen workspace provides a reusable screen library, an enlarged display canvas, and collapsible inspector sections.  
+Create, duplicate, rename, and export screens independently of compositions.  
+Assign a screen in the Animation workspace with **Composition screen**.  
+Child compositions inherit the parent screen unless they select another one.  
 
-The display has four independent layers:  
+A screen combines four independent face component types:  
 
 - **Background** sets the base appearance.
 - **Activity** shows tasks such as programming.
@@ -38,8 +46,20 @@ The display has four independent layers:
 
 ### Layer controls
 
-Select a layer to adjust visibility, solo preview, opacity, color, and pixel offsets.  
-Undo and redo are available for screen edits.  
+Select a layer to adjust visibility, solo preview, opacity, color, position, scale, rotation, mirroring, and draw order.  
+Undo and redo are available for screen and face component edits.  
+
+### Face component library
+
+The Components workspace provides separate libraries for eyes, mouth, background, and activity.  
+Create pixel animations, duplicate assets, or import reusable clips.  
+Screen slots select assets by reference and set their clock, speed, phase offset, and visibility.  
+Editing an asset updates every screen using it.  
+Duplicate it to create a separate variant.  
+
+Choose paired eyes, a mirrored left eye, or independent left and right eyes.  
+Independent eyes can use different assets, clocks, and transforms.  
+Mirrored eyes share the source animation and reflect its left half.  
 
 ### Colors
 
@@ -83,7 +103,9 @@ See [Animation composition](animation.md) for clocks, inheritance, movement prop
 
 ## Import and export
 
-Open **Import / export** to save or reuse work.  
+Use **File** to import or save complete projects.  
+Use **Export** for reusable screens, clips, composition bundles, HTML applications, and rendered packages.  
+Menus support arrow keys, Enter, and Escape.  
 
 | Output | Contents |
 | --- | --- |
@@ -92,5 +114,6 @@ Open **Import / export** to save or reuse work.
 | Offline application | A self-contained Studio or companion HTML file. |
 | Codex or Shimeji package | Rendered animation frames and host metadata. |
 
-Use the sidebar's **Download 3D model** link for the skeletal character GLB.  
+Use **Assets > Download 3D model** for the skeletal character GLB.  
+Use **Assets > Animation data** for source motion data and the edited project.  
 See [Character exports](animation.md#character-exports) for engine integration and Blender baking.  

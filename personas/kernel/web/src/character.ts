@@ -26,6 +26,7 @@ import { createMotion } from '@pets/three-runtime/motion';
 import { createCable } from './cable';
 import { createEmission } from './emission';
 import { createScreen } from './screen';
+import { parseScreenProject, type ScreenProject } from './screen-project';
 import type { AnimationMode } from './types';
 import {
   sampleComposition,
@@ -69,6 +70,11 @@ export async function createCharacter(
   const heading = createHeading(model.rotation.z);
   let samples: ReturnType<typeof sampleComposition> = {};
   let screenSeconds = 0;
+  let previewScreen: string | undefined;
+  let previewSettings: ScreenProject | undefined;
+  let activeSettings: unknown;
+  let previewBindings:
+    Record<string, import('@pets/three-runtime/project').Binding> | undefined;
   function select(mode: string) {
     const composition = resolveComposition(project, mode);
     if (!composition) throw new Error(`Unknown composition: ${mode}`);
@@ -165,6 +171,17 @@ export async function createCharacter(
     setMode(mode: string) {
       select(mode);
     },
+    setScreenPreview(
+      id?: string,
+      settings?: ScreenProject,
+      bindings?: typeof previewBindings,
+    ) {
+      previewScreen = id;
+      previewBindings = bindings;
+      previewSettings = settings;
+      activeSettings = undefined;
+      screen.invalidate();
+    },
     updateScreen() {
       screen.update(project, samples, screenSeconds);
     },
@@ -200,7 +217,18 @@ export async function createCharacter(
         mode,
         phase * playbackDuration(project, mode),
         independentSeconds,
+        previewScreen,
+        previewBindings,
       );
+      const screenId =
+        previewScreen ?? resolveComposition(project, mode).screen;
+      const settings =
+        previewSettings ??
+        (screenId ? project.screens?.[screenId]?.data : undefined);
+      if (settings && settings !== activeSettings) {
+        screen.setProject(parseScreenProject(settings));
+        activeSettings = settings;
+      }
       motion.update(
         elapsed,
         Object.fromEntries(

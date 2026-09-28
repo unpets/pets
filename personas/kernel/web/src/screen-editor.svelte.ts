@@ -17,6 +17,10 @@ export class ScreenEditorState {
   private past = $state<ScreenProject[]>([]);
   private future = $state<ScreenProject[]>([]);
   private group: string | undefined;
+  constructor(
+    private onchange?: (project: ScreenProject, group?: string) => void,
+    private oncommit?: () => void,
+  ) {}
 
   get canUndo() {
     return this.past.length > 0;
@@ -48,9 +52,11 @@ export class ScreenEditorState {
     this.future = [];
     this.project = next;
     saveScreenProject(next);
+    this.onchange?.(next, group);
   }
   endGesture() {
     this.group = undefined;
+    this.oncommit?.();
   }
   changeLayer(update: Partial<LayerSettings>, group?: string) {
     const project = parseScreenProject(this.project);
@@ -81,6 +87,7 @@ export class ScreenEditorState {
     this.project = previous;
     this.endGesture();
     saveScreenProject(previous);
+    this.onchange?.(previous);
   }
   redo() {
     const next = this.future.at(-1);
@@ -90,5 +97,6 @@ export class ScreenEditorState {
     this.project = next;
     this.endGesture();
     saveScreenProject(next);
+    this.onchange?.(next);
   }
 }

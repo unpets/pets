@@ -74,14 +74,9 @@ try {
     .getByLabel('Layer horizontal offset', { exact: true })
     .fill('10');
   const downloadPromise = studio.waitForEvent('download');
+  await studio.getByRole('menuitem', { name: 'Export', exact: true }).click();
   await studio
-    .getByRole('button', { name: 'Import and export', exact: true })
-    .click();
-  await studio
-    .getByRole('button', { name: 'Save screen', exact: true })
-    .click();
-  await studio
-    .getByRole('button', { name: 'Close project files', exact: true })
+    .getByRole('menuitem', { name: 'Save screen', exact: true })
     .click();
   const download = await downloadPromise;
   assert.equal(download.suggestedFilename(), 'kernel-screen.json');

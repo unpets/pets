@@ -7,12 +7,18 @@ import {
   type AnimationProject,
   type Binding,
   type Clip,
+  compatibleClip,
 } from '@pets/three-runtime/project';
 import {
   defaultAnimationProject,
   parseKernelProject,
   saveAnimationProject,
 } from '@pets/kernel/animation-project';
+import {
+  defaultScreenProject,
+  parseScreenProject,
+  type ScreenProject,
+} from '@pets/kernel/screen-project';
 
 export class AnimationEditorState {
   project = $state.raw<AnimationProject>(defaultAnimationProject());
@@ -24,7 +30,7 @@ export class AnimationEditorState {
   private reconcileSelection() {
     if (!this.project.components[this.component])
       this.component = Object.keys(this.project.components)[0];
-    if (this.project.clips[this.clip]?.component !== this.component)
+    if (!compatibleClip(this.project, this.component, this.clip))
       this.clip =
         Object.keys(this.project.clips).find(
           (id) => this.project.clips[id].component === this.component,
@@ -32,6 +38,105 @@ export class AnimationEditorState {
   }
   get canUndo() {
     return this.past.length > 0;
+  }
+  createScreen(label: string, source?: string) {
+    const project = parseKernelProject(this.project);
+    const id = uniqueId(label, project.screens!);
+    project.screens![id] = source
+      ? { ...structuredClone(project.screens![source]), label }
+      : { label, data: { ...defaultScreenProject() }, bindings: {} };
+    this.replace(project);
+    return id;
+  }
+  createFaceClip(label: string, source?: string) {
+    const project = parseKernelProject(this.project);
+    const id = uniqueId(label, project.clips);
+    project.clips[id] = source
+      ? { ...structuredClone(project.clips[source]), label }
+      : {
+          label,
+          component: this.component,
+          duration: 1,
+          looping: true,
+          data: { frames: [[]] },
+        };
+    this.replace(project);
+    this.clip = id;
+  }
+  updateScreen(id: string, data: ScreenProject, group?: string) {
+    this.replace(
+      {
+        ...this.project,
+        screens: {
+          ...this.project.screens,
+          [id]: {
+            ...this.project.screens![id],
+            data: { ...parseScreenProject(data) },
+          },
+        },
+      },
+      group,
+    );
+  }
+  renameScreen(id: string, label: string) {
+    if (!label.trim()) return;
+    this.replace({
+      ...this.project,
+      screens: {
+        ...this.project.screens,
+        [id]: { ...this.project.screens![id], label: label.trim() },
+      },
+    });
+  }
+  deleteScreen(id: string) {
+    if (Object.values(this.project.compositions).some((c) => c.screen === id))
+      throw new Error('Assign a different screen before deleting this one.');
+    if (Object.keys(this.project.screens!).length < 2)
+      throw new Error('Keep at least one screen.');
+    const screens = { ...this.project.screens };
+    delete screens[id];
+    this.replace({ ...this.project, screens });
+  }
+  bindScreen(id: string, component: string, update: Partial<Binding>) {
+    const screen = this.project.screens![id];
+    const next = {
+      ...(screen.bindings[component] ?? binding(update.clip ?? '')),
+      ...update,
+    };
+    const bindings = { ...screen.bindings, [component]: next };
+    if (
+      component === 'screen/eyeLeft' &&
+      parseScreenProject(screen.data).eyeMode === 'mirrored'
+    )
+      bindings['screen/eyeRight'] = { ...next };
+    this.replace({
+      ...this.project,
+      screens: { ...this.project.screens, [id]: { ...screen, bindings } },
+    });
+  }
+  eyeMode(id: string, eyeMode: ScreenProject['eyeMode']) {
+    const screen = structuredClone(this.project.screens![id]);
+    const data = parseScreenProject(screen.data);
+    const source =
+      screen.bindings['screen/eyes'] ?? screen.bindings['screen/eyeLeft'];
+    if (!source) throw new Error('Assign an eyes component first.');
+    if (eyeMode === 'paired') {
+      screen.bindings['screen/eyes'] = { ...source };
+      delete screen.bindings['screen/eyeLeft'];
+      delete screen.bindings['screen/eyeRight'];
+    } else {
+      screen.bindings['screen/eyeLeft'] = { ...source };
+      screen.bindings['screen/eyeRight'] =
+        eyeMode === 'mirrored'
+          ? { ...source }
+          : { ...(screen.bindings['screen/eyeRight'] ?? source) };
+      delete screen.bindings['screen/eyes'];
+    }
+    screen.data = { ...data, eyeMode };
+    this.replace({
+      ...this.project,
+      screens: { ...this.project.screens, [id]: screen },
+    });
   }
   get canRedo() {
     return this.future.length > 0;
@@ -91,10 +196,16 @@ export class AnimationEditorState {
     const project = parseKernelProject(this.project);
     const id = uniqueId(label, project.compositions);
     const {
-      origins: _,
+      origins,
       parent: __,
       ...resolved
     } = resolveComposition(project, source);
+    for (const component of Object.keys(resolved.bindings))
+      if (
+        project.components[component].kind === 'screen' &&
+        !project.compositions[origins[component]].bindings[component]
+      )
+        delete resolved.bindings[component];
     project.compositions[id] = { ...resolved, label };
     this.replace(project);
     return id;
@@ -127,11 +238,17 @@ export class AnimationEditorState {
   }
   detachComposition(id: string) {
     const {
-      origins: _,
+      origins,
       parent: __,
       ...resolved
     } = resolveComposition(this.project, id);
     const project = parseKernelProject(this.project);
+    for (const component of Object.keys(resolved.bindings))
+      if (
+        project.components[component].kind === 'screen' &&
+        !project.compositions[origins[component]].bindings[component]
+      )
+        delete resolved.bindings[component];
     project.compositions[id] = resolved;
     this.replace(project);
   }
@@ -173,6 +290,9 @@ export class AnimationEditorState {
     if (
       Object.values(project.compositions).some((c) =>
         Object.values(c.bindings).some((b) => b.clip === this.clip),
+      ) ||
+      Object.values(project.screens ?? {}).some((s) =>
+        Object.values(s.bindings).some((b) => b.clip === this.clip),
       )
     )
       throw new Error('Unassign this clip before deleting it.');
@@ -189,6 +309,9 @@ export class AnimationEditorState {
     if (
       Object.values(project.compositions).some(
         (c) => c.bindings[this.component],
+      ) ||
+      Object.values(project.screens ?? {}).some(
+        (s) => s.bindings[this.component],
       )
     )
       throw new Error('Unassign this component from every composition first.');

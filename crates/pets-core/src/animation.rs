@@ -15,6 +15,8 @@ pub struct AnimationProject {
     pub version: u32,
     pub components: BTreeMap<String, Component>,
     pub clips: BTreeMap<String, Clip>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub screens: BTreeMap<String, ScreenAsset>,
     pub compositions: BTreeMap<String, Composition>,
     #[serde(default)]
     pub exports: BTreeMap<String, BTreeMap<String, ExportBinding>>,
@@ -147,9 +149,19 @@ pub struct Composition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub screen: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
     #[serde(default)]
     pub properties: CompositionProperties,
+    pub bindings: BTreeMap<String, Binding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScreenAsset {
+    pub label: String,
+    pub data: Value,
     pub bindings: BTreeMap<String, Binding>,
 }
 
@@ -221,7 +233,8 @@ impl AnimationProject {
             "Unsupported animation project",
         )?;
         require(
-            !self.components.is_empty() && !self.compositions.is_empty(),
+            (!self.components.is_empty() || !self.screens.is_empty())
+                && !self.compositions.is_empty(),
             "Components and compositions are required",
         )?;
         for (id, component) in &self.components {
@@ -242,6 +255,21 @@ impl AnimationProject {
                 format!("Invalid clip: {id}"),
             )?;
         }
+        for (id, screen) in &self.screens {
+            require(
+                identifier(id) && !screen.label.trim().is_empty() && screen.data.is_object(),
+                format!("Invalid screen: {id}"),
+            )?;
+            for (component, binding) in &screen.bindings {
+                require(
+                    self.components
+                        .get(component)
+                        .is_some_and(|value| value.kind == "screen"),
+                    format!("Invalid screen component: {component}"),
+                )?;
+                self.validate_binding(id, component, binding)?;
+            }
+        }
         for (id, composition) in &self.compositions {
             require(
                 identifier(id)
@@ -254,14 +282,7 @@ impl AnimationProject {
             composition.properties.validate()?;
             self.resolve(id)?;
             for (component, binding) in &composition.bindings {
-                let clip = self.clips.get(&binding.clip);
-                require(
-                    clip.is_some_and(|clip| &clip.component == component)
-                        && binding.speed.is_finite()
-                        && binding.speed >= 0.0
-                        && binding.offset.is_finite(),
-                    format!("Invalid binding: {id}/{component}"),
-                )?;
+                self.validate_binding(id, component, binding)?;
             }
         }
         for bindings in self.exports.values() {
@@ -277,6 +298,40 @@ impl AnimationProject {
             }
         }
         Ok(())
+    }
+
+    fn validate_binding(
+        &self,
+        id: &str,
+        component: &str,
+        binding: &Binding,
+    ) -> Result<(), AnimationError> {
+        let clip = self.clips.get(&binding.clip);
+        require(
+            clip.is_some_and(|clip| {
+                clip.component == component
+                    || self
+                        .components
+                        .get(component)
+                        .is_some_and(|target| target.kind == "screen")
+                        && self.components.get(&clip.component).is_some_and(|source| {
+                            source.kind == "screen" && {
+                                let target = &self.components[component];
+                                target
+                                    .data
+                                    .get("family")
+                                    .or_else(|| target.data.get("layer"))
+                                    == source
+                                        .data
+                                        .get("family")
+                                        .or_else(|| source.data.get("layer"))
+                            }
+                        })
+            }) && binding.speed.is_finite()
+                && binding.speed >= 0.0
+                && binding.offset.is_finite(),
+            format!("Invalid binding: {id}/{component}"),
+        )
     }
 
     /// Resolve inherited bindings without flattening the editable project.
@@ -296,8 +351,22 @@ impl AnimationProject {
         let mut result = chain[0].clone();
         result.bindings.clear();
         result.duration = None;
+        result.screen = None;
         result.properties = CompositionProperties::default();
         for composition in chain.into_iter().rev() {
+            if let Some(id) = &composition.screen {
+                let screen = self
+                    .screens
+                    .get(id)
+                    .ok_or_else(|| AnimationError(format!("Unknown screen: {id}")))?;
+                result.bindings.retain(|component, _| {
+                    self.components
+                        .get(component)
+                        .is_none_or(|value| value.kind != "screen")
+                });
+                result.bindings.extend(screen.bindings.clone());
+                result.screen = Some(id.clone());
+            }
             result.bindings.extend(composition.bindings.clone());
             result.properties.inherit(&composition.properties);
             result.duration = composition.duration.or(result.duration);

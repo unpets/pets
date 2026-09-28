@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { migrateScreens } from '../personas/kernel/web/src/screen-library.ts';
 import { parseAnimationProject } from '../packages/three-runtime/src/project.ts';
 const port = 4173;
 const server = spawn('bun', ['run', 'preview', '--', '--port', String(port)], {
@@ -80,7 +81,9 @@ try {
       await page.locator('[role="alert"]').allTextContents(),
     );
     assert.equal(
-      await page.locator('main').evaluate((el) => getComputedStyle(el).display),
+      await page
+        .locator('.studio-layout')
+        .evaluate((el) => getComputedStyle(el).display),
       'grid',
     );
     assert.ok(
@@ -151,7 +154,8 @@ try {
       ['Animation data', 'animations.json'],
     ]) {
       const pending = page.waitForEvent('download');
-      await page.getByRole('link', { name: label, exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Assets', exact: true }).click();
+      await page.getByRole('menuitem', { name: label, exact: true }).click();
       const download = await pending;
       assert.equal(download.suggestedFilename(), name);
       const actual = await readFile(await download.path());
@@ -163,7 +167,9 @@ try {
       );
       if (name.endsWith('.json')) {
         const document = JSON.parse(expected);
-        document.project = parseAnimationProject(document.project);
+        document.project = migrateScreens(
+          parseAnimationProject(document.project),
+        );
         assert.deepEqual(
           JSON.parse(actual),
           JSON.parse(JSON.stringify(document)),
@@ -272,14 +278,9 @@ try {
       .getByRole('button', { name: 'Solo eyes layer', exact: true })
       .click();
     const savedProject = page.waitForEvent('download');
+    await page.getByRole('menuitem', { name: 'Export', exact: true }).click();
     await page
-      .getByRole('button', { name: 'Import and export', exact: true })
-      .click();
-    await page
-      .getByRole('button', { name: 'Save screen', exact: true })
-      .click();
-    await page
-      .getByRole('button', { name: 'Close project files', exact: true })
+      .getByRole('menuitem', { name: 'Save screen', exact: true })
       .click();
     const projectDownload = await savedProject;
     const project = JSON.parse(

@@ -113,15 +113,30 @@ export function createScreen(
     ) {
       const components = Object.entries(animation.components)
         .filter(([, c]) => c.kind === 'screen')
-        .sort((a, b) => Number(a[1].data.order) - Number(b[1].data.order));
+        .sort(
+          (a, b) =>
+            Number(
+              project.layers[a[1].data.layer as keyof ScreenProject['layers']]
+                ?.order ?? a[1].data.order,
+            ) -
+            Number(
+              project.layers[b[1].data.layer as keyof ScreenProject['layers']]
+                ?.order ?? b[1].data.order,
+            ),
+        );
       const resolved = { ...samples };
       for (const [id, specification] of components) {
         const name = specification.data.layer as keyof ScreenProject['layers'];
+        const eye =
+          name === 'eyes' || name === 'eyeLeft' || name === 'eyeRight';
         const source = project.layers[name]?.source;
         if (source === null || source === undefined) continue;
         const mode = screenSourceModes[source];
         const binding = animation.compositions[mode]
-          ? resolveComposition(animation, mode).bindings[id]
+          ? (resolveComposition(animation, mode).bindings[id] ??
+            (eye
+              ? resolveComposition(animation, mode).bindings['screen/eyes']
+              : undefined))
           : undefined;
         const clip = binding && animation.clips[binding.clip];
         if (clip)
@@ -156,6 +171,11 @@ export function createScreen(
           y: 0,
           color: null,
           source: null,
+          mirrorX: false,
+          mirrorY: false,
+          scale: 1,
+          rotation: 0,
+          order: 0,
           ...(specification.data.style as Partial<
             ScreenProject['layers']['eyes']
           >),
@@ -189,15 +209,44 @@ export function createScreen(
             layerContext.drawImage(component, 0, 0);
           }
         } else {
-          drawCell(layerContext, name, frame, sourceRow);
+          drawCell(
+            layerContext,
+            name === 'eyeLeft' || name === 'eyeRight' ? 'eyes' : name,
+            frame,
+            sourceRow,
+          );
           if (layer.color) tint(layerContext, layer.color);
         }
+        const halfEye = name === 'eyeLeft' || name === 'eyeRight';
+        const mirroredEye =
+          name === 'eyeRight' && project.eyeMode === 'mirrored';
+        const width = halfEye ? 48 : 96;
+        const destinationX = name === 'eyeRight' ? 48 : 0;
+        const sourceX = name === 'eyeRight' && !mirroredEye ? 48 : 0;
+        const isEye = halfEye || name === 'eyes';
+        context.save();
         context.globalAlpha = layer.opacity;
+        context.translate(
+          destinationX + width / 2 + layer.x + (isEye ? gaze.x : 0),
+          32 + layer.y + (isEye ? gaze.y : 0),
+        );
+        context.rotate((layer.rotation * Math.PI) / 180);
+        context.scale(
+          layer.scale * (layer.mirrorX !== mirroredEye ? -1 : 1),
+          layer.scale * (layer.mirrorY ? -1 : 1),
+        );
         context.drawImage(
           scratch,
-          layer.x + (name === 'eyes' ? gaze.x : 0),
-          layer.y + (name === 'eyes' ? gaze.y : 0),
+          sourceX,
+          0,
+          width,
+          64,
+          -width / 2,
+          -32,
+          width,
+          64,
         );
+        context.restore();
       }
       context.globalAlpha = 1;
       texture.needsUpdate = true;
