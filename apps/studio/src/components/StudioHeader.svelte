@@ -51,11 +51,6 @@
       ><Fingerprint size={15} />Persona</button
     >
     <button
-      class:active={workspace === 'scene'}
-      aria-pressed={workspace === 'scene'}
-      onclick={() => onworkspace('scene')}><Box size={15} />Scene</button
-    >
-    <button
       class:active={workspace === 'screen'}
       aria-pressed={workspace === 'screen'}
       onclick={() => onworkspace('screen')}><Monitor size={15} />Screen</button
@@ -77,6 +72,11 @@
       aria-pressed={workspace === 'composition'}
       onclick={() => onworkspace('composition')}
       ><Layers3 size={15} />Composition</button
+    >
+    <button
+      class:active={workspace === 'scene'}
+      aria-pressed={workspace === 'scene'}
+      onclick={() => onworkspace('scene')}><Box size={15} />Scene</button
     >
   </nav>
   <div class="flex items-center justify-end gap-1.5">

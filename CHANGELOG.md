@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.1
+
+- Place Scene last in the Studio workspace tabs.
+
 ## 0.8.3
 
 - Turn idle and review palms inward and give the idle head a smooth figure-eight motion.
