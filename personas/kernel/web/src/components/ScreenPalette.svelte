@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InspectorSection from './InspectorSection.svelte';
   import { Link, Unlink, RotateCcw } from '@lucide/svelte';
   import type { ScreenPalette } from '../screen-project';
   let {
@@ -18,8 +19,8 @@
   ];
 </script>
 
-<details class="inspector-stack" open>
-  <summary>Palette</summary>
+<InspectorSection open>
+  {#snippet heading()}Palette{/snippet}
   <section class="inspector-section">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="mb-0!">Palette</h3>
@@ -87,4 +88,4 @@
         : 'Line and text colors are independent.'}
     </p>
   </section>
-</details>
+</InspectorSection>

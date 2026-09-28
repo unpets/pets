@@ -20,6 +20,7 @@ export class ScreenEditorState {
   constructor(
     private onchange?: (project: ScreenProject, group?: string) => void,
     private oncommit?: () => void,
+    private persist = true,
   ) {}
 
   get canUndo() {
@@ -51,7 +52,7 @@ export class ScreenEditorState {
     this.group = group;
     this.future = [];
     this.project = next;
-    saveScreenProject(next);
+    if (this.persist) saveScreenProject(next);
     this.onchange?.(next, group);
   }
   endGesture() {
@@ -86,7 +87,7 @@ export class ScreenEditorState {
     this.past = this.past.slice(0, -1);
     this.project = previous;
     this.endGesture();
-    saveScreenProject(previous);
+    if (this.persist) saveScreenProject(previous);
     this.onchange?.(previous);
   }
   redo() {
@@ -96,7 +97,7 @@ export class ScreenEditorState {
     this.future = this.future.slice(0, -1);
     this.project = next;
     this.endGesture();
-    saveScreenProject(next);
+    if (this.persist) saveScreenProject(next);
     this.onchange?.(next);
   }
 }

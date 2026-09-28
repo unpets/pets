@@ -12,6 +12,7 @@ import {
   HemisphereLight,
   NoToneMapping,
   OrthographicCamera,
+  Plane,
   Raycaster,
   Scene,
   SRGBColorSpace,
@@ -22,6 +23,7 @@ import {
 import { createCharacter } from '@pets/kernel/character';
 import type { AnimationMode } from '../types';
 import { createGaze, cursorAngles } from '@pets/kernel/gaze';
+import { createRootFraming } from '../root-framing';
 import {
   loadScreenProject,
   type ScreenProject,
@@ -62,6 +64,11 @@ export async function createPetScene(
   camera.position.set(3.2, -9, 3.5);
   camera.lookAt(0.18, 0, 1.5);
   camera.updateMatrixWorld();
+  const rootFraming = createRootFraming(
+    character.model,
+    character.parts.body,
+    camera,
+  );
   const authoredHead = character.joints.head.quaternion.clone();
   const gaze = createGaze(
     character.parts.head,
@@ -71,6 +78,9 @@ export async function createPetScene(
   const cameraYaw = Math.atan2(camera.position.x - 0.18, -camera.position.y);
   const ray = new Raycaster();
   const headScreen = new Vector3();
+  const targetPlane = new Plane();
+  const targetPoint = new Vector3();
+  const targetNormal = new Vector3();
   let cursor = { x: 0, y: 0, valid: false };
   let mode: AnimationMode = project?.selection.composition ?? 'idle';
   let looping = compositionLoops(character.project, mode);
@@ -109,6 +119,21 @@ export async function createPetScene(
         (elapsed * animationSpeed) / playbackDuration(character.project, mode);
       phase = looping ? next % 1 : Math.min(1, next);
     }
+    if (tracking && cursor.valid) {
+      ray.setFromCamera(
+        new Vector2(
+          (cursor.x / viewport.clientWidth) * 2 - 1,
+          1 - (cursor.y / viewport.clientHeight) * 2,
+        ),
+        camera,
+      );
+      camera.getWorldDirection(targetNormal);
+      character.parts.head.getWorldPosition(targetPoint);
+      targetPoint.addScaledVector(targetNormal, -2);
+      targetPlane.setFromNormalAndCoplanarPoint(targetNormal, targetPoint);
+      if (ray.ray.intersectPlane(targetPlane, targetPoint))
+        character.setLookTarget(targetPoint.toArray());
+    } else character.setLookTarget();
     character.joints.head.quaternion.copy(authoredHead);
     character.update(mode, playing ? elapsed : 0, phase, independentSeconds, {
       ...(headingOverride === undefined ? {} : { heading: headingOverride }),
@@ -118,13 +143,15 @@ export async function createPetScene(
       ...(walkSpeed === undefined ? {} : { moveSpeed: walkSpeed }),
     });
     authoredHead.copy(character.joints.head.quaternion);
+    rootFraming.update();
+    camera.updateMatrixWorld();
     character.parts.head.getWorldPosition(headScreen).project(camera);
     const x = ((headScreen.x + 1) * viewport.clientWidth) / 2;
     const y = ((1 - headScreen.y) * viewport.clientHeight) / 2;
     gaze.update(
       cursorAngles(cursor.x - x, cursor.y - y, viewport.clientHeight),
       elapsed,
-      tracking && cursor.valid,
+      tracking && cursor.valid && !character.lookingAt,
       cameraYaw,
     );
     const eyes = gaze.angles;

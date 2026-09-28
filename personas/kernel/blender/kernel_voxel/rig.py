@@ -2,6 +2,7 @@
 
 import math
 from dataclasses import dataclass
+from itertools import pairwise
 
 import numpy as np
 
@@ -131,6 +132,14 @@ def smooth(t):
     return t * t * (3 - 2 * t)
 
 
+def curve(t, keys):
+    """Smooth bounded interpolation between authored contact phases."""
+    for (start, a), (end, b) in pairwise(keys):
+        if t <= end:
+            return a + (b - a) * smooth(np.clip((t - start) / (end - start), 0, 1))
+    return keys[-1][1]
+
+
 def jump_motion(t):
     """Return compression, flight height, and ankle pitch through a grounded jump."""
     crouch, takeoff, touchdown, landing = 0.22, 0.34, 0.70, 0.80
@@ -172,7 +181,9 @@ def look_angle(t):
 def gaze_at(state, t):
     if state == "look":
         angle = look_angle(t)
-        return math.sin(angle), -math.cos(angle)
+        yaw = 0.216 + 0.66 * math.sin(angle)
+        pitch = -0.02 - 0.34 * math.cos(angle)
+        return np.clip(yaw * 12, -8, 8) / 10, np.clip(pitch * 15, -6, 6) / 9
     if state == "review":
         return 0.24 * math.sin(TAU * t), 0.1
     return 0.0, 0.0
@@ -254,42 +265,79 @@ def pose_at(state, t, heading=0):
             ankles[side] += np.array([side * 0.025, 0.05, lift])
             hands[side] = np.array([side * (0.82 + 0.02 * c), 0.015, 1.10 + lift])
             feet_pitch[side] = -0.12
-    elif state in ("climbing", "climb-ladder", "climb-rope", "climb-border"):
-        lean = 0.12
-        root_z = REST_HEIGHT + 0.045 * s
-        head_pitch = -0.18
+    elif state in ("climbing", "climb-ladder", "climb-rope"):
+        lean = 0.10
+        root_z = REST_HEIGHT + 0.025 * s
+        head_pitch = -0.12
         for side in (-1, 1):
-            step = TAU * t + (0 if side == 1 else math.pi)
-            ankles[side] = np.array([side * 0.28, -0.20, 0.26 + 0.08 * math.sin(step)])
-            hands[side] = np.array([side * 0.60, -0.40, 1.72 - 0.14 * math.sin(step)])
-            feet_pitch[side] = 0.24
-            if state == "climb-ladder":
-                contact = (t + (0 if side == 1 else 0.5)) % 1
-                height = (
-                    0.12 - 0.24 * contact / 0.65
-                    if contact < 0.65
-                    else -0.12 + 0.24 * smooth((contact - 0.65) / 0.35)
+            contact = (t + (0 if side == 1 else 0.5)) % 1
+            # Keep each support hand on its rung during the pull, then recover forward.
+            height = (
+                0.10 - 0.20 * smooth(contact / 0.65)
+                if contact < 0.65
+                else -0.10 + 0.20 * smooth((contact - 0.65) / 0.35)
+            )
+            recovery = math.sin(math.pi * max(0, (contact - 0.65) / 0.35)) ** 2
+            hands[side] = np.array(
+                [side * 0.54, -0.70 - 0.025 * recovery, 1.74 + height]
+            )
+            ankles[side] = np.array([side * 0.27, -0.22, 0.32 - height * 0.65])
+            feet_pitch[side] = 0.20
+            if state == "climb-rope":
+                hands[side] = np.array(
+                    [side * 0.38, -0.67 - 0.015 * recovery, 1.61 + height * 0.60]
                 )
-                hands[side] = np.array([side * 0.43, -0.35, 1.82 + height])
-                ankles[side] = np.array([side * 0.25, -0.22, 0.31 - height * 0.65])
-            elif state == "climb-rope":
-                hands[side] = np.array([side * 0.11, -0.22, 1.78 + side * 0.085 * s])
-                ankles[side] = np.array([side * 0.10, -0.08, 0.35 - side * 0.045 * s])
-                feet_pitch[side] = 0.12
-            elif state == "climb-border":
-                lift = 0.24 * smooth(t)
-                root_z = REST_HEIGHT - 0.08 + lift
-                hands[side] = np.array([side * 0.61, -0.43, 1.91])
-                ankles[side] = np.array(
-                    [
-                        side * 0.28,
-                        -0.08 - 0.10 * smooth(t),
-                        0.17
-                        + lift
-                        + (0.05 * math.sin(math.pi * t) if side == 1 else 0),
-                    ]
-                )
-                feet_pitch[side] = 0.14 * math.sin(math.pi * t)
+                ankles[side] = np.array([side * 0.12, -0.15, 0.34 - side * 0.035 * s])
+                feet_pitch[side] = 0.10
+    elif state == "climb-border":
+        # Mantle: load the grip, pull, plant one foot, transfer support, then stand.
+        ledge = 1.72
+        root_z = REST_HEIGHT + curve(
+            t,
+            [
+                (0, 0),
+                (0.16, -0.04),
+                (0.43, 0.48),
+                (0.62, 0.59),
+                (0.80, 1.14),
+                (1, ledge),
+            ],
+        )
+        root_y = curve(
+            t, [(0, 0), (0.35, -0.08), (0.58, -0.38), (0.78, -0.67), (1, -0.73)]
+        )
+        lean = curve(t, [(0, 0.10), (0.4, 0.18), (0.58, 0.28), (0.82, 0.08), (1, 0)])
+        head_pitch = -0.10 * (1 - smooth(t))
+        for side in (-1, 1):
+            foot_start = 0.30 if side == 1 else 0.47
+            foot_end = 0.58 if side == 1 else 0.73
+            plant = smooth(np.clip((t - foot_start) / (foot_end - foot_start), 0, 1))
+            lift = curve(
+                t,
+                [
+                    (0, 0),
+                    (0.20, 0.08),
+                    (foot_start, 0.38),
+                    (foot_end, ledge),
+                    (1, ledge),
+                ],
+            )
+            ankles[side] = np.array(
+                [
+                    side * 0.28,
+                    -0.10 + (-0.73 + 0.10) * plant,
+                    0.17 + lift + 0.08 * math.sin(math.pi * plant),
+                ]
+            )
+            feet_pitch[side] = 0.18 * math.sin(math.pi * plant)
+            release_start = 0.48 if side == 1 else 0.58
+            release = smooth(np.clip((t - release_start) / 0.16, 0, 1))
+            rest_hand = point(
+                transform((0, root_y, root_z), (lean, 0, 0)),
+                (side * 0.68, -0.035, 0.84),
+            )
+            grip = np.array([side * 0.59, -0.74, 1.78])
+            hands[side] = grip * (1 - release) + rest_hand * release
     elif state == "waving":
         hands[1] = np.array([0.94 + 0.09 * s, -0.02, 1.93 + 0.065 * c])
         head_yaw = 0.07
@@ -388,6 +436,8 @@ def pose_at(state, t, heading=0):
                 ),
             )
         pole = (1, 0, -1) if state == "review" and side == 1 else (side * 0.3, 0.8, 0)
+        if state in ("climbing", "climb-ladder", "climb-rope", "climb-border"):
+            pole = (side * 1.0, -0.45, -0.20)
         elbow = two_bone(shoulder, hand, 0.33, 0.34, point(heading, pole))
         matrices[f"thigh.{name}"], matrices[f"shin.{name}"] = limb_matrices(
             hip, knee, ankle
@@ -403,7 +453,9 @@ def pose_at(state, t, heading=0):
         matrices[f"hand.{name}"] = orient_palm(
             matrices[f"hand.{name}"], -side * body[:3, 0]
         )
-        if state in ("climbing", "climb-ladder", "climb-rope", "climb-border"):
+        if state in ("climbing", "climb-ladder", "climb-rope") or (
+            state == "climb-border" and t < (0.64 if side == 1 else 0.74)
+        ):
             matrices[f"hand.{name}"] = orient_palm(
                 matrices[f"hand.{name}"], np.array([0, -1, 0])
             )

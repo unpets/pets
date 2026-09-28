@@ -1,6 +1,6 @@
 {
   "name": "pets",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",
@@ -35,7 +35,9 @@
     "test:studio": "bun tests/studio-project.mjs",
     "test:studio-ui": "bun tests/studio-ui.mjs",
     "test:locomotion": "bun tests/locomotion.mjs",
-    "test:build-core": "bun tests/core-build.mjs"
+    "test:build-core": "bun tests/core-build.mjs",
+    "test:personas": "bun tests/personas.mjs",
+    "test:gaze": "bun tests/gaze.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

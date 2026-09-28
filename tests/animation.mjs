@@ -22,28 +22,23 @@ try {
   await page.goto(pathToFileURL(resolve('dist/index.html')).href);
   await page.waitForFunction(() => window.kernelViewer?.ready);
   await page.evaluate(() => window.kernelViewer.seek(0));
-  await page.getByRole('button', { name: 'Animation', exact: true }).click();
-  assert.equal(await page.getByLabel('Clip duration').inputValue(), '1');
-  await page.evaluate(() => window.kernelViewer.setMode('idle'));
-  await page.waitForFunction(
-    () =>
-      document.querySelector('[aria-label="Clip duration"]').value === '4.8',
-  );
-  await page.evaluate(() => window.kernelViewer.setMode('running'));
-  await page.waitForFunction(
-    () => document.querySelector('[aria-label="Clip duration"]').value === '1',
-  );
-  await page.getByLabel('New animation name').fill('Custom greeting');
+  const workspace = (name) =>
+    page
+      .getByRole('navigation', { name: 'Workspace' })
+      .getByRole('button', { name, exact: true })
+      .click();
+  await workspace('Composition');
+  await page.getByLabel('New composition name').fill('Custom greeting');
   await page
     .getByRole('button', { name: 'Duplicate composition', exact: true })
     .click();
   await page.waitForFunction(
     () => window.kernelViewer.state === 'custom-greeting',
   );
-  await page.getByLabel('Animation component').selectOption('screen/eyes');
-  await page.getByLabel('New animation name').fill('Custom eyes');
+  await workspace('Components');
+  await page.getByLabel('New face asset name').fill('Custom eyes');
   await page
-    .getByRole('button', { name: 'New pixel clip', exact: true })
+    .getByRole('button', { name: 'New pixel component', exact: true })
     .click();
   const canvas = page.getByLabel('Paint clip frame');
   await canvas.waitFor({ state: 'visible' });
@@ -60,6 +55,27 @@ try {
     box.x + (40.5 * box.width) / 96,
     box.y + (25.5 * box.height) / 64,
   );
+  await workspace('Screen');
+  await page
+    .getByRole('button', { name: 'Duplicate screen', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Rename screen', exact: true })
+    .click();
+  await page.getByLabel('Screen name', { exact: true }).fill('Greeting screen');
+  await page.getByRole('button', { name: 'Save name', exact: true }).click();
+  await page
+    .locator('.face-slot')
+    .filter({ has: page.locator('summary', { hasText: 'Eyes' }) })
+    .locator('summary')
+    .click();
+  await page
+    .getByLabel('Eyes asset', { exact: true })
+    .selectOption('custom-eyes');
+  await workspace('Composition');
+  await page
+    .getByLabel('Composition screen', { exact: true })
+    .selectOption({ label: 'Greeting screen' });
   await page.evaluate(() => window.kernelViewer.seek(0.9));
   const pixel = () =>
     page.evaluate(() =>
@@ -78,7 +94,7 @@ try {
         .getImageData(40, 25, 1, 1).data[0] === 255,
   );
   assert.deepEqual(await pixel(), [255, 136, 0, 255]);
-  await page.getByLabel('New animation name').fill('Second greeting');
+  await page.getByLabel('New composition name').fill('Second greeting');
   await page
     .getByRole('button', { name: 'Duplicate composition', exact: true })
     .click();
@@ -90,7 +106,13 @@ try {
     [255, 136, 0, 255],
     'Independent eye clock must survive a composition switch',
   );
-  await page.getByLabel('Component clock').selectOption('composition');
+  await workspace('Screen');
+  await page
+    .locator('.face-slot')
+    .filter({ has: page.locator('summary', { hasText: 'Eyes' }) })
+    .locator('summary')
+    .click();
+  await page.getByLabel('Eyes clock').selectOption('composition');
   await page.waitForFunction(
     () =>
       document
@@ -99,14 +121,11 @@ try {
         .getImageData(40, 25, 1, 1).data[0] === 79,
   );
   assert.deepEqual(await pixel(), [79, 239, 243, 255]);
-  await page.getByLabel('New animation name').fill('Badge');
+  await workspace('Components');
+  await page.getByLabel('New face asset name').fill('Badge');
   await page
-    .getByRole('button', { name: 'Add screen layer', exact: true })
+    .getByRole('button', { name: 'New custom layer', exact: true })
     .click();
-  assert.equal(
-    await page.getByLabel('Animation component').inputValue(),
-    'badge',
-  );
   await page.screenshot({ path: 'build/studio-animation.png' });
   const pending = page.waitForEvent('download');
   await page.getByRole('menuitem', { name: 'Export', exact: true }).click();
@@ -118,10 +137,16 @@ try {
   const project = JSON.parse(await readFile(await download.path(), 'utf8'));
   assert.equal(project.clips['custom-eyes'].data.frames.length, 2);
   assert.equal(project.components.badge.kind, 'screen');
+  const screen = project.compositions['custom-greeting'].screen;
   assert.equal(
-    project.compositions['custom-greeting'].bindings['screen/eyes'].clock,
-    'independent',
+    project.screens[screen].bindings['screen/eyes'].clip,
+    'custom-eyes',
   );
+  assert.equal(
+    project.screens[screen].bindings['screen/eyes'].clock,
+    'composition',
+  );
+  await workspace('Composition');
   await page.getByText('Right arm action', { exact: true }).click();
   await page.getByLabel('Right arm action motion').selectOption('waving');
   await page.getByLabel('Head movement motion').selectOption('look');
@@ -143,6 +168,7 @@ try {
   );
   assert.equal(await page.getByLabel('Component speed').inputValue(), '0.5');
 
+  await workspace('Animation');
   await page.getByLabel('New animation name').fill('Head tilt');
   await page
     .getByRole('button', { name: 'New rotation clip', exact: true })

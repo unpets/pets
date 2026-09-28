@@ -100,3 +100,14 @@ The source retains reusable actions, property placement, screen sequences, and e
 ```sh
 uv run kernel-compose --blend build/kernel.blend --project studio-project.json --output build-composed
 ```
+
+## Target tracking and climbing
+
+Lookat is a reusable head clip with a point or pointer target, response, and influence weight.  
+The runtime evaluates the target after authored motion and constrains the result to the neck limits.  
+Baking uses the saved scene point for deterministic output.  
+Eye layers can follow the evaluated head direction while keeping their own expression clock.  
+
+Climbing uses forward reach targets and outward elbow guides to clear the head and torso.  
+Border climbing transfers support from the hands to the feet and ends in a standing pose.  
+The final border frame is included in Blender playback and exports.  

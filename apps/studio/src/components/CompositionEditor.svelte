@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { Plus, Copy, Unlink, Trash2 } from '@lucide/svelte';
   import { resolveComposition } from '@pets/three-runtime/project';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
@@ -7,7 +8,7 @@
     editor,
     mode,
     studio,
-    label = $bindable('New animation'),
+    label = $bindable('New composition'),
   }: {
     editor: AnimationEditorState;
     mode: string;
@@ -41,8 +42,8 @@
   }
 </script>
 
-<details class="inspector-stack" open>
-  <summary>Composition</summary>
+<InspectorSection open>
+  {#snippet heading()}Composition{/snippet}
   <div class="inspector-section">
     <label class="field-label"
       >Name<input
@@ -253,9 +254,9 @@
       </button>
     {/if}
     <label class="field-label mt-4"
-      >New asset name<input
+      >New composition name<input
         class="field mt-2 w-full"
-        aria-label="New animation name"
+        aria-label="New composition name"
         bind:value={label}
       /></label
     >
@@ -300,4 +301,4 @@
         {error}
       </p>{/if}
   </div>
-</details>
+</InspectorSection>

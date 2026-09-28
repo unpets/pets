@@ -27,14 +27,20 @@ Seeking or switching to a different action resets the travel origin.
 
 ## Persona
 
-The Persona workspace shows identity, asset counts, and links to editing workspaces.  
+The Persona workspace manages a library of independent persona projects.  
+Create a persona from the Kernel template or duplicate an existing persona.  
+Rename, import, export, switch, and delete personas from this page.  
+Each persona keeps its own assets, screens, animation parts, compositions, and editing selection.  
+Changes are saved locally in browser storage.  
+Export a complete project to transfer it between browsers or devices.  
 The viewport stays loaded when changing pages.  
 
 ## Screen editor
 
 The Screen workspace provides a reusable screen library, an enlarged display canvas, and collapsible inspector sections.  
 Create, duplicate, rename, and export screens independently of compositions.  
-Assign a screen in the Animation workspace with **Composition screen**.  
+Rename a screen from the left sidebar to open its name dialog.  
+Assign a screen in the Composition workspace with **Composition screen**.  
 Child compositions inherit the parent screen unless they select another one.  
 
 A screen combines four independent face component types:  
@@ -73,15 +79,32 @@ Save a screen project as JSON to reuse it or import it into the companion.
 
 ## Animation editor
 
-The Animation workspace combines independent clips into compositions.  
+The Animation workspace edits reusable animation parts with an isolated preview.  
+Creating or duplicating a part leaves composition assignments unchanged.  
 
 ### Components and clips
 
 - Reuse joint motion, display, prop, and FX clips.
-- Create pixel clips, screen layers, and joint rotation clips.
+- Create joint rotation and target tracking clips.
+- Edit pixel clips and custom screen layers in Components.
 - Attach particle effects to rig nodes and edit their appearance and motion.
 
 Undo and redo are available for animation edits.  
+
+### Lookat
+
+Select the head target to create or edit a Lookat clip.  
+Follow the pointer or a point in scene coordinates.  
+Response controls smoothing, and weight controls influence.  
+Neck limits keep the target within the rig's supported rotation.  
+A pointer target uses its saved point when baking or when the pointer is absent.  
+Eye layers can follow the evaluated head direction independently of their expression animation.  
+
+## Composition editor
+
+The Composition workspace assembles reusable animation parts and assigns screens.  
+It controls parent inheritance, bindings, timing, movement properties, and export mappings.  
+The inspector keeps section headers visible while each expanded section scrolls independently.  
 
 ### Composition parenting
 

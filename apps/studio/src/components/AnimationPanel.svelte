@@ -37,12 +37,12 @@
   const modes = $derived(compositionTree(project));
 </script>
 
-<aside class="animation-browser" aria-label="Animation browser">
+<aside class="animation-browser" aria-label="Compositions library">
   <div class="flex items-center justify-between px-4 pt-5 pb-3">
     <h2 class="eyebrow">COMPOSITIONS</h2>
     <span class="text-[10px] text-muted">{modes.length}</span>
   </div>
-  <div class="clip-list" role="group" aria-label="Animation mode">
+  <div class="clip-list" role="group" aria-label="Composition">
     {#each modes as { id, depth }, index}
       {@const mode = project.compositions[id]}
       {@const Icon = icons[id] ?? Activity}

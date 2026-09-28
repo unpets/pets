@@ -56,7 +56,10 @@ def save_source(model, out):
         scene.timeline_markers.new(state, frame=frame)
         count = round(frame_count * DURATIONS[state] / 1000 * scene.render.fps)
         for i in range(count):
-            p = pose_at(state, i / (count - 1 if state == "jumping" else count))
+            p = pose_at(
+                state,
+                i / (count - 1 if state in ("jumping", "climb-border") else count),
+            )
             scene.frame_set(frame)
             apply_pose(model, p)
             key_pose(armature, frame)

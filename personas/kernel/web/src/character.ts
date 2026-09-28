@@ -1,3 +1,4 @@
+import { createLookAt, headGaze, type LookAtSettings } from './look-at';
 import { createEffects } from '@pets/three-runtime/effects';
 import {
   createLocomotion,
@@ -66,6 +67,14 @@ export async function createCharacter(
   let layerSignature = '';
   let locomoting = false;
   const locomotion = createLocomotion();
+  const lookAt = createLookAt(parts.head, parts.body, joints.head);
+  let pointerTarget: Vector3 | undefined;
+  let lookSettings: LookAtSettings | undefined;
+  const aimTarget = new Vector3();
+  function updateEyeDirection() {
+    const direction = headGaze(parts.head, parts.body);
+    screen.setHeadGaze(direction.x, direction.y);
+  }
   let velocity = { x: 0, y: 0, z: 0 };
   const heading = createHeading(model.rotation.z);
   let samples: ReturnType<typeof sampleComposition> = {};
@@ -86,7 +95,7 @@ export async function createCharacter(
         const nodes = (component.data.nodes as string[]).map(
           (node) => joints[node].name,
         );
-        let source = clip.data.source as string;
+        let source = clip.data.lookAt ? 'idle' : (clip.data.source as string);
         if (clip.data.keyframes) {
           source = `${b.clip}:${JSON.stringify(clip.data.keyframes)}`;
           const frames = clip.data.keyframes as {
@@ -182,7 +191,17 @@ export async function createCharacter(
       activeSettings = undefined;
       screen.invalidate();
     },
+    setLookTarget(value?: [number, number, number]) {
+      pointerTarget = value ? new Vector3(...value) : undefined;
+    },
+    get lookTarget() {
+      return lookSettings ? aimTarget : undefined;
+    },
+    get lookingAt() {
+      return !!lookSettings;
+    },
     updateScreen() {
+      updateEyeDirection();
       screen.update(project, samples, screenSeconds);
     },
     update(
@@ -236,6 +255,23 @@ export async function createCharacter(
         ),
         ((locomotion.angle - heading.angle) * 180) / Math.PI,
       );
+      lookSettings = Object.entries(samples)
+        .map(([id, sample]) =>
+          project.components[id].kind === 'rig'
+            ? (project.clips[sample.clip].data.lookAt as
+                LookAtSettings | undefined)
+            : undefined,
+        )
+        .find(Boolean);
+      if (lookSettings) {
+        aimTarget.copy(
+          lookSettings.target === 'pointer' && pointerTarget
+            ? pointerTarget
+            : new Vector3(...lookSettings.position),
+        );
+        lookAt.update(aimTarget, elapsed, lookSettings, immediate);
+      } else lookAt.reset();
+      updateEyeDirection();
       for (const component of Object.values(data.project.components)) {
         if (component.kind === 'visibility' && component.data.node !== 'cable')
           parts[component.data.node as string].visible = false;

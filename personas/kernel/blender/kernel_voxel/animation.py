@@ -119,6 +119,20 @@ def animation_project():
                     ),
                 },
             }
+    clips["rig/head/lookat"] = {
+        "label": "Lookat",
+        "component": "rig/head",
+        "duration": 2,
+        "looping": True,
+        "data": {
+            "lookAt": {
+                "target": "pointer",
+                "position": [0, -3, 2.2],
+                "response": 8,
+                "weight": 1,
+            }
+        },
+    }
     for layer, sources in SCREEN_CLIPS.items():
         component = f"screen/{layer}"
         components[component] = {
@@ -305,6 +319,15 @@ def resolve_composition(project, identifier):
     result["properties"] = {}
     duration = None
     for composition in reversed(chain):
+        if "screen" in composition:
+            screen = composition["screen"]
+            result["bindings"] = {
+                component: binding
+                for component, binding in result["bindings"].items()
+                if project["components"][component]["kind"] != "screen"
+            }
+            result["bindings"].update(project["screens"][screen]["bindings"])
+            result["screen"] = screen
         result["bindings"].update(composition["bindings"])
         result["properties"].update(composition.get("properties", {}))
         duration = composition.get("duration", duration)

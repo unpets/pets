@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { Plus, Trash2 } from '@lucide/svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
   let { editor }: { editor: AnimationEditorState } = $props();
@@ -45,10 +46,10 @@
 </script>
 
 {#if clip.data.keyframes}
-  <details class="inspector-stack" open>
-    <summary>
+  <InspectorSection open>
+    {#snippet heading()}
       {kind === 'emission' ? 'Emission keyframes' : 'Joint rotation keyframes'}
-    </summary>
+    {/snippet}
     <div class="inspector-section">
       <p class="mb-3 text-xs text-muted">
         {kind === 'emission'
@@ -92,10 +93,10 @@
           {error}
         </p>{/if}
     </div>
-  </details>
+  </InspectorSection>
 {:else if kind === 'visibility'}
-  <details class="inspector-stack" open>
-    <summary>Visibility</summary>
+  <InspectorSection open>
+    {#snippet heading()}Visibility{/snippet}
     <div class="inspector-section">
       <label class="toggle-row"
         ><span>Show prop</span><input
@@ -107,5 +108,5 @@
         /></label
       >
     </div>
-  </details>
+  </InspectorSection>
 {/if}

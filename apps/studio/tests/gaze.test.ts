@@ -1,3 +1,9 @@
+import {
+  createLookAt,
+  defaultLookAt,
+  headGaze,
+  parseLookAt,
+} from '@pets/kernel/look-at';
 import { describe, expect, test } from 'bun:test';
 import { Object3D, Vector3 } from 'three';
 import {
@@ -92,5 +98,35 @@ test('screen palette links colors, allows independent colors, and migrates earli
   });
   expect(() =>
     parseScreenProject({ ...project, palette: { ...linked, text: '#000000' } }),
+  ).toThrow();
+});
+
+test('Lookat tracks a world target consistently across frame rates without moving the joint', () => {
+  function sample(fps: number) {
+    const body = new Object3D(),
+      joint = new Object3D(),
+      head = new Object3D();
+    body.position.set(2, 1, 0);
+    body.rotation.z = 0.3;
+    joint.position.z = 2;
+    body.add(joint);
+    joint.add(head);
+    body.updateMatrixWorld(true);
+    const aim = createLookAt(head, body, joint);
+    const settings = defaultLookAt();
+    for (let i = 0; i < fps; i++) {
+      joint.quaternion.identity();
+      body.updateMatrixWorld(true);
+      aim.update(new Vector3(5, -4, 3), 1 / fps, settings);
+    }
+    expect(joint.position.toArray()).toEqual([0, 0, 2]);
+    return headGaze(head, body);
+  }
+  expect(sample(30).x).toBeCloseTo(sample(120).x, 6);
+  expect(sample(30).y).toBeCloseTo(sample(120).y, 6);
+  expect(sample(30).x).toBeGreaterThan(0);
+  expect(sample(30).y).toBeLessThan(0);
+  expect(() =>
+    parseLookAt({ ...defaultLookAt(), position: [NaN, 0, 0] }),
   ).toThrow();
 });

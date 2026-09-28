@@ -39,6 +39,11 @@ def verify(build):
     for clip in PROJECT["clips"].values():
         if PROJECT["components"][clip["component"]]["kind"] != "rig":
             continue
+        if "lookAt" in clip["data"]:
+            # Target-driven parts are evaluated when a composition is baked.
+            if PROJECT["components"][clip["component"]]["data"]["nodes"] != ["head"]:
+                raise ValueError("Lookat requires the head component")
+            continue
         name = f"{clip['component']}/{clip['data']['source']}"
         action = bpy.data.actions.get(name)
         if (
@@ -80,7 +85,12 @@ def verify(build):
                 )
         pose = pose_at(sample["state"], sample["t"])
         for name, matrix in pose.matrices.items():
-            if not np.allclose(np.asarray(parts[name].matrix_world), matrix, atol=1e-5):
+            actual = np.asarray(parts[name].matrix_world)
+            # Float32 bone chains accumulate angular error independently of translation.
+            if not (
+                np.allclose(actual[:3, 3], matrix[:3, 3], atol=1e-5, rtol=0)
+                and np.allclose(actual[:3, :3], matrix[:3, :3], atol=2e-5, rtol=0)
+            ):
                 raise ValueError(
                     f"Baked rig differs at frame {sample['frame']}: {name}"
                 )

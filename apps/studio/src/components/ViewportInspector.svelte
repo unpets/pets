@@ -1,23 +1,20 @@
 <script lang="ts">
+  import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { SlidersHorizontal, RotateCcw } from '@lucide/svelte';
   import {
     defaultViewSettings,
-    animationModes,
     type ViewSettings,
     type CameraView,
     type StudioController,
-    type AnimationMode,
   } from '../lib/types';
   let {
     settings,
     onchange,
     studio,
-    mode,
   }: {
     settings: ViewSettings;
     onchange: (settings: ViewSettings) => void;
     studio?: StudioController;
-    mode: AnimationMode;
   } = $props();
   const views: { id: CameraView; label: string }[] = [
     { id: 'home', label: 'Perspective' },
@@ -43,8 +40,8 @@
     }}><RotateCcw size={14} /></button
   >
 </div>
-<details class="inspector-stack" open>
-  <summary>Camera</summary>
+<InspectorSection open>
+  {#snippet heading()}Camera{/snippet}
   <div class="inspector-section">
     <div class="grid grid-cols-3 gap-1.5" aria-label="Camera controls">
       {#each views as view}<button
@@ -72,9 +69,9 @@
       /></label
     >
   </div>
-</details>
-<details class="inspector-stack" open>
-  <summary>Display</summary>
+</InspectorSection>
+<InspectorSection open>
+  {#snippet heading()}Display{/snippet}
   <div class="inspector-section">
     {#each [{ key: 'grid', label: 'Ground grid' }, { key: 'wireframe', label: 'Wireframe' }, { key: 'joints', label: 'Joint markers' }] as const as option}<label
         class="toggle-row"
@@ -87,9 +84,9 @@
         /></label
       >{/each}
   </div>
-</details>
-<details class="inspector-stack" open>
-  <summary>Movement</summary>
+</InspectorSection>
+<InspectorSection open>
+  {#snippet heading()}Movement{/snippet}
   <div class="inspector-section">
     <label class="toggle-row"
       ><span>Preview travel</span><input
@@ -100,13 +97,12 @@
       /></label
     >
     <p class="mt-2 text-xs text-muted">
-      Follow the character as it moves across the ground. Disable to inspect
-      motion in place.
+      Follow character travel, including motion within a clip.
     </p>
   </div>
-</details>
-<details class="inspector-stack" open>
-  <summary>Lighting</summary>
+</InspectorSection>
+<InspectorSection open>
+  {#snippet heading()}Lighting{/snippet}
   <div class="inspector-section">
     <label class="range-label"
       ><span
@@ -123,21 +119,4 @@
       /></label
     >
   </div>
-</details>
-<details class="inspector-stack" open>
-  <summary>Selected clip</summary>
-  <div class="inspector-section">
-    <p class="mb-2 text-xs font-medium">
-      {animationModes[mode]?.label ?? mode}
-    </p>
-    <p class="text-xs leading-6 text-muted">
-      {animationModes[mode]?.description ?? 'Custom composition'}
-    </p>
-    <p
-      class="mt-5 rounded-md border border-line bg-surface p-3 text-[11px] leading-5 text-muted"
-    >
-      Switch to <strong class="font-medium text-ink">Screen</strong> to edit the display's
-      layers, expressions, and colors.
-    </p>
-  </div>
-</details>
+</InspectorSection>

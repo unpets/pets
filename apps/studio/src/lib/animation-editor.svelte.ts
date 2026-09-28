@@ -1,3 +1,4 @@
+import { defaultLookAt } from '@pets/kernel/look-at';
 import { defaultEffect } from '@pets/three-runtime/effects';
 import { compositionInstance } from '@pets/three-runtime/project';
 import {
@@ -21,6 +22,7 @@ import {
 } from '@pets/kernel/screen-project';
 
 export class AnimationEditorState {
+  constructor(private persist = true) {}
   project = $state.raw<AnimationProject>(defaultAnimationProject());
   component = $state('screen/eyes');
   clip = $state('screen/eyes/blink');
@@ -156,7 +158,7 @@ export class AnimationEditorState {
     this.future = [];
     this.project = next;
     this.reconcileSelection();
-    saveAnimationProject(next);
+    if (this.persist) saveAnimationProject(next);
   }
   endGesture() {
     this.group = undefined;
@@ -169,7 +171,7 @@ export class AnimationEditorState {
     this.project = next;
     this.reconcileSelection();
     this.endGesture();
-    saveAnimationProject(next);
+    if (this.persist) saveAnimationProject(next);
   }
   redo() {
     const next = this.future.at(-1);
@@ -179,7 +181,7 @@ export class AnimationEditorState {
     this.project = next;
     this.reconcileSelection();
     this.endGesture();
-    saveAnimationProject(next);
+    if (this.persist) saveAnimationProject(next);
   }
   bind(composition: string, update: Partial<Binding>) {
     const project = parseKernelProject(this.project);
@@ -271,17 +273,19 @@ export class AnimationEditorState {
     delete project.compositions[id];
     this.replace(project);
   }
-  duplicateClip(label: string, composition: string) {
+  duplicateClip(label: string, composition?: string) {
     const project = parseKernelProject(this.project);
     const id = uniqueId(label, project.clips);
     project.clips[id] = { ...project.clips[this.clip], label };
-    const old =
-      resolveComposition(project, composition).bindings[this.component] ??
-      binding(id);
-    project.compositions[composition].bindings[this.component] = {
-      ...old,
-      clip: id,
-    };
+    if (composition) {
+      const old =
+        resolveComposition(project, composition).bindings[this.component] ??
+        binding(id);
+      project.compositions[composition].bindings[this.component] = {
+        ...old,
+        clip: id,
+      };
+    }
     this.replace(project);
     this.clip = id;
   }
@@ -325,7 +329,22 @@ export class AnimationEditorState {
     project.clips[this.clip] = { ...project.clips[this.clip], ...update };
     this.replace(project, group);
   }
-  createClip(label: string, composition: string) {
+  createLookAtClip(label: string) {
+    const project = parseKernelProject(this.project);
+    if (project.components[this.component].data.nodes?.toString() !== 'head')
+      throw new Error('Select the head target first.');
+    const id = uniqueId(label, project.clips);
+    project.clips[id] = {
+      label,
+      component: this.component,
+      duration: 2,
+      looping: true,
+      data: { lookAt: defaultLookAt() },
+    };
+    this.replace(project);
+    this.clip = id;
+  }
+  createClip(label: string, composition?: string) {
     const project = parseKernelProject(this.project);
     const id = uniqueId(label, project.clips);
     const kind = project.components[this.component].kind;
@@ -357,11 +376,12 @@ export class AnimationEditorState {
       looping: true,
       data,
     };
-    project.compositions[composition].bindings[this.component] = binding(id);
+    if (composition)
+      project.compositions[composition].bindings[this.component] = binding(id);
     this.replace(project);
     this.clip = id;
   }
-  addEffect(label: string, composition: string) {
+  addEffect(label: string, composition?: string) {
     const project = parseKernelProject(this.project);
     const id = uniqueId(label, project.components);
     const node = Object.values(project.components).find(
@@ -380,12 +400,13 @@ export class AnimationEditorState {
       looping: true,
       data: { ...defaultEffect() },
     };
-    project.compositions[composition].bindings[id] = binding(clip);
+    if (composition)
+      project.compositions[composition].bindings[id] = binding(clip);
     this.replace(project);
     this.component = id;
     this.clip = clip;
   }
-  addScreen(label: string, composition: string) {
+  addScreen(label: string, composition?: string) {
     const project = parseKernelProject(this.project);
     const id = uniqueId(label, project.components);
     project.components[id] = {
@@ -401,7 +422,8 @@ export class AnimationEditorState {
       looping: true,
       data: { frames: [[]] },
     };
-    project.compositions[composition].bindings[id] = binding(clip);
+    if (composition)
+      project.compositions[composition].bindings[id] = binding(clip);
     this.replace(project);
     this.component = id;
     this.clip = clip;

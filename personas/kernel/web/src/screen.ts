@@ -89,6 +89,7 @@ export function createScreen(
   let project = defaultScreenProject();
   let previousCell = '';
   let gaze = { x: 0, y: 0 };
+  let headOffset = { x: 0, y: 0 };
   return {
     texture,
     invalidate() {
@@ -97,6 +98,14 @@ export function createScreen(
     setProject(value: ScreenProject) {
       project = parseScreenProject(value);
       previousCell = '';
+    },
+    setHeadGaze(x: number, y: number) {
+      x = Math.round(x);
+      y = Math.round(y);
+      if (headOffset.x !== x || headOffset.y !== y) {
+        headOffset = { x, y };
+        previousCell = '';
+      }
     },
     setGaze(x: number, y: number) {
       x = Math.round(Math.max(-8, Math.min(8, x)));
@@ -166,6 +175,7 @@ export function createScreen(
         const name = specification.data.layer as keyof ScreenProject['layers'];
         const layer = project.layers[name] ?? {
           visible: true,
+          followHead: false,
           opacity: 1,
           x: 0,
           y: 0,
@@ -189,7 +199,12 @@ export function createScreen(
         if (!layer.visible || layer.opacity === 0) continue;
         layerContext.globalCompositeOperation = 'source-over';
         layerContext.clearRect(0, 0, 96, 64);
-        const sourceRow = Number(clip.data.row ?? 0);
+        // Lookaround uses centered eyes; direction comes from the evaluated head pose.
+        const sourceRow = Number(
+          clip.data.generator === 'look' && name.startsWith('eye')
+            ? (animation.clips['screen/eyes/blink']?.data.row ?? 0)
+            : (clip.data.row ?? 0),
+        );
         if (frames) {
           for (const [x, y, color] of frames[frame]) {
             layerContext.fillStyle = color;
@@ -227,8 +242,13 @@ export function createScreen(
         context.save();
         context.globalAlpha = layer.opacity;
         context.translate(
-          destinationX + width / 2 + layer.x + (isEye ? gaze.x : 0),
-          32 + layer.y + (isEye ? gaze.y : 0),
+          destinationX +
+            width / 2 +
+            layer.x +
+            (isEye ? (layer.followHead ? headOffset.x : gaze.x) : 0),
+          32 +
+            layer.y +
+            (isEye ? (layer.followHead ? headOffset.y : gaze.y) : 0),
         );
         context.rotate((layer.rotation * Math.PI) / 180);
         context.scale(

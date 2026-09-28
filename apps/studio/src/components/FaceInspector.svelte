@@ -1,7 +1,12 @@
 <script lang="ts">
+  import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { Smile, Plus, Copy, Trash2 } from '@lucide/svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
-  let { editor }: { editor: AnimationEditorState } = $props();
+  let {
+    editor,
+    oncustom,
+  }: { editor: AnimationEditorState; oncustom: () => void } = $props();
+  const component = $derived(editor.project.components[editor.component]);
   const clip = $derived(editor.project.clips[editor.clip]);
   let label = $state('New face component');
   let error = $state('');
@@ -16,8 +21,8 @@
 </script>
 
 <div class="inspector-heading"><h2><Smile size={15} />Face component</h2></div>
-{#if clip}<details class="inspector-stack" open>
-    <summary>Asset</summary>
+{#if clip}<InspectorSection open>
+    {#snippet heading()}Asset{/snippet}
     <div class="inspector-section">
       <label class="field-label"
         >Name<input
@@ -63,9 +68,9 @@
         ><Trash2 size={13} />Delete unassigned asset</button
       >
     </div>
-  </details>{/if}
-<details class="inspector-stack" open>
-  <summary>Library</summary>
+  </InspectorSection>{/if}
+<InspectorSection open>
+  {#snippet heading()}Library{/snippet}
   <div class="inspector-section">
     <label class="field-label"
       >New asset name<input
@@ -86,8 +91,62 @@
       onclick={() => editor.createFaceClip(label.trim(), editor.clip)}
       ><Copy size={13} />Duplicate face component</button
     >
+    <button
+      class="button mt-2 w-full"
+      disabled={!label.trim()}
+      onclick={() => {
+        editor.addScreen(label.trim());
+        oncustom();
+      }}>New custom layer</button
+    >
     {#if error}<p role="alert" class="mt-3 text-xs text-red-200">
         {error}
       </p>{/if}
   </div>
-</details>
+</InspectorSection>
+
+{#if component.kind === 'screen' && !['eyes', 'mouth', 'background', 'activity'].includes(component.data.layer as string)}
+  <InspectorSection open>
+    {#snippet heading()}Layer placement{/snippet}
+    <div class="inspector-section">
+      {#each ['x', 'y', 'opacity'] as field}
+        <label class="field-label mt-3 block"
+          >{field === 'opacity' ? 'Opacity' : field.toUpperCase()}
+          <input
+            class="field mt-2 w-full"
+            type="number"
+            min={field === 'opacity' ? 0 : -96}
+            max={field === 'opacity' ? 1 : 96}
+            step={field === 'opacity' ? 0.05 : 1}
+            value={(
+              component.data.style as Record<string, number> | undefined
+            )?.[field] ?? (field === 'opacity' ? 1 : 0)}
+            onchange={(event) => {
+              const value = event.currentTarget.valueAsNumber;
+              if (!Number.isFinite(value)) return;
+              editor.replace({
+                ...editor.project,
+                components: {
+                  ...editor.project.components,
+                  [editor.component]: {
+                    ...component,
+                    data: {
+                      ...component.data,
+                      style: {
+                        ...(component.data.style as object),
+                        [field]: Math.max(
+                          field === 'opacity' ? 0 : -96,
+                          Math.min(field === 'opacity' ? 1 : 96, value),
+                        ),
+                      },
+                    },
+                  },
+                },
+              });
+            }}
+          />
+        </label>
+      {/each}
+    </div>
+  </InspectorSection>
+{/if}

@@ -1,6 +1,6 @@
 {
   "name": "@pets/kernel",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,6 +11,7 @@
     "./screen": "./src/screen.ts",
     "./screen-project": "./src/screen-project.ts",
     "./screen-editor": "./src/screen-editor.svelte.ts",
+    "./look-at": "./src/look-at.ts",
     "./gaze": "./src/gaze.ts",
     "./types": "./src/types.ts",
     "./animation-project": "./src/animation-project.ts"

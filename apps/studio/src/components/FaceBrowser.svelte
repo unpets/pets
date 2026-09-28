@@ -10,7 +10,11 @@
       const component = editor.project.components[clip.component];
       return (
         component.kind === 'screen' &&
-        (component.data.family ?? component.data.layer) === kind
+        (kind === 'custom'
+          ? !['eyes', 'mouth', 'background', 'activity'].includes(
+              String(component.data.family ?? component.data.layer),
+            )
+          : (component.data.family ?? component.data.layer) === kind)
       );
     }),
   );
@@ -27,7 +31,7 @@
 <aside class="animation-browser" aria-label="Face components library">
   <div class="browser-heading"><h2 class="eyebrow">FACE COMPONENTS</h2></div>
   <nav class="face-categories" aria-label="Face component type">
-    {#each ['eyes', 'mouth', 'background', 'activity'] as type}<button
+    {#each ['eyes', 'mouth', 'background', 'activity', 'custom'] as type}<button
         class:active={kind === type}
         aria-pressed={kind === type}
         onclick={() => (kind = type)}

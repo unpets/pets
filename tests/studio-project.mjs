@@ -47,8 +47,8 @@ try {
     window.kernelViewer.setMode('idle');
     window.kernelViewer.seek(0.25);
   });
-  await page.getByRole('button', { name: 'Animation', exact: true }).click();
-  await page.getByLabel('New animation name').fill('Inherited greeting');
+  await page.getByRole('button', { name: 'Composition', exact: true }).click();
+  await page.getByLabel('New composition name').fill('Inherited greeting');
   await page.getByRole('button', { name: 'Create child', exact: true }).click();
   await page.waitForFunction(
     () => window.kernelViewer.state === 'inherited-greeting',

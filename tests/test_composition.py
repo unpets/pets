@@ -12,12 +12,44 @@ from kernel_voxel.animation import (
 from kernel_voxel.emission import sample_curve, values_at
 from kernel_voxel.hands import HAND_BONES, KEYBOARD_DEPTH
 from kernel_voxel.keyboard import KEYBOARDS, TYPING_DIGITS, key_intensity
-from kernel_voxel.rig import pose_at
-from kernel_voxel.screen import draw_clip
+from kernel_voxel.rig import gaze_at, pose_at
+from kernel_voxel.screen import draw_clip, screen_components
 from kernel_voxel.transforms import point
 
 
 class CompositionTests(unittest.TestCase):
+    def test_screen_assignment_inherits_and_replaces_parent_face_bindings(self):
+        project = animation_project()
+        project["screens"] = {
+            "simple": {
+                "label": "Simple face",
+                "data": {},
+                "bindings": {
+                    "screen/eyes": PROJECT["compositions"]["idle"]["bindings"][
+                        "screen/eyes"
+                    ]
+                },
+            }
+        }
+        project["compositions"]["face"] = {
+            "label": "Face",
+            "parent": "idle",
+            "screen": "simple",
+            "bindings": {},
+        }
+        project["compositions"]["child"] = {
+            "label": "Child",
+            "parent": "face",
+            "bindings": {},
+        }
+        resolved = resolve_composition(project, "child")
+        self.assertEqual(resolved["screen"], "simple")
+        self.assertEqual(
+            resolved["bindings"]["screen/eyes"]["clip"], "screen/eyes/blink"
+        )
+        self.assertNotIn("screen/mouth", resolved["bindings"])
+        self.assertIn("rig/body", resolved["bindings"])
+
     def test_review_and_waiting_reuse_idle_posture_without_changing_motion(self):
         for state in ("review", "waiting"):
             child = PROJECT["compositions"][state]
@@ -113,6 +145,7 @@ class CompositionTests(unittest.TestCase):
         for generator in ("smile", "open", "frown", "line"):
             left, _, right, _ = draw_clip("mouth", generator, 0)["mouth"].getbbox()
             self.assertLessEqual(abs((left + right - 1) / 2 - 47.5), 0.5)
-        for t, dx in ((0.25, 10), (0.75, -10)):
-            left, _, right, _ = draw_clip("eyes", "look", t)["eyes"].getbbox()
+        for t in (0, 0.25, 0.5, 0.75):
+            left, _, right, _ = screen_components("look", t)["eyes"].getbbox()
+            dx = round(gaze_at("look", t)[0] * 10)
             self.assertAlmostEqual((left + right - 1) / 2, 47.5 + dx)

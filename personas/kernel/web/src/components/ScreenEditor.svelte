@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InspectorSection from './InspectorSection.svelte';
   import {
     Eye,
     EyeOff,
@@ -34,9 +35,18 @@
   }
 </script>
 
-<details class="inspector-stack" open>
-  <summary>Layers</summary>
+<InspectorSection open>
+  {#snippet heading()}Layers{/snippet}
   <section class="inspector-section" aria-label="Screen layers">
+    {#if editor.selected.startsWith('eye')}<label class="toggle-row mb-3"
+        ><span>Follow head direction</span><input
+          type="checkbox"
+          aria-label="Eyes follow head"
+          checked={layer.followHead}
+          onchange={(event) =>
+            editor.changeLayer({ followHead: event.currentTarget.checked })}
+        /></label
+      >{/if}
     <p class="mb-3 text-[9px] text-muted">TOP TO BOTTOM</p>
     <div class="layer-list">
       {#each [...layers].reverse() as name}
@@ -81,9 +91,9 @@
       {/each}
     </div>
   </section>
-</details>
-<details class="inspector-stack" open>
-  <summary>Layer properties</summary>
+</InspectorSection>
+<InspectorSection open>
+  {#snippet heading()}Layer properties{/snippet}
   <section class="inspector-section" aria-label="Layer properties">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="mb-0! capitalize">
@@ -241,7 +251,7 @@
         /></label
       >{/each}
   </section>
-</details>
+</InspectorSection>
 <ScreenPalette
   palette={editor.project.palette}
   onchange={(update, group) => editor.changePalette(update, group)}

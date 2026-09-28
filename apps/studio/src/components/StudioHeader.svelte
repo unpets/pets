@@ -72,6 +72,12 @@
       onclick={() => onworkspace('animation')}
       ><Layers3 size={15} />Animation</button
     >
+    <button
+      class:active={workspace === 'composition'}
+      aria-pressed={workspace === 'composition'}
+      onclick={() => onworkspace('composition')}
+      ><Layers3 size={15} />Composition</button
+    >
   </nav>
   <div class="flex items-center justify-end gap-1.5">
     <button

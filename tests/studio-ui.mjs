@@ -56,15 +56,15 @@ try {
     await page.evaluate(() => document.activeElement.textContent),
     'Export',
   );
-  const camera = page
-    .locator('.inspector-stack')
-    .filter({ has: page.locator(':scope > summary', { hasText: 'Camera' }) });
-  await camera.locator('summary').click();
+  const camera = page.locator('.inspector-stack').filter({
+    has: page.locator(':scope > .inspector-toggle', { hasText: 'Camera' }),
+  });
+  await camera.locator('.inspector-toggle').click();
   assert.equal(
     await page.getByLabel('Field of view', { exact: true }).isVisible(),
     false,
   );
-  await camera.locator('summary').click();
+  await camera.locator('.inspector-toggle').click();
   await workspace('Persona');
   assert.equal(
     await page.getByRole('region', { name: 'Persona', exact: true }).count(),
@@ -74,7 +74,7 @@ try {
   await workspace('Screen');
   assert.equal(
     await page
-      .getByRole('complementary', { name: 'Animation browser' })
+      .getByRole('complementary', { name: 'Compositions library' })
       .count(),
     0,
   );
@@ -90,9 +90,12 @@ try {
     .getByRole('button', { name: 'Duplicate screen', exact: true })
     .click();
   await page
+    .getByRole('button', { name: 'Rename screen', exact: true })
+    .click();
+  await page
     .getByLabel('Screen name', { exact: true })
     .fill('Independent face');
-  await page.getByLabel('Screen name', { exact: true }).press('Tab');
+  await page.getByRole('button', { name: 'Save name', exact: true }).click();
   await page.getByLabel('Eye layout').selectOption('mirrored');
   assert.equal(await page.getByLabel('Right eye asset').isDisabled(), true);
   await workspace('Components');
@@ -153,7 +156,7 @@ try {
     0.25,
   );
   assert.ok(reusable.clips['shared-eye']);
-  await workspace('Animation');
+  await workspace('Composition');
   await page.locator('[data-state="idle"]').click();
   await page
     .getByLabel('Composition screen', { exact: true })

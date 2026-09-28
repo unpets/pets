@@ -82,6 +82,8 @@ def apply_armature_pose(model, pose):
         bone.matrix_basis = bone.bone.convert_local_to_pose(
             targets[name], bone.bone.matrix_local, invert=True, **parent_args
         )
+        bone.scale = (1, 1, 1)
+        bone.rotation_quaternion.normalize()
     bpy.context.view_layer.update()
 
 
@@ -119,7 +121,12 @@ def bake_actions(model):
                 continue
             samples = round(frame_count * DURATIONS[composition] / 1000 * fps)
             phases.update(
-                index / (samples - 1 if composition == "jumping" else samples)
+                index
+                / (
+                    samples - 1
+                    if composition in ("jumping", "climb-border")
+                    else samples
+                )
                 for index in range(samples)
             )
         curves = {}
@@ -234,9 +241,21 @@ def compose_timeline(model, timeline):
             strip.action_slot = action.slots[0]
             strip.blend_type = "REPLACE"
             strip.extrapolation = "NOTHING"
-            end = frames[-1] + (0 if state == "jumping" else 1)
+            end = frames[-1] + (0 if state in ("jumping", "climb-border") else 1)
             strip.scale = (end - frames[0]) / (
                 strip.action_frame_end - strip.action_frame_start
             )
             # Distinct cut boundaries avoid evaluating two strips on the same frame.
-            strip.frame_end = end + (0.0001 if state == "jumping" else -0.0001)
+            strip.frame_end = end + (
+                0.0001 if state in ("jumping", "climb-border") else -0.0001
+            )
+            if state in ("jumping", "climb-border"):
+                # Keep the final pose inside the strip without stretching its clock.
+                strip.use_animated_time = True
+                strip.strip_time = strip.action_frame_start
+                strip.keyframe_insert("strip_time", frame=frames[0])
+                strip.strip_time = strip.action_frame_end
+                strip.keyframe_insert("strip_time", frame=end)
+                for curve in strip.fcurves:
+                    for key in curve.keyframe_points:
+                        key.interpolation = "LINEAR"

@@ -59,6 +59,10 @@ try {
   await studio.goto(pathToFileURL(resolve('dist/index.html')).href);
   await studio.waitForFunction(() => window.kernelViewer?.ready);
   await studio.getByRole('button', { name: 'Screen', exact: true }).click();
+  await studio
+    .getByRole('complementary', { name: 'Screens library' })
+    .getByRole('button', { name: 'Active work', exact: true })
+    .click();
   await studio.evaluate(() => {
     window.kernelViewer.setMode('idle');
     window.kernelViewer.seek(0.2);

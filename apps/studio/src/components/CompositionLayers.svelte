@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import {
     bindMotionLayer,
     layerSources,
@@ -44,8 +45,8 @@
   }
 </script>
 
-<details class="inspector-stack" open>
-  <summary>Motion layers</summary>
+<InspectorSection open>
+  {#snippet heading()}Motion layers{/snippet}
   <div class="inspector-section">
     {#each layers as layer}
       <details class="mt-4" bind:open={expanded[layer.id]}>
@@ -129,4 +130,4 @@
       </details>
     {/each}
   </div>
-</details>
+</InspectorSection>

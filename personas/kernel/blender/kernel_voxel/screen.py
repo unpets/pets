@@ -1,7 +1,5 @@
 """96 x 64 deterministic framebuffer. No randomness, wall clock, or text assets."""
 
-import math
-
 from PIL import Image, ImageDraw
 
 from .animation import screen_bindings
@@ -111,14 +109,10 @@ def draw_clip(layer, generator, t):
         lines.rectangle((7, 53, 7 + int(40 * t), 54), fill=CYAN)
     else:
         d = ImageDraw.Draw(layers["eyes"])
-        gaze = (
-            (math.sin(math.tau * t), -math.cos(math.tau * t))
-            if generator == "look"
-            else (0, 0)
+        dx = dy = 0
+        blink = generator in ("blink", "look") and (
+            0.46 < t < 0.485 or 0.815 < t < 0.835
         )
-        dx = round(gaze[0] * 10)
-        dy = round(gaze[1] * 9)
-        blink = generator == "blink" and (0.46 < t < 0.485 or 0.815 < t < 0.835)
         ey = 23 + dy
         for x in (29 + dx, 66 + dx):
             if generator in ("tired", "frown"):
@@ -157,14 +151,24 @@ def draw_clip(layer, generator, t):
     return {name: image for name, image in layers.items() if name.startswith(layer)}
 
 
-def screen_components(state, t, gaze=(0.0, 0.0)):
+def screen_components(state, t, gaze=None):
+    from .rig import gaze_at
+
+    gaze = gaze_at(state, t) if gaze is None else gaze
     layers = {name: Image.new("RGBA", SIZE) for name in COMPONENTS}
     for layer, generator, phase in screen_bindings(state, t):
-        layers.update(draw_clip(layer, generator, phase))
+        content = draw_clip(layer, generator, phase)
+        if layer == "eyes" and generator == "look":
+            shifted = Image.new("RGBA", SIZE)
+            shifted.alpha_composite(
+                content["eyes"], (round(gaze[0] * 10), round(gaze[1] * 9))
+            )
+            content["eyes"] = shifted
+        layers.update(content)
     return layers
 
 
-def screen_layers(state, t, gaze=(0.0, 0.0)):
+def screen_layers(state, t, gaze=None):
     components = screen_components(state, t, gaze)
     layers = {name: Image.new("RGBA", SIZE) for name in LAYERS}
     for name, image in components.items():
@@ -173,7 +177,7 @@ def screen_layers(state, t, gaze=(0.0, 0.0)):
     return layers
 
 
-def framebuffer(state, t, gaze=(0.0, 0.0)):
+def framebuffer(state, t, gaze=None):
     layers = screen_layers(state, t, gaze)
     image = Image.new("RGBA", SIZE)
     for layer in layers.values():

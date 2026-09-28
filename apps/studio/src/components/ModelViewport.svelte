@@ -6,11 +6,13 @@
     studio,
     error,
     workspace,
+    personaName,
   }: {
     viewport?: HTMLDivElement;
     studio?: StudioController;
     error: string;
     workspace: Workspace;
+    personaName: string;
   } = $props();
 </script>
 
@@ -18,7 +20,7 @@
   <div class="viewport-label">
     <Box size={13} /><span
       >{workspace === 'screen' ? 'MODEL PREVIEW' : '3D VIEWPORT'}</span
-    ><span class="ml-2 text-muted/60">Kernel</span>
+    ><span class="ml-2 text-muted/60">{personaName}</span>
   </div>
   <div
     bind:this={viewport}
@@ -30,7 +32,7 @@
       class="absolute top-1/2 w-full text-center text-sm text-accent"
       role={error ? 'alert' : 'status'}
     >
-      {error || 'Loading Kernel…'}
+      {error || `Loading ${personaName}…`}
     </div>{/if}
   <div
     class="pointer-events-none absolute inset-x-4 bottom-4 flex items-center justify-between text-[10px] text-muted"

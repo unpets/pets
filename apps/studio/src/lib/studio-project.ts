@@ -73,9 +73,14 @@ export function parseStudioProject(value: unknown): StudioProject {
     !animations.components[selection.component] ||
     (selection.clip &&
       !compatibleClip(animations, selection.component, selection.clip)) ||
-    !['persona', 'scene', 'screen', 'components', 'animation'].includes(
-      selection.workspace,
-    )
+    ![
+      'persona',
+      'scene',
+      'screen',
+      'components',
+      'animation',
+      'composition',
+    ].includes(selection.workspace)
   )
     throw new Error('Invalid project selection.');
   const selectedScreen =

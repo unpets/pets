@@ -9,6 +9,7 @@ export const screenLayers = [
 export type ScreenLayer = (typeof screenLayers)[number];
 export interface LayerSettings {
   visible: boolean;
+  followHead: boolean;
   opacity: number;
   x: number;
   y: number;
@@ -44,6 +45,7 @@ export function defaultScreenProject(): ScreenProject {
         name,
         {
           visible: true,
+          followHead: false,
           opacity: 1,
           x: 0,
           y: 0,
@@ -86,9 +88,11 @@ export function parseScreenProject(value: unknown): ScreenProject {
         ...project.layers[name],
       };
     const layer = project.layers[name];
+    if (layer) layer.followHead ??= false;
     if (
       !layer ||
       typeof layer.visible !== 'boolean' ||
+      typeof layer.followHead !== 'boolean' ||
       !Number.isFinite(layer.opacity) ||
       layer.opacity < 0 ||
       layer.opacity > 1 ||

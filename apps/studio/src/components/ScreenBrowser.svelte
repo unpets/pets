@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Monitor, Plus, Copy } from '@lucide/svelte';
+  import NameDialog from './NameDialog.svelte';
+  import { Monitor, Plus, Copy, Pencil } from '@lucide/svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
   let {
     editor,
@@ -10,6 +11,7 @@
     selected: string;
     onselect: (id: string) => void;
   } = $props();
+  let renaming = $state(false);
 </script>
 
 <aside class="animation-browser" aria-label="Screens library">
@@ -24,7 +26,10 @@
         data-selected={selected === id}
         aria-pressed={selected === id}
         onclick={() => onselect(id)}
-        ><Monitor size={15} /><span>{screen.label}</span></button
+        ondblclick={() => {
+          onselect(id);
+          renaming = true;
+        }}><Monitor size={15} /><span>{screen.label}</span></button
       >
     {/each}
   </div>
@@ -45,5 +50,18 @@
           ),
         )}><Copy size={14} />Duplicate screen</button
     >
+    <button
+      class="button"
+      disabled={!selected}
+      onclick={() => (renaming = true)}
+      ><Pencil size={14} />Rename screen</button
+    >
   </div>
 </aside>
+{#if renaming}<NameDialog
+    title="Rename screen"
+    label="Screen name"
+    value={editor.project.screens![selected].label}
+    onsubmit={(name) => editor.renameScreen(selected, name)}
+    onclose={() => (renaming = false)}
+  />{/if}

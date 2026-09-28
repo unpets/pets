@@ -15,7 +15,9 @@
   let {
     playback,
     studio,
-  }: { playback: PlaybackState; studio?: StudioController } = $props();
+    label,
+  }: { playback: PlaybackState; studio?: StudioController; label?: string } =
+    $props();
   const frame = $derived(
     Math.round(playback.phase * (playback.frames - 1)) + 1,
   );
@@ -66,7 +68,7 @@
     </div>
     <div class="flex items-center gap-4 text-[11px]">
       <span class="hidden text-muted sm:block"
-        >{animationModes[playback.mode]?.label ?? playback.mode}</span
+        >{label ?? animationModes[playback.mode]?.label ?? playback.mode}</span
       >
       <output aria-label="Current frame" class="text-muted tabular-nums"
         >{String(frame).padStart(3, '0')} <span class="text-line">/</span>

@@ -2,6 +2,13 @@
   import { version } from '../package.json';
   const buildLabel = `${version}${__PETS_COMMIT_SHA__ ? ` [${__PETS_COMMIT_SHA__}]` : ''}${import.meta.env.DEV ? ' (dev)' : ''}`;
   import ExportProgress from './components/ExportProgress.svelte';
+  import {
+    PersonaLibrary,
+    personaIdentity,
+    type PersonaEntry,
+  } from './lib/persona-library';
+  import CompositionInspector from './components/CompositionInspector.svelte';
+  import AnimationBrowser from './components/AnimationBrowser.svelte';
   import PersonaPage from './components/PersonaPage.svelte';
   import ScreenBrowser from './components/ScreenBrowser.svelte';
   import ScreenComposition from './components/ScreenComposition.svelte';
@@ -12,6 +19,7 @@
   import type { StudioMenu } from './lib/studio-menu';
   import {
     parseStudioProject,
+    defaultStudioProject,
     embeddedProject,
     type StudioProject,
   } from './lib/studio-project';
@@ -19,7 +27,7 @@
   import { importAsset, exportAsset } from '@pets/three-runtime/assets';
   import { resolveComposition, binding } from '@pets/three-runtime/project';
   import { coreRequest } from './lib/core';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { AnimationEditorState } from './lib/animation-editor.svelte';
   import AnimationInspector from './components/AnimationInspector.svelte';
   import PixelClipEditor from './components/PixelClipEditor.svelte';
@@ -50,13 +58,22 @@
   let viewport = $state<HTMLDivElement>();
   let canvas = $state<HTMLCanvasElement>();
   let input = $state<HTMLInputElement>();
-  let studio = $state<StudioController>();
+  let studio = $state.raw<StudioController>();
   let error = $state('');
   let projectError = $state('');
   let renderTarget = $state<'codex' | 'shimeji'>();
-  let assets = $state.raw(defaultStudioAssets());
+  const templateAssets = defaultStudioAssets();
+  let assets = $state.raw(templateAssets);
   let persona = $state({ id: 'kernel', name: 'Kernel' });
-  let importBusy = $state(false);
+  let importBusy = $state(true);
+  let library: PersonaLibrary;
+  let personas = $state.raw<PersonaEntry[]>([]);
+  let activePersona = $state('');
+  let initialized = $state(false);
+  let storage = $state('Loading personas');
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  let revision = 0;
+
   let disposed = false;
   function snapshot(): StudioProject {
     return {
@@ -68,7 +85,7 @@
       screen: $state.snapshot(editor.project),
       view: $state.snapshot(settings),
       selection: {
-        composition: playback.mode,
+        composition: selectedComposition,
         component: animations.component,
         clip: animations.clip,
         workspace,
@@ -79,7 +96,7 @@
   let voxelCount = $state(0);
   let workspace = $state<Workspace>('scene');
   let settings = $state(defaultViewSettings());
-  const animations = new AnimationEditorState();
+  const animations = new AnimationEditorState(false);
   let selectedScreen = $state('');
   let faceKind = $state('eyes');
   const editor = new ScreenEditorState(
@@ -88,6 +105,7 @@
         animations.updateScreen(selectedScreen, project, group);
     },
     () => animations.endGesture(),
+    false,
   );
   const history = animations;
   const screenWorkspace = $derived(
@@ -108,6 +126,8 @@
     looping: true,
   });
 
+  const selectedComposition = $derived(playback.mode);
+
   $effect(() =>
     studio?.setSuspended(
       !!renderTarget || importBusy || workspace === 'persona',
@@ -117,10 +137,154 @@
     studio?.setAnimationProject(animations.project);
   });
   $effect(() => {
+    studio?.setClipPreview(
+      workspace === 'animation' ? animations.component : undefined,
+      workspace === 'animation' ? animations.clip : undefined,
+    );
+  });
+  $effect(() => {
+    // Track document edits and stable selection values, never the playback clock.
+    const values = [
+      animations.project,
+      assets,
+      persona.name,
+      persona.id,
+      workspace,
+      selectedScreen,
+      selectedComposition,
+      animations.component,
+      animations.clip,
+      settings.grid,
+      settings.wireframe,
+      settings.joints,
+      settings.orbit,
+      settings.travel,
+      settings.lighting,
+      settings.fov,
+    ];
+    if (!initialized || importBusy) return;
+    void values;
+    revision++;
+    storage = 'Saving persona';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => void persist().catch(reportStorageError), 200);
+    return () => clearTimeout(saveTimer);
+  });
+  function reportStorageError(reason: unknown) {
+    storage = 'Changes are not saved locally. Export the persona to keep them.';
+    projectError = reason instanceof Error ? reason.message : String(reason);
+  }
+  async function persist() {
+    if (!initialized || !activePersona) return;
+    clearTimeout(saveTimer);
+    const savedRevision = revision;
+    await library.save(activePersona, untrack(snapshot));
+    personas = library.list();
+    if (revision === savedRevision)
+      storage = library.persistent
+        ? 'Saved locally in this browser'
+        : 'Temporary session. Export personas to keep them.';
+  }
+  function faceCategory() {
+    const component = animations.project.components[animations.component];
+    if (component?.kind !== 'screen') return 'eyes';
+    const name = String(component.data.family ?? component.data.layer);
+    return ['eyes', 'mouth', 'background', 'activity'].includes(name)
+      ? name
+      : 'custom';
+  }
+  function setWorkspace(value: Workspace) {
+    workspace = value;
+    if (value === 'animation' || value === 'composition') {
+      if (
+        animations.project.components[animations.component]?.kind === 'screen'
+      ) {
+        animations.component = animations.project.components['rig/head']
+          ? 'rig/head'
+          : Object.keys(animations.project.components).find(
+              (id) => animations.project.components[id].kind !== 'screen',
+            )!;
+        animations.clip =
+          Object.keys(animations.project.clips).find(
+            (id) =>
+              animations.project.clips[id].component === animations.component,
+          ) ?? '';
+      }
+    }
+  }
+  async function selectPersona(key: string) {
+    if (importBusy || key === activePersona) return;
+    importBusy = true;
+    try {
+      await persist();
+      const project = await library.get(key);
+      await openProject({
+        ...project,
+        selection: { ...project.selection, workspace: 'persona' },
+      });
+      activePersona = key;
+      await library.activate(key);
+    } catch (reason) {
+      reportStorageError(reason);
+    } finally {
+      importBusy = false;
+    }
+  }
+  async function createPersona(name: string, duplicate: boolean) {
+    if (importBusy) return;
+    const identity = personaIdentity(name, personas);
+    importBusy = true;
+    try {
+      await persist();
+      const project = duplicate
+        ? snapshot()
+        : { ...defaultStudioProject(), assets: templateAssets };
+      project.persona = identity;
+      project.selection = { ...project.selection, workspace: 'persona' };
+      const key = await library.add(project);
+      await openProject(project);
+      activePersona = key;
+      await library.activate(key);
+      personas = library.list();
+    } finally {
+      importBusy = false;
+    }
+  }
+  async function renamePersona(name: string) {
+    const identity = personaIdentity(name, []);
+    importBusy = true;
+    try {
+      persona = { ...persona, name: identity.name };
+      await persist();
+    } finally {
+      importBusy = false;
+    }
+  }
+  async function deletePersona() {
+    const next = personas.find((entry) => entry.key !== activePersona);
+    if (!next || importBusy) return;
+    importBusy = true;
+    try {
+      const previous = activePersona;
+      const project = await library.get(next.key);
+      await openProject({
+        ...project,
+        selection: { ...project.selection, workspace: 'persona' },
+      });
+      activePersona = next.key;
+      await library.activate(next.key);
+      await library.remove(previous);
+      personas = library.list();
+    } finally {
+      importBusy = false;
+    }
+  }
+
+  $effect(() => {
     const screens = animations.project.screens!;
     if (!screens[selectedScreen])
       selectedScreen =
-        resolveComposition(animations.project, playback.mode).screen ??
+        resolveComposition(animations.project, selectedComposition).screen ??
         Object.keys(screens)[0];
     const settings = parseScreenProject(screens[selectedScreen].data);
     if (JSON.stringify(settings) !== JSON.stringify(editor.project))
@@ -292,13 +456,22 @@
   }
   async function openProject(project: StudioProject) {
     if (!viewport || !canvas) return;
-    const next = await createStudio(
-      viewport,
-      canvas,
-      (state) => (playback = state),
-      (count) => (voxelCount = count),
-      project.assets,
-    );
+    const sameAssets =
+      studio &&
+      assets.model === project.assets.model &&
+      assets.screens.every(
+        (screen, index) => screen === project.assets.screens[index],
+      ) &&
+      assets.data === project.assets.data;
+    const next = sameAssets
+      ? studio!
+      : await createStudio(
+          viewport,
+          canvas,
+          (state) => (playback = state),
+          (count) => (voxelCount = count),
+          project.assets,
+        );
     if (disposed) {
       next.destroy();
       return;
@@ -308,10 +481,10 @@
       next.setViewSettings(project.view);
       next.setMode(project.selection.composition);
     } catch (reason) {
-      next.destroy();
+      if (next !== studio) next.destroy();
       throw reason;
     }
-    studio?.destroy();
+    if (next !== studio) studio?.destroy();
     assets = project.assets;
     persona = project.persona;
     animations.load(project.animations);
@@ -322,12 +495,8 @@
     settings = project.view;
     animations.component = project.selection.component;
     animations.clip = project.selection.clip;
-    faceKind = String(
-      project.animations.components[animations.component].data.family ??
-        project.animations.components[animations.component].data.layer ??
-        'eyes',
-    );
-    workspace = project.selection.workspace;
+    faceKind = faceCategory();
+    setWorkspace(project.selection.workspace);
     next.setAnimationProject(project.animations);
     next.setViewSettings(project.view);
     next.setMode(project.selection.composition);
@@ -339,6 +508,7 @@
     if (!file || importBusy) return;
     importBusy = true;
     try {
+      await persist();
       if (file.size > 96_000_000)
         throw new Error('Projects must be under 96 MB.');
       if (file.name.toLowerCase().endsWith('.glb')) {
@@ -350,6 +520,7 @@
         project.assets = {
           ...assets,
           model: `data:model/gltf-binary;base64,${btoa(binary)}`,
+          characterModel: undefined,
         };
         await openProject(parseStudioProject(project));
       } else {
@@ -360,7 +531,18 @@
             operation: 'project',
             project: project.animations,
           });
+          const adding =
+            workspace === 'persona' || project.persona.id !== persona.id;
+          if (
+            adding &&
+            personas.some((entry) => entry.id === project.persona.id)
+          )
+            project.persona = personaIdentity(project.persona.name, personas);
+          const key = adding ? await library.add(project) : activePersona;
           await openProject(project);
+          activePersona = key;
+          await library.activate(key);
+          personas = library.list();
         } else if (value.format === 'pets-assets') {
           const result = importAsset(
             $state.snapshot(animations.project),
@@ -387,15 +569,16 @@
               component.kind === 'screen' &&
               result.selection.kind !== 'composition'
                 ? 'components'
-                : 'animation';
-            if (workspace === 'components')
-              faceKind = String(component.data.family ?? component.data.layer);
+                : result.selection.kind === 'composition'
+                  ? 'composition'
+                  : 'animation';
+            if (workspace === 'components') faceKind = faceCategory();
           }
         } else if (value.format === 'pets-animation') {
           const project = parseKernelProject(value);
           await coreRequest({ operation: 'project', project });
           animations.replace(project);
-          workspace = 'animation';
+          setWorkspace('composition');
         } else {
           selectedScreen = animations.createScreen(
             file.name.replace(/\.json$/i, ''),
@@ -441,42 +624,56 @@
     }
   }
   onMount(() => {
-    animations.load(loadAnimationProject());
-    if (!viewport || !canvas) return;
-    try {
-      const boot = embeddedProject();
-      if (boot) {
-        void openProject(boot).catch((reason) => (error = String(reason)));
-        return () => {
-          disposed = true;
-          studio?.destroy();
-          delete window.kernelViewer;
-        };
-      }
-    } catch (reason) {
-      error = String(reason);
-      return;
-    }
-    createStudio(
-      viewport,
-      canvas,
-      (state) => (playback = state),
-      (count) => (voxelCount = count),
-    )
-      .then((controller) => {
-        if (disposed) {
-          controller.destroy();
-          return;
+    async function initialize() {
+      try {
+        try {
+          library = await PersonaLibrary.open();
+        } catch {
+          library = PersonaLibrary.temporary();
         }
-        studio = controller;
-        window.kernelViewer = controller;
-      })
-      .catch(() => {
-        error = 'The model could not load. Reload the page to retry.';
-      });
+        const boot = embeddedProject();
+        let project: StudioProject;
+        let key = library.active;
+        if (boot) {
+          key = await library.embedded(boot, location.href);
+          project = await library.get(key);
+        } else if (key) project = await library.get(key);
+        else {
+          project = defaultStudioProject();
+          project.assets = templateAssets;
+          project.animations = loadAnimationProject();
+          project.selection.composition = 'running';
+          key = await library.add(project);
+        }
+        await openProject(project);
+        if (disposed) return;
+        activePersona = key;
+        await library.activate(key);
+        personas = library.list();
+        initialized = true;
+      } catch (reason) {
+        error = String(reason);
+      } finally {
+        importBusy = false;
+      }
+    }
+    void initialize();
+    const flush = () => {
+      if (initialized && !importBusy) void persist().catch(reportStorageError);
+    };
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', visibility);
     return () => {
+      flush();
+      clearTimeout(saveTimer);
       disposed = true;
       studio?.destroy();
+      library?.close();
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', visibility);
       delete window.kernelViewer;
     };
   });
@@ -491,7 +688,7 @@
 <div class="studio-shell" aria-busy={importBusy}>
   <StudioHeader
     {workspace}
-    onworkspace={(value) => (workspace = value)}
+    onworkspace={setWorkspace}
     editor={history}
     {menus}
     personaName={persona.name}
@@ -513,7 +710,17 @@
     {#if workspace === 'persona'}<PersonaPage
         {persona}
         project={animations.project}
-        onworkspace={(value) => (workspace = value)}
+        entries={personas}
+        active={activePersona}
+        busy={importBusy}
+        {storage}
+        onselect={selectPersona}
+        oncreate={createPersona}
+        onrename={renamePersona}
+        ondelete={deletePersona}
+        onimport={() => input?.click()}
+        onexport={() => save('project')}
+        onworkspace={setWorkspace}
       />{/if}
     <div class="studio-layout" class:workspace-hidden={workspace === 'persona'}>
       {#if workspace === 'screen'}<ScreenBrowser
@@ -524,6 +731,9 @@
       {:else if workspace === 'components'}<FaceBrowser
           editor={animations}
           bind:kind={faceKind}
+        />
+      {:else if workspace === 'animation'}<AnimationBrowser
+          editor={animations}
         />
       {:else}<AnimationPanel
           {playback}
@@ -536,7 +746,13 @@
           class:editing-screen={screenWorkspace}
           class:editing-clip={editingPixels}
         >
-          <ModelViewport bind:viewport {studio} {error} {workspace} />
+          <ModelViewport
+            bind:viewport
+            {studio}
+            {error}
+            {workspace}
+            personaName={persona.name}
+          />
           {#if editingPixels}<PixelClipEditor editor={animations} />{/if}
           <ScreenPreview
             bind:canvas
@@ -548,7 +764,13 @@
             solo={editor.solo}
           />
         </div>
-        <PlaybackControls {playback} {studio} />
+        <PlaybackControls
+          {playback}
+          {studio}
+          label={workspace === 'animation'
+            ? animations.project.clips[animations.clip]?.label
+            : animations.project.compositions[selectedComposition]?.label}
+        />
       </div>
       <aside
         class="studio-inspector"
@@ -556,16 +778,23 @@
           ? 'Screen editor'
           : workspace === 'components'
             ? 'Face component editor'
-            : workspace === 'animation'
-              ? 'Animation editor'
-              : 'Scene settings'}
+            : workspace === 'composition'
+              ? 'Composition editor'
+              : workspace === 'animation'
+                ? 'Animation editor'
+                : 'Scene settings'}
       >
-        {#if workspace === 'animation'}<AnimationInspector
+        {#if workspace === 'composition'}<CompositionInspector
             editor={animations}
-            mode={playback.mode}
+            mode={selectedComposition}
             {studio}
+            onedit={() => setWorkspace('animation')}
+          />
+        {:else if workspace === 'animation'}<AnimationInspector
+            editor={animations}
           />{:else if workspace === 'components'}<FaceInspector
             editor={animations}
+            oncustom={() => (faceKind = 'custom')}
           />
         {:else if workspace === 'screen'}<ScreenComposition
             editor={animations}
@@ -575,10 +804,7 @@
               animations.clip =
                 animations.project.screens![selectedScreen].bindings[component]
                   ?.clip ?? '';
-              faceKind = String(
-                animations.project.components[component].data.family ??
-                  animations.project.components[component].data.layer,
-              );
+              faceKind = faceCategory();
               workspace = 'components';
             }}
           /><ScreenEditor
@@ -604,7 +830,6 @@
             {settings}
             onchange={(value) => (settings = value)}
             {studio}
-            mode={playback.mode}
           />{/if}
       </aside>
     </div>

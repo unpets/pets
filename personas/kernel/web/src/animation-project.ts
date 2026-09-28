@@ -1,6 +1,11 @@
+import { defaultLookAt, parseLookAt } from './look-at';
 import { migrateMovement } from './migrate-project';
 import { migrateScreens } from './screen-library';
-import { parseScreenProject, loadScreenProject } from './screen-project';
+import {
+  parseScreenProject,
+  loadScreenProject,
+  type ScreenProject,
+} from './screen-project';
 import { validateEffect } from '@pets/three-runtime/effects';
 import {
   parseAnimationProject,
@@ -9,8 +14,15 @@ import {
 import source from '../../generated/assets/animations.json?raw';
 
 const catalog = parseAnimationProject(JSON.parse(source).project);
+catalog.clips['rig/head/lookat'] ??= {
+  label: 'Lookat',
+  component: 'rig/head',
+  duration: 2,
+  looping: true,
+  data: { lookAt: defaultLookAt() },
+};
 export const defaultAnimationProject = (): AnimationProject =>
-  migrateScreens(parseAnimationProject(catalog), loadScreenProject());
+  parseKernelProject(catalog);
 export function loadAnimationProject(): AnimationProject {
   try {
     const saved = localStorage.getItem('pets-animation-project');
@@ -37,6 +49,14 @@ export function saveAnimationProject(project: AnimationProject) {
 export function parseKernelProject(value: unknown): AnimationProject {
   const project = migrateScreens(migrateMovement(parseAnimationProject(value)));
   for (const screen of Object.values(project.screens ?? {})) {
+    const raw = screen.data as unknown as ScreenProject;
+    for (const [id, binding] of Object.entries(screen.bindings)) {
+      const layer = project.components[id].data
+        .layer as keyof ScreenProject['layers'];
+      if (raw.layers?.[layer] && raw.layers[layer].followHead === undefined)
+        raw.layers[layer].followHead =
+          project.clips[binding.clip].data.generator === 'look';
+    }
     const settings = parseScreenProject(screen.data);
     screen.data = { ...settings };
     const { bindings } = screen;
@@ -167,7 +187,18 @@ export function parseKernelProject(value: unknown): AnimationProject {
         throw new Error(`Invalid directional blend space: ${id}`);
     }
     if (kind === 'rig') {
-      if (!sources.has(clip.data.source) && !Array.isArray(clip.data.keyframes))
+      if (clip.data.lookAt) {
+        parseLookAt(clip.data.lookAt);
+        if (
+          project.components[clip.component].data.nodes?.toString() !== 'head'
+        )
+          throw new Error(`Lookat requires the head target: ${id}`);
+      }
+      if (
+        !clip.data.lookAt &&
+        !sources.has(clip.data.source) &&
+        !Array.isArray(clip.data.keyframes)
+      )
         throw new Error(`Missing motion source: ${id}`);
       if (clip.data.keyframes) {
         const frames = clip.data.keyframes as {

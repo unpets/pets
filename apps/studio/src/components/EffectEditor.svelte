@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
   let { editor }: { editor: AnimationEditorState } = $props();
   const component = $derived(editor.project.components[editor.component]);
@@ -21,8 +22,8 @@
   }
 </script>
 
-<details class="inspector-stack" open>
-  <summary>Particle effect</summary>
+<InspectorSection open>
+  {#snippet heading()}Particle effect{/snippet}
   <div class="inspector-section">
     <label class="field-label"
       >Attachments<select
@@ -97,4 +98,4 @@
         {error}
       </p>{/if}
   </div>
-</details>
+</InspectorSection>

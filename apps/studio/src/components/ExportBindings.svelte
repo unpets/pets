@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import {
     compositionInstance,
     type CompositionInstance,
@@ -29,8 +30,8 @@
   }
 </script>
 
-<details class="inspector-stack" open>
-  <summary>Export mappings</summary>
+<InspectorSection open>
+  {#snippet heading()}Export mappings{/snippet}
   <div class="inspector-section">
     <label class="field-label"
       >Target
@@ -122,4 +123,4 @@
         {error}
       </p>{/if}
   </div>
-</details>
+</InspectorSection>

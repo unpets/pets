@@ -5,7 +5,7 @@ import type { AnimationMode } from '@pets/kernel/types';
 export * from '@pets/kernel/types';
 
 export type Workspace =
-  'persona' | 'scene' | 'screen' | 'components' | 'animation';
+  'persona' | 'scene' | 'screen' | 'components' | 'animation' | 'composition';
 export type CameraView = 'home' | 'front' | 'side' | 'left' | 'back' | 'top';
 export interface ViewSettings {
   grid: boolean;
@@ -44,6 +44,8 @@ export interface StudioController {
     bindings?: Record<string, import('@pets/three-runtime/project').Binding>,
   ): void;
   setAnimationProject(project: AnimationProject): void;
+  setClipPreview(component?: string, clip?: string): void;
+  setLookTarget(position?: [number, number, number]): void;
   setMode(mode: AnimationMode): void;
   setPlaying(playing: boolean): void;
   setSuspended(suspended: boolean): void;

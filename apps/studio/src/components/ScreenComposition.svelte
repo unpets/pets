@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { Monitor, Trash2 } from '@lucide/svelte';
   import { compatibleClip, type Binding } from '@pets/three-runtime/project';
   import { parseScreenProject } from '@pets/kernel/screen-project';
@@ -14,11 +15,26 @@
   } = $props();
   const screen = $derived(editor.project.screens![selected]);
   const settings = $derived(parseScreenProject(screen.data));
-  const slots = $derived(
-    settings.eyeMode === 'paired'
+  const slots = $derived([
+    ...(settings.eyeMode === 'paired'
       ? ['eyes', 'mouth', 'background', 'activity']
-      : ['eyeLeft', 'eyeRight', 'mouth', 'background', 'activity'],
-  );
+      : ['eyeLeft', 'eyeRight', 'mouth', 'background', 'activity']
+    ).map((slot) => `screen/${slot}`),
+    ...Object.entries(editor.project.components)
+      .filter(
+        ([, component]) =>
+          component.kind === 'screen' &&
+          ![
+            'eyes',
+            'eyeLeft',
+            'eyeRight',
+            'mouth',
+            'background',
+            'activity',
+          ].includes(String(component.data.layer)),
+      )
+      .map(([id]) => id),
+  ]);
   let error = $state('');
   function run(action: () => void) {
     try {
@@ -31,20 +47,11 @@
 </script>
 
 <div class="inspector-heading">
-  <h2><Monitor size={15} />Screen composition</h2>
+  <h2><Monitor size={15} />Screen design</h2>
 </div>
-<details class="inspector-stack" open>
-  <summary>Screen</summary>
+<InspectorSection open>
+  {#snippet heading()}Screen{/snippet}
   <div class="inspector-section">
-    <label class="field-label"
-      >Name<input
-        class="field mt-2 w-full"
-        aria-label="Screen name"
-        value={screen.label}
-        onchange={(event) =>
-          editor.renameScreen(selected, event.currentTarget.value)}
-      /></label
-    >
     <p class="mt-3 text-xs text-muted">
       Changes apply to every composition using this screen.
     </p>
@@ -57,9 +64,9 @@
         {error}
       </p>{/if}
   </div>
-</details>
-<details class="inspector-stack" open>
-  <summary>Face components</summary>
+</InspectorSection>
+<InspectorSection open>
+  {#snippet heading()}Face components{/snippet}
   <div class="inspector-section">
     <label class="field-label"
       >Eye layout<select
@@ -79,14 +86,9 @@
         ><option value="independent">Independent eyes</option>
       </select></label
     >
-    {#each slots as slot}
-      {@const id = `screen/${slot}`}
-      {@const label =
-        slot === 'eyeLeft'
-          ? 'Left eye'
-          : slot === 'eyeRight'
-            ? 'Right eye'
-            : slot[0].toUpperCase() + slot.slice(1)}
+    {#each slots as id}
+      {@const slot = String(editor.project.components[id].data.layer)}
+      {@const label = editor.project.components[id].label}
       {@const source = screen.bindings[id]}
       {@const linked = slot === 'eyeRight' && settings.eyeMode === 'mirrored'}
       <details class="face-slot mt-4">
@@ -173,4 +175,4 @@
       </details>
     {/each}
   </div>
-</details>
+</InspectorSection>

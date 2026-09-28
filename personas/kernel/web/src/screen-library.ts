@@ -42,9 +42,19 @@ export function migrateScreens(
     let screen = signatures.get(signature);
     if (!screen) {
       screen = uniqueId(composition.label, screens);
+      const data = parseScreenProject(settings);
+      for (const [id, binding] of Object.entries(bindings)) {
+        const layer = project.components[id].data
+          .layer as keyof ScreenProject['layers'];
+        if (
+          data.layers[layer] &&
+          project.clips[binding.clip].data.generator === 'look'
+        )
+          data.layers[layer].followHead = true;
+      }
       screens[screen] = {
         label: composition.label,
-        data: { ...parseScreenProject(settings) },
+        data: { ...data },
         bindings,
       };
       signatures.set(signature, screen);

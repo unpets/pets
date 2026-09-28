@@ -5,10 +5,11 @@ from bisect import bisect_right
 
 import bpy
 import numpy as np
-from mathutils import Euler, Matrix
+from mathutils import Euler, Matrix, Vector
 from PIL import Image, ImageColor
 
 from .animation import resolve_composition
+from .armature import BONE_BASIS
 from .emission import sample_curve
 from .placement import place
 from .rig import PARENTS, RigPose, cable_points, point
@@ -49,8 +50,10 @@ def tinted(image, color, shaded=False):
     return Image.fromarray(data)
 
 
-def composition_screen(project, identifier, seconds, settings=None):
-    settings = settings or {}
+def composition_screen(project, identifier, seconds, settings=None, gaze=(0, 0)):
+    composition = resolve_composition(project, identifier)
+    assigned = project.get("screens", {}).get(composition.get("screen"), {})
+    settings = assigned.get("data", settings) or {}
     palette = {
         "background": "#07151d",
         "lines": None,
@@ -65,10 +68,15 @@ def composition_screen(project, identifier, seconds, settings=None):
             for name, value in project["components"].items()
             if value["kind"] == "screen"
         ),
-        key=lambda item: item[1]["data"]["order"],
+        key=lambda item: (
+            settings.get("layers", {})
+            .get(item[1]["data"]["layer"], {})
+            .get("order", item[1]["data"]["order"])
+        ),
     )
     for name, component in components:
         layer = component["data"]["layer"]
+        source_layer = "eyes" if layer in ("eyeLeft", "eyeRight") else layer
         style = {
             "visible": True,
             "opacity": 1,
@@ -76,6 +84,10 @@ def composition_screen(project, identifier, seconds, settings=None):
             "y": 0,
             "color": None,
             "source": None,
+            "mirrorX": False,
+            "mirrorY": False,
+            "scale": 1,
+            "rotation": 0,
         }
         style.update(component["data"].get("style", {}))
         style.update(settings.get("layers", {}).get(layer, {}))
@@ -112,7 +124,7 @@ def composition_screen(project, identifier, seconds, settings=None):
             if style["color"]:
                 surface = tinted(surface, style["color"])
         else:
-            layers = draw_clip(layer, clip["data"]["generator"], frame / 48)
+            layers = draw_clip(source_layer, clip["data"]["generator"], frame / 48)
             if layer in {"background", "activity"}:
                 if layer == "background":
                     surface.paste(palette["background"], (0, 0, *SIZE))
@@ -122,15 +134,43 @@ def composition_screen(project, identifier, seconds, settings=None):
                         content = tinted(content, palette[role], True)
                     surface = Image.alpha_composite(surface, content)
             else:
-                surface = layers[layer]
+                surface = layers[source_layer]
                 if style["color"]:
                     surface = tinted(surface, style["color"])
+        half_eye = layer in ("eyeLeft", "eyeRight")
+        mirrored_eye = layer == "eyeRight" and settings.get("eyeMode") == "mirrored"
+        width = 48 if half_eye else 96
+        destination_x = 48 if layer == "eyeRight" else 0
+        source_x = 48 if layer == "eyeRight" and not mirrored_eye else 0
+        surface = surface.crop((source_x, 0, source_x + width, 64))
+        if bool(style["mirrorX"]) != mirrored_eye:
+            surface = surface.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        if style["mirrorY"]:
+            surface = surface.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        scale = style["scale"]
+        if scale != 1:
+            surface = surface.resize(
+                (max(1, round(width * scale)), max(1, round(64 * scale))),
+                Image.Resampling.NEAREST,
+            )
+        if style["rotation"]:
+            surface = surface.rotate(
+                -style["rotation"], resample=Image.Resampling.NEAREST, expand=True
+            )
         surface.putalpha(
             surface.getchannel("A").point(
                 lambda value, opacity=style["opacity"]: round(value * opacity)
             )
         )
-        image.alpha_composite(surface, (style["x"], style["y"]))
+        follow = style.get("followHead", clip["data"].get("generator") == "look")
+        dx, dy = gaze if layer.startswith("eye") and follow else (0, 0)
+        image.alpha_composite(
+            surface,
+            (
+                round(destination_x + width / 2 + style["x"] + dx - surface.width / 2),
+                round(32 + style["y"] + dy - surface.height / 2),
+            ),
+        )
     return image
 
 
@@ -203,7 +243,31 @@ def apply_composition(model, project, identifier, phase, screen=None, context=Tr
         if specification["kind"] != "rig":
             continue
         data = clip["data"]
-        if "blendSpace" in data:
+        if "lookAt" in data:
+            settings = data["lookAt"]
+            body = targets["body"]
+            location, rotation, scale = rest["head"].decompose()
+            head = body @ Vector(location)
+            heading = math.radians(composition["properties"].get("heading", 0))
+            target = Matrix.Rotation(-heading, 4, "Z") @ Vector(settings["position"])
+            body_rotation = (body @ BONE_BASIS.inverted()).to_quaternion()
+            direction = body_rotation.inverted() @ (target - head)
+            yaw = np.clip(math.atan2(direction.x, -direction.y), -0.72, 0.72)
+            pitch = np.clip(
+                -math.atan2(direction.z, math.hypot(direction.x, direction.y)),
+                -0.4,
+                0.4,
+            )
+            aimed = (
+                body.to_quaternion().inverted()
+                @ body_rotation
+                @ Euler((pitch, 0, yaw), "XYZ").to_quaternion()
+                @ BONE_BASIS.to_quaternion()
+            )
+            targets["head"] = Matrix.LocRotScale(
+                location, rotation.slerp(aimed, settings["weight"]), scale
+            )
+        elif "blendSpace" in data:
             properties = composition["properties"]
             angle = properties.get(
                 "travelHeading", properties.get("heading", 0)
@@ -286,7 +350,17 @@ def apply_composition(model, project, identifier, phase, screen=None, context=Tr
         model["cable"].data.splines[0].points, cable_points(pose)
     ):
         vertex.co = (*position, 1)
-    image = composition_screen(project, identifier, phase * duration, screen)
+    body_rotation = (world["body"] @ BONE_BASIS.inverted()).to_quaternion()
+    head_rotation = (world["head"] @ BONE_BASIS.inverted()).to_quaternion()
+    relative = body_rotation.inverted() @ head_rotation
+    direction = relative @ Vector((0, -1, 0))
+    gaze = (
+        np.clip(math.atan2(direction.x, -direction.y) * 12, -8, 8),
+        np.clip(
+            -math.atan2(direction.z, math.hypot(direction.x, direction.y)) * 15, -6, 6
+        ),
+    )
+    image = composition_screen(project, identifier, phase * duration, screen, gaze)
     model["texture"].pixels.foreach_set(
         np.flipud(np.asarray(image, dtype=np.float32) / 255).flatten()
     )

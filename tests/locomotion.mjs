@@ -50,7 +50,7 @@ try {
   await page
     .getByRole('button', { name: 'Pause animation', exact: true })
     .waitFor();
-  await page.getByRole('button', { name: 'Animation', exact: true }).click();
+  await page.getByRole('button', { name: 'Composition', exact: true }).click();
   await page.evaluate(() => window.kernelViewer.setMode('move'));
   const direction = () =>
     page.evaluate(() => {
@@ -114,7 +114,7 @@ try {
   await page.evaluate(() => window.kernelViewer.setPlaying(true));
   assert.equal(await travelled(), 0, 'in-place preview disables translation');
   await page.getByLabel('Preview travel', { exact: true }).check();
-  await page.getByRole('button', { name: 'Animation', exact: true }).click();
+  await page.getByRole('button', { name: 'Composition', exact: true }).click();
   await page.evaluate(() => window.kernelViewer.setMode('flying'));
   await page.waitForFunction(() =>
     window.kernelViewer.parts['foot.L'].children.some(
@@ -137,6 +137,10 @@ try {
       0,
     );
   }
+  await page
+    .getByRole('navigation', { name: 'Workspace' })
+    .getByRole('button', { name: 'Animation', exact: true })
+    .click();
   await page.getByLabel('New animation name').fill('Custom trail');
   await page.getByRole('button', { name: 'Add FX layer', exact: true }).click();
   await page.getByLabel('Effect attachments').selectOption(['forearm.R']);
