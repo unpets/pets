@@ -31,7 +31,7 @@ Native desktop builds also require the [Tauri prerequisites](https://v2.tauri.ap
 Run these commands from a terminal to install dependencies, generate Kernel's assets, and start the studio.  
 
 ```sh
-git clone https://github.com/GGLinnk/pets.git
+git clone https://github.com/unpets/pets.git
 cd pets
 uv sync --frozen
 bun install --frozen-lockfile

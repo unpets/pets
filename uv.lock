@@ -149,7 +149,7 @@ wheels = [
 
 [[package]]
 name = "pets-assets"
-version = "0.9.0"
+version = "0.9.1"
 source = { editable = "." }
 dependencies = [
     { name = "bpy" },

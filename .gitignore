@@ -5,6 +5,7 @@ build*/
 dist/
 node_modules/
 apps/studio/node_modules/
+apps/studio/generated/
 personas/kernel/generated/
 *.blend1
 sample-*.png

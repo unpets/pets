@@ -1,6 +1,6 @@
 node_modules
 dist
-build*
+/build*/
 personas/kernel/generated
 bun.lock
 uv.lock

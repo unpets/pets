@@ -3,7 +3,7 @@ name = "pets-desktop"
 version.workspace = true
 description = "Pets desktop companion host"
 authors = ["Gabriel Grondin"]
-repository = "https://github.com/GGLinnk/pets"
+repository.workspace = true
 edition = "2024"
 rust-version = "1.90"
 

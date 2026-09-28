@@ -4,11 +4,11 @@ default-members = ["crates/pets-core"]
 resolver = "3"
 
 [workspace.package]
-version = "0.9.0"
+version = "0.9.1"
 edition = "2024"
 rust-version = "1.90"
 authors = ["Gabriel Grondin"]
-repository = "https://github.com/GGLinnk/pets"
+repository = "https://github.com/unpets/pets"
 
 [workspace.dependencies]
 serde = { version = "1.0.229", features = ["derive"] }

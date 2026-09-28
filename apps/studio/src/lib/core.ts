@@ -1,4 +1,4 @@
-import wasmUrl from '../../../../target/wasm32-unknown-unknown/release/pets_core.wasm?inline';
+import wasmUrl from '../../generated/pets_core.wasm?inline';
 interface CoreExports extends WebAssembly.Exports {
   memory: WebAssembly.Memory;
   pets_alloc(length: number): number;

@@ -28,6 +28,8 @@ The studio and browser companion share Kernel's character adapter and screen com
 Vite embeds their assets into self-contained HTML builds.  
 Studio builds compile the Rust core for `wasm32-unknown-unknown`.  
 `bun run build:core` installs that Rust target when needed and uses Cargo incremental compilation.  
+The build uses Cargo's reported artifact path and stages the module in `apps/studio/generated/`.  
+Custom Cargo target directories are supported without changing Vite imports.  
 Tailwind scans the application and persona components.  
 Screen projects retain the versioned `kernel-screen` format.  
 
