@@ -7,11 +7,8 @@ import {
   defaultScreenProject,
   type ScreenProject,
 } from '@pets/kernel/screen-project';
-import {
-  parseAssets,
-  defaultAssets,
-  type CharacterAssets,
-} from '@pets/kernel/assets';
+import { parseAssets, type CharacterAssets } from '@pets/kernel/assets';
+import { defaultStudioAssets } from './studio-assets';
 import type { AnimationProject } from '@pets/three-runtime/project';
 import {
   defaultViewSettings,
@@ -77,7 +74,7 @@ export function defaultStudioProject(): StudioProject {
     format: 'pets-studio',
     version: 1,
     persona: { id: 'kernel', name: 'Kernel' },
-    assets: defaultAssets(),
+    assets: defaultStudioAssets(),
     animations: defaultAnimationProject(),
     screen: defaultScreenProject(),
     view: defaultViewSettings(),

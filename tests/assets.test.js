@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 const root = 'personas/kernel/generated/assets/';
 const data = JSON.parse(readFileSync(root + 'animations.json', 'utf8'));
 test('every animation has complete finite rigid transforms and cable anchors', () => {
-  expect(Object.keys(data.states).length).toBe(10);
+  expect(data.project.compositions.move).toBeDefined();
+  expect(data.project.compositions['running-left']).toBeUndefined();
+  expect(data.project.compositions['running-right']).toBeUndefined();
   for (const state of Object.values(data.states)) {
     expect(state.samples.length).toBe(121);
     for (const sample of state.samples) {
@@ -16,7 +18,7 @@ test('every animation has complete finite rigid transforms and cable anchors', (
         );
         expect(Math.hypot(...transform.q)).toBeCloseTo(1, 5);
       }
-      expect(sample.cable.length).toBe(32);
+      expect(sample.cable.length).toBe(64);
     }
   }
 });
@@ -40,4 +42,36 @@ test('exported model is glTF 2 and has the screen attached to its head', () => {
           .find((m) => m.name === `key.${side}.${digit}.1`)
           .emissiveFactor.some((v) => v > 0),
       ).toBe(true);
+});
+
+test('character export has a weighted skin, a ground root and reusable motion clips', () => {
+  const file = readFileSync(root + 'kernel-character.glb');
+  const gltf = JSON.parse(
+    file.toString('utf8', 20, 20 + file.readUInt32LE(12)),
+  );
+  expect(gltf.skins.length).toBeGreaterThan(0);
+  expect(gltf.nodes.some((node) => node.name === 'root')).toBe(true);
+  expect(
+    gltf.meshes
+      .flatMap((mesh) => mesh.primitives)
+      .every(
+        (primitive) =>
+          primitive.attributes.JOINTS_0 !== undefined &&
+          primitive.attributes.WEIGHTS_0 !== undefined,
+      ),
+  ).toBe(true);
+  const names = gltf.animations.map((clip) => clip.name);
+  for (const name of [
+    'move',
+    'sidestep-left',
+    'sidestep-right',
+    'move-backward',
+    'flying',
+    'climb-rope',
+    'climb-ladder',
+    'climb-border',
+  ])
+    expect(names).toContain(name);
+  expect(names).not.toContain('running-left');
+  expect(names).not.toContain('running-right');
 });

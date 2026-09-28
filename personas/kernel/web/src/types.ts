@@ -7,13 +7,10 @@ export const animationModes: Record<
     label: 'Idle',
     description: 'A quiet breathing cycle, with an occasional blink.',
   },
-  'running-right': {
-    label: 'Move right',
-    description: 'Alternating foot contact and opposing arm swing.',
-  },
-  'running-left': {
-    label: 'Move left',
-    description: 'The same articulated gait, turned toward the left.',
+  move: {
+    label: 'Move',
+    description:
+      'One articulated gait with independent heading and smooth turns.',
   },
   waving: {
     label: 'Wave',
@@ -40,6 +37,27 @@ export const animationModes: Record<
     label: 'Review',
     description:
       'A thoughtful scan, a hand beneath the chin, and a confirming nod.',
+  },
+  flying: {
+    label: 'Fly',
+    description: 'Balanced hover with independent thruster effects.',
+  },
+  'climb-rope': {
+    label: 'Rope',
+    description: 'Close hand grips and a leg brace for rope climbing.',
+  },
+  'climb-ladder': {
+    label: 'Ladder',
+    description: 'Alternating rung contacts with coordinated opposite limbs.',
+  },
+  'climb-border': {
+    label: 'Border',
+    description: 'A two-handed edge grip and controlled pull-up.',
+  },
+  climbing: {
+    label: 'Climb',
+    description:
+      'Alternating hand and foot holds with independent grip control.',
   },
   look: {
     label: 'Look around',
@@ -69,6 +87,25 @@ export interface AnimationData {
   project: AnimationProject;
   version: string;
   voxelCount: number;
-  ports: { wrist: VectorTuple; server: VectorTuple };
+  ports: {
+    wrist: VectorTuple;
+    server: VectorTuple;
+    node?: string;
+    radius?: number;
+  };
   states: Record<AnimationMode, AnimationClip>;
 }
+
+// Numeric screen source identities are stable across project schema versions.
+export const screenSourceModes = [
+  'idle',
+  'move',
+  'move',
+  'waving',
+  'jumping',
+  'failed',
+  'waiting',
+  'running',
+  'review',
+  'look',
+];

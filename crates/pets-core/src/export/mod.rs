@@ -162,15 +162,22 @@ impl RenderedPersona {
             .ok_or_else(|| invalid(format!("Missing export bindings: {target}")))?;
         self.animations = bindings
             .iter()
-            .map(|(intent, composition)| {
+            .map(|(intent, binding)| {
+                let composition = binding.composition();
+                // Placed views must be rendered separately under their output intent.
+                let source = if binding.has_placement() {
+                    intent.as_str()
+                } else {
+                    composition
+                };
                 component(intent)?;
                 component(composition)?;
                 let mut clip = self
                     .animations
-                    .get(composition)
+                    .get(source)
                     .ok_or_else(|| invalid(format!("Missing rendered composition: {composition}")))?
                     .clone();
-                clip.source = Some(clip.source.unwrap_or_else(|| composition.clone()));
+                clip.source = Some(clip.source.unwrap_or_else(|| source.to_owned()));
                 Ok((intent.clone(), clip))
             })
             .collect::<ExportResult<_>>()?;

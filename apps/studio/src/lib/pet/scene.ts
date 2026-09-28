@@ -1,3 +1,8 @@
+import {
+  compositionLoops,
+  playbackDuration,
+} from '@pets/three-runtime/project';
+import { sharesMotionClock } from '@pets/three-runtime/project';
 import type { StudioProject } from '../studio-project';
 import { resolveComposition } from '@pets/three-runtime/project';
 import type { AnimationProject } from '@pets/three-runtime/project';
@@ -63,12 +68,17 @@ export async function createPetScene(
     character.parts.body,
     character.joints.head,
   );
-  const cameraYaw = Math.atan2(camera.position.x, -camera.position.y);
+  const cameraYaw = Math.atan2(camera.position.x - 0.18, -camera.position.y);
   const ray = new Raycaster();
   const headScreen = new Vector3();
   let cursor = { x: 0, y: 0, valid: false };
   let mode: AnimationMode = project?.selection.composition ?? 'idle';
+  let looping = compositionLoops(character.project, mode);
   let phase = 0;
+  let headingOverride: number | undefined;
+  let travelOverride: number | undefined;
+  let walkSpeed: number | undefined;
+  let animationSpeed = 1;
   let independentSeconds = 0;
   let playing = true;
   let tracking = true;
@@ -94,13 +104,19 @@ export async function createPetScene(
     if (document.hidden) return;
     if (playing) {
       independentSeconds += elapsed;
-      phase =
-        (phase +
-          elapsed / resolveComposition(character.project, mode).duration) %
-        1;
+      const next =
+        phase +
+        (elapsed * animationSpeed) / playbackDuration(character.project, mode);
+      phase = looping ? next % 1 : Math.min(1, next);
     }
     character.joints.head.quaternion.copy(authoredHead);
-    character.update(mode, elapsed, phase, independentSeconds);
+    character.update(mode, playing ? elapsed : 0, phase, independentSeconds, {
+      ...(headingOverride === undefined ? {} : { heading: headingOverride }),
+      ...(travelOverride === undefined
+        ? {}
+        : { travelHeading: travelOverride }),
+      ...(walkSpeed === undefined ? {} : { moveSpeed: walkSpeed }),
+    });
     authoredHead.copy(character.joints.head.quaternion);
     character.parts.head.getWorldPosition(headScreen).project(camera);
     const x = ((headScreen.x + 1) * viewport.clientWidth) / 2;
@@ -129,16 +145,63 @@ export async function createPetScene(
       if (!project.compositions[mode])
         mode = Object.keys(project.compositions)[0];
       character.setMode(mode);
+      looping = compositionLoops(character.project, mode);
     },
     setScreenProject(project: ScreenProject) {
       character.screen.setProject(project);
     },
+    get heading() {
+      return (
+        (character.heading.angle * 180) / Math.PI - (cameraYaw * 180) / Math.PI
+      );
+    },
+    get travelHeading() {
+      return (
+        (character.locomotion.angle * 180) / Math.PI -
+        (cameraYaw * 180) / Math.PI
+      );
+    },
+    get walkSpeed() {
+      return character.locomotion.speed;
+    },
+    setTravelHeading(value?: number) {
+      if (value !== undefined && !Number.isFinite(value))
+        throw new Error('Travel heading must be finite.');
+      travelOverride = value;
+    },
+    setWalkSpeed(value: number) {
+      if (!Number.isFinite(value) || value < 0)
+        throw new Error('Walk speed must be nonnegative.');
+      walkSpeed = value;
+    },
+    setAnimationSpeed(value: number) {
+      if (!Number.isFinite(value) || value <= 0)
+        throw new Error('Animation speed must be positive.');
+      animationSpeed = value;
+    },
+    get targetHeading() {
+      return (
+        (headingOverride ??
+          resolveComposition(character.project, mode).properties?.heading ??
+          0) -
+        (cameraYaw * 180) / Math.PI
+      );
+    },
+    setHeading(value: number, space: 'world' | 'view' = 'world') {
+      if (!Number.isFinite(value)) throw new Error('Heading must be finite.');
+      headingOverride =
+        value + (space === 'view' ? (cameraYaw * 180) / Math.PI : 0);
+    },
     setMode(next: AnimationMode) {
       if (!character.project.compositions[next])
         next = Object.keys(character.project.compositions)[0];
+      if (next === mode && next === 'move') return;
+      const preservePhase = sharesMotionClock(character.project, mode, next);
       character.setMode(next);
       mode = next;
-      phase = 0;
+      looping = compositionLoops(character.project, mode);
+      headingOverride = undefined;
+      if (!preservePhase) phase = 0;
     },
     setPlaying(value: boolean) {
       playing = value;

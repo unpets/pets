@@ -91,6 +91,7 @@ jobs:
           bun run test:pet
           bun run test:animation
           bun run test:studio
+          bun run test:locomotion
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Save generated site
         uses: actions/upload-artifact@v7.0.1

@@ -67,6 +67,7 @@ export async function connectDesktop(
         const next = await invoke<{
           mode: AnimationMode;
           restart: boolean;
+          heading: number | null;
           x: number | null;
         }>('wander_step', {
           frame: {
@@ -74,6 +75,8 @@ export async function connectDesktop(
             active:
               state.autonomous && state.playing && !state.menu && !dragging,
             mode: state.mode,
+            heading: pet.travelHeading,
+            moveSpeed: pet.walkSpeed,
             x: position.x / scale,
             left: area.position.x / scale,
             right: (area.position.x + area.size.width) / scale - innerWidth,
@@ -81,6 +84,7 @@ export async function connectDesktop(
           },
         });
         if (next.restart || next.mode !== state.mode) onMode(next.mode);
+        if (next.heading !== null) pet.setHeading(next.heading, 'view');
         if (next.x !== null) {
           await window.setPosition(
             new LogicalPosition(next.x, position.y / scale),

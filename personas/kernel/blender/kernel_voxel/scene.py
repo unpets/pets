@@ -8,14 +8,18 @@ import numpy as np
 
 from . import __version__
 from .animation import PROJECT, PROPS, prop_visible
+from .effects import key_effects, update_effects
 from .emission import apply_values, bake_clips, read_clips
 from .framing import fit_camera
+from .outputs import output_instance
+from .placement import place
 from .rig import (
     DURATIONS,
-    FRAMES,
+    FOREARM_PORT,
+    MOTIONS,
     PARENTS,
     SERVER_PORT,
-    WRIST_PORT,
+    SOURCE_MOTIONS,
     RigPose,
     cable_points,
     gaze_at,
@@ -32,6 +36,9 @@ def save_source(model, out):
     from .armature import bake_actions, compose_timeline, key_pose, linear_keys
 
     bake_actions(model)
+    for state in ("flying", "climbing"):
+        update_effects(model, PROJECT, state, 0)
+    update_effects(model, PROJECT, "idle", 0)
     emission_targets = bake_clips(PROJECT)
     from .model import apply_pose
 
@@ -45,7 +52,7 @@ def save_source(model, out):
     frames_dir.mkdir(exist_ok=True)
     timeline = []
     frame = 1
-    for state, frame_count in {**FRAMES, "look": 16}.items():
+    for state, frame_count in {**MOTIONS, "look": 16}.items():
         scene.timeline_markers.new(state, frame=frame)
         count = round(frame_count * DURATIONS[state] / 1000 * scene.render.fps)
         for i in range(count):
@@ -53,6 +60,8 @@ def save_source(model, out):
             scene.frame_set(frame)
             apply_pose(model, p)
             key_pose(armature, frame)
+            update_effects(model, PROJECT, state, p.t)
+            key_effects(model, frame)
             apply_values(emission_targets, PROJECT, state, p.t)
             for socket in emission_targets.values():
                 socket.keyframe_insert("default_value", frame=frame)
@@ -103,7 +112,12 @@ def build_source(out, scale, samples):
         "voxel_pitch": 0.035,
         "supersampling": scale,
         "samples": samples,
-        "ports": {"wrist": WRIST_PORT.tolist(), "server": SERVER_PORT.tolist()},
+        "ports": {
+            "wrist": FOREARM_PORT.tolist(),
+            "node": "forearm.R",
+            "radius": 0.012,
+            "server": SERVER_PORT.tolist(),
+        },
     }
     bpy.context.scene["kernel_metadata"] = json.dumps(metadata)
     save_source(model, out)
@@ -116,6 +130,9 @@ def load_source(path, device=None):
 
     bpy.ops.wm.open_mainfile(filepath=str(path.resolve()))
     scene = bpy.context.scene
+    for obj in list(scene.objects):
+        if obj.get("pets_fx"):
+            bpy.data.objects.remove(obj, do_unlink=True)
     metadata = json.loads(scene["kernel_metadata"])
     nodes = {obj["rig_part"]: obj for obj in scene.objects if "rig_part" in obj}
     display = next(obj for obj in scene.objects if obj.get("is_display"))
@@ -134,7 +151,7 @@ def load_source(path, device=None):
     texture.image = image
     for track in list(armature.animation_data.nla_tracks):
         armature.animation_data.nla_tracks.remove(track)
-    actions = {name: bpy.data.actions[name] for name in [*FRAMES, "look"]}
+    actions = {name: bpy.data.actions[name] for name in [*SOURCE_MOTIONS, "look"]}
     # Runtime tracks reference the same curves through their full source actions.
     # The editable source retains the separate joint assets in its Action library.
     for action in list(bpy.data.actions):
@@ -164,6 +181,8 @@ def load_source(path, device=None):
 
 def sample_source(model, state, phase, update_display=True):
     """Evaluate saved bones; exports never solve a second procedural rig."""
+    state, properties = output_instance(state)
+    place(model, 0)
     action = model["actions"][state]
     animation = model["armature"].animation_data
     animation.action = action
@@ -182,7 +201,7 @@ def sample_source(model, state, phase, update_display=True):
         state,
         phase,
         gaze,
-        point(matrices["hand.R"], ports["wrist"]),
+        point(matrices[ports.get("node", "hand.R")], ports["wrist"]),
         np.asarray(ports["server"]),
     )
     for prop in PROPS:
@@ -204,5 +223,11 @@ def sample_source(model, state, phase, update_display=True):
         )
         model["texture"].pixels.foreach_set(np.flipud(pixels).flatten())
         model["texture"].update()
-    bpy.context.view_layer.update()
+    update_effects(model, model["project"], state, phase)
+    heading = properties.get("heading", 0)
+    placement = np.asarray(place(model, heading))
+    if heading:
+        pose.matrices = {name: placement @ matrix for name, matrix in matrices.items()}
+        pose.cable_start = point(placement, pose.cable_start)
+        pose.cable_end = point(placement, pose.cable_end)
     return pose

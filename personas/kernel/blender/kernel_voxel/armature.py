@@ -7,7 +7,7 @@ from bpy_extras.anim_utils import action_ensure_channelbag_for_slot
 from mathutils import Matrix
 
 from .hands import HAND_BONES
-from .rig import DURATIONS, FRAMES, PARENTS, pose_at
+from .rig import DURATIONS, MOTIONS, PARENTS, SOURCE_MOTIONS, pose_at
 
 BONE_BASIS = Matrix.Rotation(math.pi / 2, 4, "X")
 
@@ -107,8 +107,8 @@ def bake_actions(model):
     from .animation import rig_source
 
     fps = bpy.context.scene.render.fps
-    states = {**FRAMES, "look": 16}
-    for state, count in {**FRAMES, "look": 16}.items():
+    states = {**MOTIONS, "look": 16}
+    for state, count in {**SOURCE_MOTIONS, "look": 16}.items():
         action = bpy.data.actions.new(state)
         action.use_fake_user = True
         armature.animation_data.action = action
@@ -224,7 +224,7 @@ def compose_timeline(model, timeline):
         track = animation.nla_tracks.new()
         track.name = label
         representative = next(name for name in PARENTS if rig_layer(name) == layer)
-        for state in [*FRAMES, "look"]:
+        for state in [*MOTIONS, "look"]:
             frames = [
                 sample["frame"] for sample in timeline if sample["state"] == state
             ]

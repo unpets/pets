@@ -5,15 +5,8 @@ from .hands import HAND_BONES, PALM_CENTER, PALM_CONTACT, PALM_SIZE
 
 def build_hand(builder, suffix):
     part = f"hand.{suffix}"
-    builder.voxel(
-        part,
-        (0, 0, 0.020),
-        (0.10, 0.10, 0.10),
-        "metal",
-        0.05,
-        step=0.005,
-        cut=lambda p: p[2] > 0.020,
-    )
+    # Flat wrist neck joins the palm to the forearm-side dome.
+    builder.box(part, (0, -0.016, -0.005), (0.075, 0.055, 0.050), "joint")
     builder.voxel(part, PALM_CENTER, PALM_SIZE, "dark", 0.025, step=0.005)
     builder.box(part, (0, 0.004, 0.140), (0.12, 0.012, 0.095), "violet")
     builder.box(part, PALM_CONTACT + (0, 0.004, 0), (0.135, 0.008, 0.070), "joint")

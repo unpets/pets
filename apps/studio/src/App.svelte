@@ -1,11 +1,13 @@
 <script lang="ts">
+  import { version } from '../package.json';
+  const buildLabel = `${version} [${__PETS_COMMIT_TAG__}]${import.meta.env.DEV ? ' (dev)' : ''}`;
   import ProjectFiles from './components/ProjectFiles.svelte';
   import {
     parseStudioProject,
     embeddedProject,
     type StudioProject,
   } from './lib/studio-project';
-  import { defaultAssets } from '@pets/kernel/assets';
+  import { defaultStudioAssets } from './lib/studio-assets';
   import { importAsset } from '@pets/three-runtime/assets';
   import { resolveComposition } from '@pets/three-runtime/project';
   import { coreRequest } from './lib/core';
@@ -44,7 +46,7 @@
   let error = $state('');
   let projectError = $state('');
   let filesOpen = $state(false);
-  let assets = $state.raw(defaultAssets());
+  let assets = $state.raw(defaultStudioAssets());
   let persona = $state({ id: 'kernel', name: 'Kernel' });
   let importBusy = $state(false);
   let disposed = false;
@@ -372,11 +374,7 @@
           : studio
             ? 'Ready'
             : 'Loading model'}</span
-    ><span class="hidden sm:inline"
-      >{workspace === 'screen'
-        ? 'Screen changes preview live on the model'
-        : 'Space to play or pause'}</span
-    ><span
+    ><span class="hidden sm:inline">{buildLabel}</span><span
       >{voxelCount ? `${voxelCount.toLocaleString()} voxels` : 'Kernel'}</span
     >
   </footer>

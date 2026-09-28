@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 
-from .rig import CELL, FRAMES
+from .rig import CELL, MOTIONS
 
 MARGIN = 4
 
@@ -31,7 +31,7 @@ def view_extent(scene):
 def fit_camera(scene, timeline):
     """Keep one camera transform and scale for the complete animation library."""
     times = {float(sample["frame"]) for sample in timeline}
-    for state, count in {**FRAMES, "look": 16}.items():
+    for state, count in {**MOTIONS, "look": 16}.items():
         frames = [sample["frame"] for sample in timeline if sample["state"] == state]
         duration = len(frames) - (1 if state == "jumping" else 0)
         for index in range(count):

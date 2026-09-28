@@ -7,7 +7,7 @@ from pets_core import animation_project
 from PIL import Image
 
 from .animation import SCREEN_CLIPS
-from .rig import DURATIONS, FRAMES, cable_points
+from .rig import DURATIONS, MOTIONS, cable_points
 from .scene import sample_source
 from .screen import (
     LAYERS,
@@ -28,7 +28,12 @@ def export_site(model, site_out):
     for socket in model["emission"].values():
         socket.default_value = 1.0
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in [model["armature"], *model["nodes"].values(), model["display"]]:
+    for obj in [
+        model["placement"],
+        model["armature"],
+        *model["nodes"].values(),
+        model["display"],
+    ]:
         obj.hide_viewport = False
         obj.hide_set(False)
         obj.select_set(True)
@@ -54,11 +59,11 @@ def export_site(model, site_out):
         "states": {},
         "project": animation_project(model["project"]),
     }
-    screen_sheet = Image.new("RGB", (96 * 48, 64 * 10))
+    screen_sheet = Image.new("RGB", (96 * 48, 64 * (len(MOTIONS) + 1)))
     atlas_size = (96 * 48, 64 * max(map(len, SCREEN_CLIPS.values())))
     layer_sheets = {name: Image.new("RGBA", atlas_size) for name in LAYERS}
     component_sheets = {name: Image.new("RGBA", atlas_size) for name in PALETTE_LAYERS}
-    for row, (state, count) in enumerate({**FRAMES, "look": 16}.items()):
+    for row, (state, count) in enumerate({**MOTIONS, "look": 16}.items()):
         samples = []
         for i in range(121):
             t = i / 120
@@ -96,4 +101,7 @@ def export_site(model, site_out):
     for name, sheet in {**layer_sheets, **component_sheets}.items():
         sheet.save(assets / f"screen-{name}.png")
     screen_sheet.save(assets / "screens.png", optimize=True)
+    from .character_export import export_character
+
+    export_character(model, assets / "kernel-character.glb")
     return data

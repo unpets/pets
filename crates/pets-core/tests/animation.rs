@@ -117,3 +117,75 @@ fn nested_inheritance_tracks_parent_edits_and_rejects_cycles() {
     assert!(project.validate().is_err());
     assert!(project.sample("child", 0.0, 0.0).is_err());
 }
+
+#[test]
+fn heading_and_speed_inherit_without_changing_independent_clocks() {
+    let mut project = project();
+    project.version = 3;
+    project.compositions.get_mut("greeting").unwrap().properties = serde_json::from_value(
+        serde_json::json!({"heading":30,"turnSpeed":180,"animationSpeed":2,"moveSpeed":0.4}),
+    )
+    .unwrap();
+    project.compositions.insert("side".into(), serde_json::from_value(
+        serde_json::json!({"label":"Side","parent":"greeting","properties":{"travelHeading":120},"bindings":{}})
+    ).unwrap());
+    project.validate().unwrap();
+    let resolved = project.resolve("side").unwrap();
+    assert_eq!(resolved.properties.heading, Some(30.0));
+    assert_eq!(resolved.properties.travel_heading, Some(120.0));
+    assert_eq!(project.playback_duration("side").unwrap(), 1.0);
+    let sample = project.sample("side", 0.5, 7.0).unwrap();
+    assert_eq!(sample["body"].phase, 0.5);
+    assert_eq!(sample["eyes"].phase, 0.75);
+}
+
+#[cfg(feature = "export")]
+#[test]
+fn distinct_output_views_require_distinct_rendered_frame_sources() {
+    let mut project = project();
+    project.exports.get_mut("codex").unwrap().insert("idle".into(), serde_json::from_value(
+        serde_json::json!({"composition":"greeting","properties":{"heading":90},"headingSpace":"view"})
+    ).unwrap());
+    let mut persona: pets_core::export::RenderedPersona =
+        serde_json::from_value(serde_json::json!({
+            "id":"test","name":"Test","version":"1","cell":[192,208],
+            "animations":{"greeting":{"frames":6,"frameDurationMs":180}}
+        }))
+        .unwrap();
+    assert!(
+        persona
+            .bind_project(&project, pets_core::ExportTarget::Codex)
+            .is_err()
+    );
+    persona
+        .animations
+        .insert("idle".into(), persona.animations["greeting"].clone());
+    persona
+        .bind_project(&project, pets_core::ExportTarget::Codex)
+        .unwrap();
+    assert_eq!(persona.animations["idle"].source.as_deref(), Some("idle"));
+}
+
+#[test]
+fn export_instance_cadence_overrides_inherited_speed() {
+    use pets_core::animation::ExportBinding;
+    let mut project = project();
+    project
+        .compositions
+        .get_mut("greeting")
+        .unwrap()
+        .properties
+        .animation_speed = Some(2.0);
+    let instance: ExportBinding = serde_json::from_value(serde_json::json!({
+        "composition":"greeting", "properties":{"animationSpeed":4.0}
+    }))
+    .unwrap();
+    assert_eq!(instance.playback_duration(&project).unwrap(), 0.5);
+    assert!(instance.has_placement());
+    assert_eq!(
+        ExportBinding::from("greeting")
+            .playback_duration(&project)
+            .unwrap(),
+        1.0
+    );
+}

@@ -8,8 +8,9 @@ import numpy as np
 from mathutils import Euler, Matrix
 from PIL import Image, ImageColor
 
-from .animation import LABELS, resolve_composition
+from .animation import resolve_composition
 from .emission import sample_curve
+from .placement import place
 from .rig import PARENTS, RigPose, cable_points, point
 from .screen import SIZE, draw_clip
 
@@ -25,7 +26,9 @@ def samples_at(project, identifier, seconds, independent_seconds=None):
             continue
         clip = project["clips"][binding["clip"]]
         cycles = (
-            seconds / composition["duration"]
+            seconds
+            * composition["properties"].get("animationSpeed", 1)
+            / composition["duration"]
             if binding["clock"] == "composition"
             else independent_seconds / clip["duration"]
         ) * binding["speed"] + binding["offset"]
@@ -78,7 +81,18 @@ def composition_screen(project, identifier, seconds, settings=None):
         style.update(settings.get("layers", {}).get(layer, {}))
         sample = samples.get(name)
         if style["source"] is not None:
-            source = list(LABELS)[style["source"]]
+            source = [
+                "idle",
+                "move",
+                "move",
+                "waving",
+                "jumping",
+                "failed",
+                "waiting",
+                "running",
+                "review",
+                "look",
+            ][style["source"]]
             binding = resolve_composition(project, source)["bindings"].get(name)
             if binding:
                 clip = project["clips"][binding["clip"]]
@@ -151,9 +165,33 @@ def rotation_at(frames, seconds):
     )
 
 
-def apply_composition(model, project, identifier, phase, screen=None):
+def blend_samples(points, angle):
+    angle %= 360
+    ordered = sorted(points, key=lambda value: value["heading"] % 360)
+    for index, left in enumerate(ordered):
+        right = ordered[(index + 1) % len(ordered)]
+        start, end = left["heading"] % 360, right["heading"] % 360
+        span = (end - start) % 360 or 360
+        offset = (angle - start) % 360
+        if offset <= span:
+            weight = offset / span
+            return [(left["source"], 1 - weight), (right["source"], weight)]
+    raise ValueError("Empty locomotion blend space")
+
+
+def blend_matrices(a, b, weight):
+    ap, aq, scale = a.decompose()
+    bp, bq, _ = b.decompose()
+    return Matrix.LocRotScale(ap.lerp(bp, weight), aq.slerp(bq, weight), scale)
+
+
+def apply_composition(model, project, identifier, phase, screen=None, context=True):
     """Compose joint-local channels without solving or moving rig attachment points."""
-    duration = resolve_composition(project, identifier)["duration"]
+    composition = resolve_composition(project, identifier)
+    duration = composition["duration"] / composition["properties"].get(
+        "animationSpeed", 1
+    )
+    place(model, 0)
     samples = samples_at(project, identifier, phase * duration)
     if "composition_rest" not in model:
         model["composition_rest"] = local_matrices(model, "idle", 0)
@@ -165,7 +203,23 @@ def apply_composition(model, project, identifier, phase, screen=None):
         if specification["kind"] != "rig":
             continue
         data = clip["data"]
-        if "source" in data:
+        if "blendSpace" in data:
+            properties = composition["properties"]
+            angle = properties.get(
+                "travelHeading", properties.get("heading", 0)
+            ) - properties.get("heading", 0)
+            selected = blend_samples(data["blendSpace"], angle)
+            poses = []
+            for source, weight in selected:
+                key = (source, position)
+                if key not in sources:
+                    sources[key] = local_matrices(model, *key)
+                poses.append((sources[key], weight))
+            for name in specification["data"]["nodes"]:
+                targets[name] = blend_matrices(
+                    poses[0][0][name], poses[1][0][name], poses[1][1]
+                )
+        elif "source" in data:
             key = (data["source"], position)
             if key not in sources:
                 sources[key] = local_matrices(model, *key)
@@ -194,6 +248,8 @@ def apply_composition(model, project, identifier, phase, screen=None):
             world[name], bone.bone.matrix_local, invert=True, **args
         )
     bpy.context.view_layer.update()
+    if not context:
+        return None
     for node in [
         model["cable"],
         *(model["nodes"][name] for name in ("server", "keyboard", "keyboard.L")),
@@ -223,7 +279,7 @@ def apply_composition(model, project, identifier, phase, screen=None):
         identifier,
         phase,
         (0, 0),
-        point(matrices["hand.R"], ports["wrist"]),
+        point(matrices[ports.get("node", "hand.R")], ports["wrist"]),
         np.asarray(ports["server"]),
     )
     for vertex, position in zip(
@@ -235,5 +291,8 @@ def apply_composition(model, project, identifier, phase, screen=None):
         np.flipud(np.asarray(image, dtype=np.float32) / 255).flatten()
     )
     model["texture"].update()
-    bpy.context.view_layer.update()
+    from .effects import update_effects
+
+    update_effects(model, project, identifier, phase)
+    place(model, composition["properties"].get("heading", 0))
     return image

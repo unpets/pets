@@ -1,3 +1,4 @@
+import { playbackDuration } from '@pets/three-runtime/project';
 import {
   Box3,
   DirectionalLight,
@@ -11,7 +12,11 @@ import {
   type Object3D,
 } from 'three';
 import { createCharacter } from '@pets/kernel/character';
-import { resolveComposition } from '@pets/three-runtime/project';
+import {
+  resolveComposition,
+  compositionInstance,
+  type ExportBinding,
+} from '@pets/three-runtime/project';
 import type { StudioProject } from './studio-project';
 import { coreRequest } from './core';
 import { version } from '../../package.json';
@@ -24,7 +29,7 @@ interface ExportPlan {
     cell: [number, number];
     animations: Record<string, { frames: number; frameDurationMs: number }>;
   };
-  compositions: Record<string, string>;
+  compositions: Record<string, ExportBinding>;
 }
 export async function renderExport(
   project: StudioProject,
@@ -71,7 +76,7 @@ export async function renderExport(
   character.screen.setProject(project.screen);
   const camera = new OrthographicCamera(-2, 2, 2, -2, 0.05, 50);
   camera.up.set(0, 0, 1);
-  camera.position.set(2.2, -10, 5.27);
+  camera.position.set(2.26, -10, 5.27);
   camera.lookAt(0.06, 0, 1.47);
   camera.updateMatrixWorld();
   const samples = Object.entries(plan.persona.animations).flatMap(
@@ -87,14 +92,30 @@ export async function renderExport(
     max = new Vector3(-Infinity, -Infinity, -Infinity);
   const vector = new Vector3();
   const box = new Box3();
-  function pose(composition: string, phase: number) {
+  function pose(source: ExportBinding, phase: number) {
+    const {
+      composition,
+      properties: authored,
+      headingSpace,
+    } = compositionInstance(source);
+    const properties = { ...authored };
+    if (headingSpace === 'view') {
+      const azimuth =
+        (Math.atan2(camera.position.x - 0.06, -camera.position.y) * 180) /
+        Math.PI;
+      if (properties.heading !== undefined) properties.heading += azimuth;
+      if (properties.travelHeading !== undefined)
+        properties.travelHeading += azimuth;
+    }
     character.setMode(composition);
     character.motion.cancelTransition();
     character.update(
       composition,
       0,
       phase,
-      phase * resolveComposition(project.animations, composition).duration,
+      phase * playbackDuration(project.animations, composition, properties),
+      properties,
+      true,
     );
     scene.updateMatrixWorld(true);
   }

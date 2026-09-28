@@ -93,11 +93,10 @@ try {
     await page.getByLabel('Right arm action motion').inputValue(),
     'idle',
   );
-  await page.getByLabel('Import project file').setInputFiles({
-    name: 'project.pets.json',
-    mimeType: 'application/json',
-    buffer: file.bytes,
-  });
+  await writeFile('build/studio-project/import.pets.json', file.bytes);
+  await page
+    .getByLabel('Import project file')
+    .setInputFiles(resolve('build/studio-project/import.pets.json'));
   await page.waitForFunction(
     () =>
       !document.querySelector('[aria-label="Import project file"]').files
@@ -154,11 +153,13 @@ try {
   }
   await closeFiles();
   project.animations.compositions.idle.parent = 'inherited-greeting';
-  await page.getByLabel('Import project file').setInputFiles({
-    name: 'cycle.pets.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
+  await writeFile(
+    'build/studio-project/cycle.pets.json',
+    JSON.stringify(project),
+  );
+  await page
+    .getByLabel('Import project file')
+    .setInputFiles(resolve('build/studio-project/cycle.pets.json'));
   await page.getByRole('alert').waitFor();
   assert.match(await page.getByRole('alert').textContent(), /cycle/);
   assert.equal(

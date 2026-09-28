@@ -52,7 +52,7 @@ fn dispatch(input: &[u8]) -> Result<Value, Box<dyn std::error::Error>> {
                 let composition = mappings
                     .get(state)
                     .ok_or_else(|| format!("Map the {state} export intent"))?;
-                let duration = project.resolve(composition)?.duration.unwrap();
+                let duration = composition.playback_duration(&project)?;
                 animations.insert(
                     state.to_string(),
                     crate::export::RenderedAnimation {

@@ -94,8 +94,12 @@ try {
     assert.equal(await page.locator('#speed').inputValue(), '1');
     for (const state of [
       'idle',
-      'running-right',
-      'running-left',
+      'move',
+      'flying',
+      'climbing',
+      'climb-rope',
+      'climb-ladder',
+      'climb-border',
       'waving',
       'jumping',
       'failed',
@@ -152,7 +156,10 @@ try {
       assert.equal(download.suggestedFilename(), name);
       const actual = await readFile(await download.path());
       const expected = await readFile(
-        resolve('personas/kernel/generated/assets', name),
+        resolve(
+          'personas/kernel/generated/assets',
+          name === 'kernel.glb' ? 'kernel-character.glb' : name,
+        ),
       );
       if (name.endsWith('.json')) {
         const document = JSON.parse(expected);
@@ -351,7 +358,7 @@ try {
     );
   }
   console.log(
-    'Viewer checks passed: 10 modes, playback state, server visibility, camera, controls, mobile overflow, no browser errors.',
+    'Viewer checks passed: 14 compositions, playback state, server visibility, camera, controls, mobile overflow, no browser errors.',
   );
 } finally {
   await browser?.close();

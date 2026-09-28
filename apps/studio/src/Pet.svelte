@@ -69,6 +69,11 @@
   let playing = $state(true);
   let mode = $state<AnimationMode>('idle');
   let error = $state('');
+  let heading = $state(0);
+  let travelHeading = $state(0);
+  let followFacing = $state(true);
+  let animationSpeed = $state(1);
+  let walkSpeed = $state(0.7);
   function setMode(value: AnimationMode) {
     mode = value;
     pet?.setMode(value);
@@ -163,6 +168,64 @@
             >{details.label}</option
           >{/each}</select
       ></label
+    >
+    <label
+      >Heading (degrees)<input
+        type="range"
+        min="-180"
+        max="180"
+        step="1"
+        aria-label="Pet heading"
+        bind:value={heading}
+        oninput={() => {
+          autonomous = false;
+          pet?.setHeading(heading);
+        }}
+      /></label
+    >
+    <label
+      ><input
+        type="checkbox"
+        bind:checked={followFacing}
+        onchange={() =>
+          pet?.setTravelHeading(followFacing ? undefined : travelHeading)}
+      />Travel follows facing</label
+    >
+    {#if !followFacing}<label
+        >Travel heading<input
+          type="range"
+          min="-180"
+          max="180"
+          step="1"
+          aria-label="Pet travel heading"
+          bind:value={travelHeading}
+          oninput={() => {
+            autonomous = false;
+            pet?.setTravelHeading(travelHeading);
+          }}
+        /></label
+      >{/if}
+    <label
+      >Animation speed<input
+        type="range"
+        min="0.1"
+        max="4"
+        step="0.1"
+        aria-label="Pet animation speed"
+        bind:value={animationSpeed}
+        oninput={() => pet?.setAnimationSpeed(animationSpeed)}
+      /></label
+    >
+    <label
+      >Walk speed (m/s)<input
+        type="range"
+        min="0"
+        max="3"
+        step="0.05"
+        aria-label="Pet walk speed"
+        bind:value={walkSpeed}
+        oninput={() => pet?.setWalkSpeed(walkSpeed)}
+      /></label
     >
     <label
       ><Eye size={16} /><input

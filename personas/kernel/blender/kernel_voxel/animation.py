@@ -1,12 +1,11 @@
 """Kernel's reusable clip catalog and explicit composition bindings."""
 
 from .keyboard import KEY_MATERIALS, key_intensity
-from .rig import DURATIONS, FRAMES, PARENTS
+from .rig import DURATIONS, FRAMES, LOCOMOTION, MOTIONS, PARENTS, SOURCE_MOTIONS
 
 LABELS = {
     "idle": "Idle",
-    "running-right": "Move right",
-    "running-left": "Move left",
+    "move": "Move",
     "waving": "Wave",
     "jumping": "Jump",
     "failed": "Failure",
@@ -14,6 +13,11 @@ LABELS = {
     "running": "Active work",
     "review": "Review",
     "look": "Look around",
+    "flying": "Fly",
+    "climbing": "Climb",
+    "climb-rope": "Rope",
+    "climb-ladder": "Ladder",
+    "climb-border": "Border",
 }
 PROPS = ("server", "cable", "keyboard", "keyboard.L")
 
@@ -76,14 +80,14 @@ def binding(clip, clock="independent"):
 def animation_project():
     project = {
         "format": "pets-animation",
-        "version": 2,
+        "version": 3,
         "components": {},
         "clips": {},
         "compositions": {},
         "exports": {},
     }
     components, clips = project["components"], project["clips"]
-    states = {**FRAMES, "look": 16}
+    states = {**MOTIONS, "look": 16}
     for name in PARENTS:
         component = f"rig/{name}"
         components[component] = {
@@ -95,13 +99,25 @@ def animation_project():
                 "layerLabel": RIG_LAYERS[rig_layer(name)],
             },
         }
-        for state, count in states.items():
+        for state, count in {**SOURCE_MOTIONS, "look": 16}.items():
             clips[f"{component}/{state}"] = {
-                "label": LABELS[state],
+                "label": LABELS.get(state, state.replace("-", " ").capitalize()),
                 "component": component,
                 "duration": count * DURATIONS[state] / 1000,
-                "looping": state != "jumping",
-                "data": {"source": state},
+                "looping": state not in ("jumping", "climb-border"),
+                "data": {
+                    "source": state,
+                    **(
+                        {
+                            "blendSpace": [
+                                {"source": source, "heading": angle}
+                                for source, angle in LOCOMOTION.items()
+                            ]
+                        }
+                        if state == "move"
+                        else {}
+                    ),
+                },
             }
     for layer, sources in SCREEN_CLIPS.items():
         component = f"screen/{layer}"
@@ -159,6 +175,39 @@ def animation_project():
                     ]
                 },
             }
+    effects = {
+        "thrusters": (
+            ["foot.L", "foot.R"],
+            "flying",
+            "#55e9eb",
+            [0, 0, -1.1],
+            [0, 0, -0.16],
+        ),
+    }
+    for name, (nodes, state, color, velocity, offset) in effects.items():
+        component = f"fx/{name}"
+        components[component] = {
+            "label": name.replace("-", " ").capitalize(),
+            "kind": "effect",
+            "data": {"nodes": nodes},
+        }
+        clips[component] = {
+            "label": components[component]["label"],
+            "component": component,
+            "duration": 1.28,
+            "looping": True,
+            "data": {
+                "generator": "particles",
+                "color": color,
+                "count": 16,
+                "lifetime": 0.32,
+                "radius": 0.018,
+                "spread": 0.12,
+                "velocity": velocity,
+                "gravity": [0, 0, -0.3],
+                "offset": offset,
+            },
+        }
     for state, count in states.items():
         bindings = {
             f"rig/{name}": binding(
@@ -197,8 +246,11 @@ def animation_project():
                 f"{component}/{'typing' if state == 'running' else 'off'}",
                 "composition",
             )
+        for name, (_, owner, _, _, _) in effects.items():
+            if state == owner:
+                bindings[f"fx/{name}"] = binding(f"fx/{name}")
         project["compositions"][state] = {
-            "label": LABELS[state],
+            "label": LABELS.get(state, state.replace("-", " ").capitalize()),
             "description": "",
             "duration": count * DURATIONS[state] / 1000,
             "bindings": bindings,
@@ -211,8 +263,25 @@ def animation_project():
             for component, source in child["bindings"].items()
             if source != project["compositions"]["idle"]["bindings"].get(component)
         }
+    for state in ("climb-rope", "climb-ladder", "climb-border"):
+        child = project["compositions"][state]
+        child["parent"] = "climbing"
+        child["bindings"] = {
+            component: source
+            for component, source in child["bindings"].items()
+            if source != project["compositions"]["climbing"]["bindings"].get(component)
+        }
+    project["compositions"]["move"]["properties"] = {
+        "heading": 0,
+        "turnSpeed": 240,
+        "animationSpeed": 1,
+        "moveSpeed": 0.7,
+    }
+    from .outputs import output_binding
+
     project["exports"] = {
-        target: {state: state for state in states} for target in ("codex", "shimeji")
+        target: {state: output_binding(state) for state in [*FRAMES, "look"]}
+        for target in ("codex", "shimeji")
     }
     return project
 
@@ -233,9 +302,11 @@ def resolve_composition(project, identifier):
         cursor = composition.get("parent")
     result = dict(chain[0])
     result["bindings"] = {}
+    result["properties"] = {}
     duration = None
     for composition in reversed(chain):
         result["bindings"].update(composition["bindings"])
+        result["properties"].update(composition.get("properties", {}))
         duration = composition.get("duration", duration)
     if duration is None or duration <= 0:
         raise ValueError(f"Composition needs a duration: {identifier}")
@@ -244,6 +315,9 @@ def resolve_composition(project, identifier):
 
 
 def screen_bindings(state, phase):
+    from .outputs import output_instance
+
+    state, _ = output_instance(state)
     composition = resolve_composition(PROJECT, state)
     seconds = phase * composition["duration"]
     for component, source in composition["bindings"].items():
@@ -265,6 +339,9 @@ def screen_bindings(state, phase):
 
 
 def prop_visible(state, prop):
+    from .outputs import output_instance
+
+    state, _ = output_instance(state)
     component = f"prop/{prop}"
     source = resolve_composition(PROJECT, state)["bindings"].get(component)
     return bool(
@@ -272,3 +349,8 @@ def prop_visible(state, prop):
         and source["enabled"]
         and PROJECT["clips"][source["clip"]]["data"]["visible"]
     )
+
+
+def playback_duration(project, identifier):
+    composition = resolve_composition(project, identifier)
+    return composition["duration"] / composition["properties"].get("animationSpeed", 1)

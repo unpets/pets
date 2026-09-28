@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EffectEditor from './EffectEditor.svelte';
   import ExportBindings from './ExportBindings.svelte';
   import CompositionEditor from './CompositionEditor.svelte';
   import KeyframeEditor from './KeyframeEditor.svelte';
@@ -215,7 +216,9 @@
     </div>
   {/if}
 </section>
-{#if clip}<KeyframeEditor {editor} />{/if}
+{#if clip && component.kind === 'effect'}<EffectEditor
+    {editor}
+  />{:else if clip}<KeyframeEditor {editor} />{/if}
 {#if component.kind === 'screen' && !['eyes', 'mouth', 'background', 'activity'].includes(component.data.layer as string)}
   <section class="inspector-section">
     <h3>Layer placement</h3>
@@ -288,13 +291,21 @@
         ? 'rotation'
         : component.kind === 'emission'
           ? 'emission'
-          : 'visibility'} clip</button
+          : component.kind === 'effect'
+            ? 'effect'
+            : 'visibility'} clip</button
   >
   <button
     class="button mt-2 w-full"
     disabled={!label.trim()}
     onclick={() => editor.addScreen(label.trim(), mode)}
     ><Layers3 size={13} />Add screen layer</button
+  >
+  <button
+    class="button mt-2 w-full"
+    disabled={!label.trim()}
+    onclick={() => editor.addEffect(label.trim(), mode)}
+    ><Plus size={13} />Add FX layer</button
   >
   {#if clip}
     <label class="field-label mt-3"

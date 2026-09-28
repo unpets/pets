@@ -1,3 +1,14 @@
+import { createEffects } from '@pets/three-runtime/effects';
+import {
+  createLocomotion,
+  type DirectionSample,
+} from '@pets/three-runtime/locomotion';
+import { playbackDuration } from '@pets/three-runtime/project';
+import { createHeading } from '@pets/three-runtime/heading';
+import {
+  headingRadians,
+  type CompositionProperties,
+} from '@pets/three-runtime/project';
 import { resolveComposition } from '@pets/three-runtime/project';
 import {
   Mesh,
@@ -46,65 +57,88 @@ export async function createCharacter(
     map: screen.texture,
     toneMapped: false,
   });
+  const effects = createEffects(parts);
   const motion = createMotion(model, clips, 'running');
   const updateEmission = createEmission(model, data.project);
   let project = data.project;
   let selected = '';
+  let layerSignature = '';
+  let locomoting = false;
+  const locomotion = createLocomotion();
+  let velocity = { x: 0, y: 0, z: 0 };
+  const heading = createHeading(model.rotation.z);
   let samples: ReturnType<typeof sampleComposition> = {};
   let screenSeconds = 0;
   function select(mode: string) {
     const composition = resolveComposition(project, mode);
     if (!composition) throw new Error(`Unknown composition: ${mode}`);
-    motion.setLayers(
-      Object.entries(composition.bindings)
-        .filter(([id, b]) => b.enabled && project.components[id].kind === 'rig')
-        .map(([id, b]) => {
-          const component = project.components[id];
-          const clip = project.clips[b.clip];
-          const nodes = (component.data.nodes as string[]).map(
-            (node) => joints[node].name,
-          );
-          let source = clip.data.source as string;
-          if (clip.data.keyframes) {
-            source = `${b.clip}:${JSON.stringify(clip.data.keyframes)}`;
-            const frames = clip.data.keyframes as {
-              time: number;
-              rotation: [number, number, number];
-            }[];
-            motion.addClip(
-              new AnimationClip(
-                source,
-                clip.duration,
-                nodes.map(
-                  (node) =>
-                    new QuaternionKeyframeTrack(
-                      `${node}.quaternion`,
-                      frames.map((f) => f.time),
-                      frames.flatMap((f) =>
-                        new Quaternion()
-                          .setFromEuler(
-                            new Euler(
-                              ...(f.rotation.map(
-                                (v) => (v * Math.PI) / 180,
-                              ) as [number, number, number]),
-                            ),
-                          )
-                          .toArray(),
-                      ),
+    const layers = Object.entries(composition.bindings)
+      .filter(([id, b]) => b.enabled && project.components[id].kind === 'rig')
+      .map(([id, b]) => {
+        const component = project.components[id];
+        const clip = project.clips[b.clip];
+        const nodes = (component.data.nodes as string[]).map(
+          (node) => joints[node].name,
+        );
+        let source = clip.data.source as string;
+        if (clip.data.keyframes) {
+          source = `${b.clip}:${JSON.stringify(clip.data.keyframes)}`;
+          const frames = clip.data.keyframes as {
+            time: number;
+            rotation: [number, number, number];
+          }[];
+          motion.addClip(
+            new AnimationClip(
+              source,
+              clip.duration,
+              nodes.map(
+                (node) =>
+                  new QuaternionKeyframeTrack(
+                    `${node}.quaternion`,
+                    frames.map((f) => f.time),
+                    frames.flatMap((f) =>
+                      new Quaternion()
+                        .setFromEuler(
+                          new Euler(
+                            ...(f.rotation.map((v) => (v * Math.PI) / 180) as [
+                              number,
+                              number,
+                              number,
+                            ]),
+                          ),
+                        )
+                        .toArray(),
                     ),
-                ),
+                  ),
               ),
-            );
-          }
-          return { id, source, nodes };
-        }),
+            ),
+          );
+        }
+        return {
+          id,
+          source,
+          nodes,
+          blendSpace: clip.data.blendSpace as DirectionSample[] | undefined,
+        };
+      });
+    locomoting = layers.some(
+      (layer) =>
+        layer.blendSpace &&
+        project.components[layer.id].data.layer === 'posture',
     );
+    const signature = JSON.stringify(layers);
+    if (signature !== layerSignature) {
+      motion.setLayers(layers);
+      layerSignature = signature;
+    }
     selected = mode;
   }
   const cable = createCable(
-    parts['hand.R'],
+    parts[data.ports.node ?? 'hand.R'],
     new Vector3(...data.ports.wrist),
     new Vector3(...data.ports.server),
+    model,
+    data.ports.radius ?? 0.025,
   );
   return {
     model,
@@ -113,6 +147,11 @@ export async function createCharacter(
     data,
     display,
     motion,
+    heading,
+    locomotion,
+    get velocity() {
+      return velocity;
+    },
     cable,
     screen,
     get project() {
@@ -133,14 +172,33 @@ export async function createCharacter(
       mode: AnimationMode,
       elapsed: number,
       phase: number,
-      independentSeconds = phase * resolveComposition(project, mode).duration,
+      independentSeconds = phase * playbackDuration(project, mode),
+      overrides: CompositionProperties = {},
+      immediate = false,
     ) {
       if (selected !== mode) select(mode);
+      const properties = {
+        ...resolveComposition(project, mode).properties,
+        ...overrides,
+      };
+      const targetHeading = headingRadians(properties);
+      model.rotation.z = immediate
+        ? heading.snap(targetHeading)
+        : heading.update(targetHeading, elapsed, properties.turnSpeed);
+
+      velocity = locomotion.update(
+        heading.angle,
+        properties.travelHeading,
+        locomoting ? (properties.moveSpeed ?? 0.7) : 0,
+        elapsed,
+        properties.turnSpeed,
+        immediate,
+      );
       screenSeconds = independentSeconds;
       samples = sampleComposition(
         project,
         mode,
-        phase * resolveComposition(project, mode).duration,
+        phase * playbackDuration(project, mode),
         independentSeconds,
       );
       motion.update(
@@ -148,6 +206,7 @@ export async function createCharacter(
         Object.fromEntries(
           Object.entries(samples).map(([id, sample]) => [id, sample.phase]),
         ),
+        ((locomotion.angle - heading.angle) * 180) / Math.PI,
       );
       for (const component of Object.values(data.project.components)) {
         if (component.kind === 'visibility' && component.data.node !== 'cable')
@@ -163,11 +222,14 @@ export async function createCharacter(
             : parts[component.data.node as string];
         target.visible = project.clips[sample.clip].data.visible as boolean;
       }
+      model.updateMatrixWorld(true);
       if (cable.mesh.visible) cable.update();
       updateEmission(project, samples);
+      effects.update(project, samples);
       screen.update(project, samples, screenSeconds);
     },
     dispose() {
+      effects.dispose();
       motion.dispose();
       cable.dispose();
       screen.dispose();

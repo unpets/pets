@@ -4,16 +4,19 @@ import {
   Mesh,
   MeshStandardMaterial,
   Object3D,
+  Quaternion,
   Vector3,
 } from 'three';
 
 export function createCable(
-  wrist: Object3D,
-  wristPort: Vector3,
+  attachment: Object3D,
+  attachmentPort: Vector3,
   serverPort: Vector3,
+  root: Object3D,
+  radius: number,
 ) {
-  const rings = 32;
-  const segments = 8;
+  const rings = 64;
+  const segments = 16;
   const positions = new Float32Array(rings * segments * 3);
   const indices: number[] = [];
   for (let ring = 0; ring < rings - 1; ring++) {
@@ -36,48 +39,82 @@ export function createCable(
   const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
   const points = Array.from({ length: rings }, () => new Vector3());
-  const start = new Vector3();
-  const control1 = new Vector3();
-  const control2 = serverPort.clone().add(new Vector3(0, -0.36, 0));
-  const tangent = new Vector3();
-  const side = new Vector3();
-  const normal = new Vector3();
-  const vertex = new Vector3();
-
+  const raw = Array.from({ length: 257 }, () => new Vector3());
+  const distances = new Float64Array(raw.length);
+  const controls = Array.from({ length: 6 }, () => new Vector3());
+  const binomial = [1, 5, 10, 10, 5, 1];
+  const direction = new Vector3();
+  const tangent = new Vector3(),
+    previous = new Vector3();
+  const side = new Vector3(),
+    normal = new Vector3(),
+    vertex = new Vector3();
+  const rotation = new Quaternion();
   return {
     mesh,
     update() {
-      start.copy(wristPort).applyMatrix4(wrist.matrixWorld);
-      control1
-        .set(0, 1, 0)
-        .transformDirection(wrist.matrixWorld)
-        .multiplyScalar(0.2)
-        .add(start);
-      points.forEach((point, index) => {
-        const t = index / (rings - 1);
-        const u = 1 - t;
-        point
-          .copy(start)
-          .multiplyScalar(u ** 3)
-          .addScaledVector(control1, 3 * u * u * t)
-          .addScaledVector(control2, 3 * u * t * t)
-          .addScaledVector(serverPort, t ** 3);
+      controls[0].copy(attachmentPort).applyMatrix4(attachment.matrixWorld);
+      controls[5].copy(serverPort).applyMatrix4(root.matrixWorld);
+      direction.set(0, 1, 0).transformDirection(attachment.matrixWorld);
+      controls[1].copy(controls[0]).addScaledVector(direction, 0.14);
+      controls[2]
+        .set(0, -0.12, -0.12)
+        .applyQuaternion(root.quaternion)
+        .add(controls[0])
+        .addScaledVector(direction, 0.26);
+      controls[3]
+        .copy(serverPort)
+        .add(new Vector3(0, -0.28, -0.2))
+        .applyMatrix4(root.matrixWorld);
+      controls[4]
+        .copy(serverPort)
+        .add(new Vector3(0, -0.14, 0))
+        .applyMatrix4(root.matrixWorld);
+      raw.forEach((point, index) => {
+        const t = index / (raw.length - 1);
+        point.set(0, 0, 0);
+        controls.forEach((control, i) =>
+          point.addScaledVector(
+            control,
+            binomial[i] * (1 - t) ** (5 - i) * t ** i,
+          ),
+        );
+        distances[index] = index
+          ? distances[index - 1] + point.distanceTo(raw[index - 1])
+          : 0;
       });
+      let cursor = 1;
+      points.forEach((point, index) => {
+        const distance = (distances[raw.length - 1] * index) / (rings - 1);
+        while (cursor < raw.length - 1 && distances[cursor] < distance)
+          cursor++;
+        const length = distances[cursor] - distances[cursor - 1];
+        point
+          .copy(raw[cursor - 1])
+          .lerp(
+            raw[cursor],
+            length ? (distance - distances[cursor - 1]) / length : 0,
+          );
+      });
+      side.set(1, 0, 0).transformDirection(attachment.matrixWorld);
       points.forEach((point, index) => {
         tangent
           .copy(points[Math.min(rings - 1, index + 1)])
           .sub(points[Math.max(0, index - 1)])
           .normalize();
-        side.set(1, 0, 0).cross(tangent).normalize();
+        if (index)
+          side.applyQuaternion(rotation.setFromUnitVectors(previous, tangent));
+        side.addScaledVector(tangent, -side.dot(tangent)).normalize();
         normal.copy(tangent).cross(side).normalize();
         for (let segment = 0; segment < segments; segment++) {
-          const angle = (segment * Math.PI) / 4;
+          const angle = (segment * 2 * Math.PI) / segments;
           vertex
             .copy(point)
-            .addScaledVector(side, 0.025 * Math.cos(angle))
-            .addScaledVector(normal, 0.025 * Math.sin(angle));
+            .addScaledVector(side, radius * Math.cos(angle))
+            .addScaledVector(normal, radius * Math.sin(angle));
           vertex.toArray(positions, (index * segments + segment) * 3);
         }
+        previous.copy(tangent);
       });
       geometry.attributes.position.needsUpdate = true;
       geometry.computeVertexNormals();

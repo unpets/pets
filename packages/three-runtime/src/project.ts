@@ -17,20 +17,41 @@ export interface Binding {
   offset: number;
   enabled: boolean;
 }
+/** Heading in degrees about the character up axis; zero faces local forward. */
+export interface CompositionProperties {
+  heading?: number;
+  turnSpeed?: number;
+  travelHeading?: number;
+  animationSpeed?: number;
+  moveSpeed?: number;
+}
+export interface CompositionInstance {
+  composition: string;
+  properties?: CompositionProperties;
+  headingSpace?: 'world' | 'view';
+}
+export type ExportBinding = string | CompositionInstance;
+export function compositionInstance(value: ExportBinding): CompositionInstance {
+  return typeof value === 'string' ? { composition: value } : value;
+}
+export function headingRadians(properties: CompositionProperties = {}): number {
+  return ((properties.heading ?? 0) * Math.PI) / 180;
+}
 export interface Composition {
   label: string;
   description: string;
   parent?: string;
   duration?: number;
+  properties?: CompositionProperties;
   bindings: Record<string, Binding>;
 }
 export interface AnimationProject {
   format: 'pets-animation';
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   components: Record<string, Component>;
   clips: Record<string, Clip>;
   compositions: Record<string, Composition>;
-  exports: Record<string, Record<string, string>>;
+  exports: Record<string, Record<string, ExportBinding>>;
 }
 export interface ComponentSample {
   clip: string;
@@ -51,11 +72,40 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const positive = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
 
+function validateProperties(value: unknown) {
+  if (value === undefined) return;
+  if (
+    !record(value) ||
+    Object.keys(value).some(
+      (key) =>
+        ![
+          'heading',
+          'turnSpeed',
+          'travelHeading',
+          'animationSpeed',
+          'moveSpeed',
+        ].includes(key),
+    ) ||
+    (value.heading !== undefined &&
+      (typeof value.heading !== 'number' || !Number.isFinite(value.heading))) ||
+    (value.turnSpeed !== undefined && !positive(value.turnSpeed)) ||
+    (value.animationSpeed !== undefined && !positive(value.animationSpeed)) ||
+    (value.moveSpeed !== undefined &&
+      (typeof value.moveSpeed !== 'number' ||
+        !Number.isFinite(value.moveSpeed) ||
+        value.moveSpeed < 0)) ||
+    (value.travelHeading !== undefined &&
+      (typeof value.travelHeading !== 'number' ||
+        !Number.isFinite(value.travelHeading)))
+  )
+    throw new Error('Invalid composition properties.');
+}
+
 export function parseAnimationProject(value: unknown): AnimationProject {
   if (
     !record(value) ||
     value.format !== 'pets-animation' ||
-    ![1, 2].includes(value.version as number) ||
+    ![1, 2, 3].includes(value.version as number) ||
     !record(value.components) ||
     !record(value.clips) ||
     !record(value.compositions)
@@ -106,6 +156,7 @@ export function parseAnimationProject(value: unknown): AnimationProject {
       !record(composition.bindings)
     )
       throw new Error(`Invalid composition: ${id}`);
+    validateProperties(composition.properties);
     composition.description ??= '';
     for (const [component, source] of Object.entries(composition.bindings)) {
       const b = Object.assign(binding(''), source);
@@ -124,18 +175,24 @@ export function parseAnimationProject(value: unknown): AnimationProject {
   }
   for (const id of Object.keys(project.compositions))
     resolveComposition(project, id);
-  project.version = 2;
+  project.version = 3;
   project.exports ??= {};
   if (!record(project.exports)) throw new Error('Invalid export bindings.');
   for (const exports of Object.values(project.exports)) {
-    if (
-      !record(exports) ||
-      Object.values(exports).some(
-        (id) =>
-          typeof id !== 'string' || !Object.hasOwn(project.compositions, id),
+    if (!record(exports)) throw new Error('Invalid export bindings.');
+    for (const source of Object.values(exports)) {
+      if (typeof source !== 'string' && !record(source))
+        throw new Error('Invalid export composition.');
+      const instance = compositionInstance(source);
+      if (!Object.hasOwn(project.compositions, instance.composition))
+        throw new Error('Unknown export composition.');
+      validateProperties(instance.properties);
+      if (
+        instance.headingSpace !== undefined &&
+        !['world', 'view'].includes(instance.headingSpace)
       )
-    )
-      throw new Error('Unknown export composition.');
+        throw new Error('Invalid export heading space.');
+    }
   }
   return project;
 }
@@ -163,9 +220,11 @@ export function resolveComposition(
   const bindings: Record<string, Binding> = {};
   const origins: Record<string, string> = {};
   let duration: number | undefined;
+  const properties: CompositionProperties = {};
   for (const entry of chain.reverse()) {
     const composition = project.compositions[entry];
     duration = composition.duration ?? duration;
+    Object.assign(properties, composition.properties);
     for (const [component, value] of Object.entries(composition.bindings)) {
       bindings[component] = { ...value };
       origins[component] = entry;
@@ -173,7 +232,13 @@ export function resolveComposition(
   }
   if (!duration || !Number.isFinite(duration))
     throw new Error(`Composition needs a duration: ${id}`);
-  return { ...project.compositions[id], duration, bindings, origins };
+  return {
+    ...project.compositions[id],
+    duration,
+    properties,
+    bindings,
+    origins,
+  };
 }
 
 export function compositionTree(project: AnimationProject) {
@@ -210,7 +275,8 @@ export function sampleComposition(
         const clip = project.clips[b.clip];
         const cycles =
           (b.clock === 'composition'
-            ? seconds / composition.duration
+            ? (seconds * (composition.properties?.animationSpeed ?? 1)) /
+              composition.duration
             : independentSeconds / clip.duration) *
             b.speed +
           b.offset;
@@ -236,4 +302,48 @@ export function uniqueId(
   for (let index = 2; Object.hasOwn(entries, id); index++)
     id = `${base}-${index}`;
   return id;
+}
+
+/** Locomotion variants retain their synchronized gait phase. */
+export function sharesMotionClock(
+  project: AnimationProject,
+  first: string,
+  second: string,
+) {
+  const a = resolveComposition(project, first),
+    b = resolveComposition(project, second);
+  const rig = (composition: ResolvedComposition) =>
+    Object.entries(composition.bindings)
+      .filter(([id]) => project.components[id].kind === 'rig')
+      .sort(([a], [b]) => a.localeCompare(b));
+  return (
+    rig(a).some(
+      ([, source]) =>
+        source.enabled &&
+        Array.isArray(project.clips[source.clip].data.blendSpace),
+    ) &&
+    a.duration === b.duration &&
+    JSON.stringify(rig(a)) === JSON.stringify(rig(b))
+  );
+}
+
+export function compositionLoops(project: AnimationProject, id: string) {
+  return Object.values(resolveComposition(project, id).bindings).every(
+    (source) =>
+      !source.enabled ||
+      source.clock !== 'composition' ||
+      project.clips[source.clip].looping,
+  );
+}
+
+export function playbackDuration(
+  project: AnimationProject,
+  id: string,
+  properties: CompositionProperties = {},
+) {
+  const composition = resolveComposition(project, id);
+  return (
+    composition.duration /
+    (properties.animationSpeed ?? composition.properties?.animationSpeed ?? 1)
+  );
 }

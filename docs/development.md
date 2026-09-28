@@ -59,6 +59,8 @@ uv run kernel-shimeji --build build --output build-shimeji
 
 The canonical Blender scene contains the editable rig, slotted actions, and baked timeline.  
 Web export produces GLB clips, sampled transforms, and deterministic display atlases.  
+The model package also includes `kernel-character.glb` with rigid skin weights and a ground root.  
+[Animation composition](animation.md) describes locomotion, FX, and character import.  
 Sprite rendering evaluates saved actions and reduces transparent images in premultiplied alpha.  
 Stage records verify source fingerprints and output checksums before reuse.  
 

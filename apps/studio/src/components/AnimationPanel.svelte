@@ -2,7 +2,6 @@
   import {
     Activity,
     ArrowRight,
-    ArrowLeft,
     Hand,
     ArrowUp,
     TriangleAlert,
@@ -33,8 +32,7 @@
   } = $props();
   const icons: Record<string, typeof Activity> = {
     idle: Activity,
-    'running-right': ArrowRight,
-    'running-left': ArrowLeft,
+    move: ArrowRight,
     waving: Hand,
     jumping: ArrowUp,
     failed: TriangleAlert,
@@ -96,7 +94,7 @@
     <h2 class="eyebrow mb-3">SOURCE ASSETS</h2>
     <a
       class="asset-link"
-      href={assets.model}
+      href={assets.characterModel ?? assets.model}
       download={`${persona.id}.glb`}
       aria-label="Download 3D model"
       ><Download size={13} />Download 3D model<span class="ml-auto text-[9px]"

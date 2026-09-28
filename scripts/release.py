@@ -82,7 +82,13 @@ def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site
         raise ValueError("Rendered outputs do not match the verified Blender source")
     required = [build / "kernel.blend", build / "timeline.json", site / "index.html"]
     required.extend(
-        assets / name for name in ("kernel.glb", "animations.json", "screens.png")
+        assets / name
+        for name in (
+            "kernel.glb",
+            "kernel-character.glb",
+            "animations.json",
+            "screens.png",
+        )
     )
     for path in required:
         if not path.is_file() or not path.stat().st_size:
@@ -115,6 +121,7 @@ def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site
                 assets / name
                 for name in (
                     "kernel.glb",
+                    "kernel-character.glb",
                     "animations.json",
                     "screens.png",
                     *(f"screen-{name}.png" for name in (*LAYERS, *PALETTE_LAYERS)),

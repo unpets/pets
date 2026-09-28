@@ -1,3 +1,4 @@
+import { compatibleMotionClips } from './legacy-motion';
 import { ImageLoader } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { AnimationData } from './types';
@@ -23,7 +24,13 @@ function modelBuffer(url: string) {
     .buffer;
 }
 
-export const defaultAssets = () => ({
+export interface CharacterAssets {
+  model: string;
+  characterModel?: string;
+  screens: string[];
+  data: AnimationData;
+}
+export const defaultAssets = (): CharacterAssets => ({
   model: modelUrl,
   screens: [
     eyesUrl,
@@ -35,7 +42,6 @@ export const defaultAssets = () => ({
   ],
   data: structuredClone(animationData),
 });
-export type CharacterAssets = ReturnType<typeof defaultAssets>;
 export function parseAssets(value: unknown): CharacterAssets {
   const assets = value as CharacterAssets;
   if (
@@ -44,6 +50,11 @@ export function parseAssets(value: unknown): CharacterAssets {
     !/^data:(model\/gltf-binary|application\/octet-stream);base64,/.test(
       assets.model,
     ) ||
+    (assets.characterModel !== undefined &&
+      (typeof assets.characterModel !== 'string' ||
+        !/^data:(model\/gltf-binary|application\/octet-stream);base64,/.test(
+          assets.characterModel,
+        ))) ||
     !Array.isArray(assets.screens) ||
     assets.screens.length !== 6 ||
     assets.screens.some(
@@ -58,6 +69,18 @@ export function parseAssets(value: unknown): CharacterAssets {
     Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
   if (!vector(assets.data.ports.wrist) || !vector(assets.data.ports.server))
     throw new Error('Invalid persona attachment points.');
+  if (
+    assets.data.ports.node !== undefined &&
+    typeof assets.data.ports.node !== 'string'
+  )
+    throw new Error('Invalid cable attachment.');
+  if (
+    assets.data.ports.radius !== undefined &&
+    (!Number.isFinite(assets.data.ports.radius) ||
+      assets.data.ports.radius <= 0 ||
+      assets.data.ports.radius > 0.1)
+  )
+    throw new Error('Invalid cable radius.');
   return structuredClone(assets);
 }
 export async function loadAssets(assets = defaultAssets()) {
@@ -71,5 +94,10 @@ export async function loadAssets(assets = defaultAssets()) {
   const screenImages = Object.fromEntries(
     screenSources.map((name, index) => [name, screenImage[index]]),
   ) as Record<ScreenSource, HTMLImageElement>;
-  return { model: model.scene, clips: model.animations, data, screenImages };
+  return {
+    model: model.scene,
+    clips: compatibleMotionClips(model.scene, model.animations),
+    data,
+    screenImages,
+  };
 }

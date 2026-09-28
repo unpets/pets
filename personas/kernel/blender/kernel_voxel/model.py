@@ -10,10 +10,11 @@ from .animation import PROPS, prop_visible
 from .hand_mesh import build_hand
 from .keyboard import KEY_MATERIALS, build_keyboards
 from .rig import (
+    CABLE_RADIUS,
+    FOREARM_PORT,
     HIP_PIVOT,
     SERVER_PORT,
     SHOULDER_PIVOT,
-    WRIST_PORT,
     cable_points,
     pose_for,
 )
@@ -283,6 +284,13 @@ def build_model():
                 "shell",
                 0.045,
                 step=0.025,
+                cut=(
+                    lambda p: (
+                        abs(p[0]) < 0.032 and p[1] > 0.052 and abs(p[2] - 0.235) < 0.045
+                    )
+                )
+                if part == "forearm.R"
+                else None,
             )
             b.box(
                 part,
@@ -354,13 +362,23 @@ def build_model():
                 "server", (1.045 + j * 0.047, -0.360, z), (0.020, 0.019, 0.10), "shell"
             )
         b.box("server", (1.337, -0.362, z + 0.03), (0.030, 0.017, 0.023), "green")
-    b.box("server", SERVER_PORT + (0, 0.082, 0), (0.15, 0.06, 0.11), "joint")
-    b.box("server", SERVER_PORT + (0, 0.055, 0), (0.11, 0.03, 0.11), "metal")
-    b.box("server", SERVER_PORT + (0, 0.034, 0), (0.078, 0.018, 0.078), "screen")
-    b.box("server", SERVER_PORT + (0, 0.016, 0), (0.060, 0.032, 0.060), "cyan_dim")
-    b.box("hand.R", WRIST_PORT + (0, -0.06, 0), (0.10, 0.06, 0.10), "metal")
-    b.box("hand.R", WRIST_PORT + (0, -0.027, 0), (0.078, 0.018, 0.078), "screen")
-    b.box("hand.R", WRIST_PORT + (0, -0.012, 0), (0.060, 0.024, 0.060), "cyan_dim")
+    b.box("server", SERVER_PORT + (0, 0.053, 0), (0.10, 0.034, 0.070), "joint")
+    b.box("server", SERVER_PORT + (0, 0.028, 0), (0.064, 0.020, 0.064), "metal")
+    b.box("server", SERVER_PORT + (0, 0.016, 0), (0.046, 0.010, 0.046), "screen")
+    b.box("server", SERVER_PORT + (0, 0.006, 0), (0.032, 0.012, 0.032), "cyan_dim")
+    # Recessed forearm interface with a narrow collar and short strain relief.
+    b.box("forearm.R", (0, 0.058, 0.235), (0.064, 0.008, 0.090), "screen")
+    for side in (-1, 1):
+        b.box("forearm.R", (side * 0.032, 0.070, 0.235), (0.008, 0.018, 0.086), "metal")
+        b.box(
+            "forearm.R",
+            (0, 0.070, 0.235 + side * 0.043),
+            (0.056, 0.018, 0.008),
+            "metal",
+        )
+    b.box("forearm.R", FOREARM_PORT + (0, -0.015, 0), (0.040, 0.014, 0.040), "dark")
+    b.box("forearm.R", FOREARM_PORT + (0, -0.004, 0), (0.026, 0.008, 0.026), "cyan_dim")
+    b.box("forearm.R", (0.024, 0.078, 0.257), (0.004, 0.004, 0.023), "cyan")
     b.box("server", (1.18, -0.01, 1.017), (0.36, 0.52, 0.025), "shell")
     build_keyboards(b)
     nodes = b.finish()
@@ -403,15 +421,16 @@ def build_model():
     nt.links.new(img.outputs["Color"], em.inputs["Color"])
     nt.links.new(em.outputs[0], output.inputs[0])
     mesh.materials.append(mat)
-    # The cable is geometry, with physical wrist and server anchors.
+    # The cable is geometry, with physical forearm and server anchors.
     curve = bpy.data.curves.new("cable", "CURVE")
     curve.dimensions = "3D"
     curve.resolution_u = 1
-    curve.bevel_depth = 0.025
-    curve.bevel_resolution = 1
+    curve.bevel_depth = CABLE_RADIUS
+    curve.bevel_resolution = 3
+    curve.twist_mode = "MINIMUM"
     curve.resolution_u = 1
     spline = curve.splines.new("POLY")
-    spline.points.add(31)
+    spline.points.add(63)
     cable = bpy.data.objects.new("cable", curve)
     bpy.context.collection.objects.link(cable)
     curve.materials.append(b.palette[b.matidx[("cyan_dim", 1)]])
@@ -430,6 +449,9 @@ def build_model():
 
 
 def apply_pose(model, pose):
+    from .animation import PROJECT
+    from .effects import update_effects
+
     if "armature" in model:
         from .armature import apply_armature_pose
 
@@ -452,6 +474,7 @@ def apply_pose(model, pose):
     )
     model["texture"].pixels.foreach_set(np.flipud(im).flatten())
     model["texture"].update()
+    update_effects(model, PROJECT, pose.state, pose.t)
     bpy.context.view_layer.update()
 
 

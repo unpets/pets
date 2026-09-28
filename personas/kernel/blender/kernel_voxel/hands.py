@@ -108,8 +108,13 @@ def digit_angles(state, t, digit, side):
     curl = np.array([0.16, 0.25, 0.13])
     spread = 0.015
     opposition = 0.25
-    if state.startswith("running-"):
+    if state == "move" or state.startswith("running-"):
         curl = np.array([0.38, 0.54, 0.32]) * (1 + 0.08 * math.sin(phase + side))
+    elif state in ("climbing", "climb-rope", "climb-ladder", "climb-border"):
+        amount = 0.75 if state == "climb-rope" else 0.58
+        curl = np.array([amount, amount * 0.9, amount * 0.65])
+        spread = 0.02
+        opposition = 0.65 if digit == "thumb" else 0
     elif state == "waving" and side == 1:
         follow = 0.025 * (1 + math.sin(phase - index * 0.25))
         curl = np.array([0.025, 0.035, 0.020]) + follow

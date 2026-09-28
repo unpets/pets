@@ -1,3 +1,5 @@
+import { playbackDuration } from '@pets/three-runtime/project';
+import { sharesMotionClock } from '@pets/three-runtime/project';
 import type { CharacterAssets } from '@pets/kernel/assets';
 import { resolveComposition } from '@pets/three-runtime/project';
 import {
@@ -132,8 +134,8 @@ export async function createStudio(
       phase,
       playing,
       speed,
-      seconds: phase * clip.duration,
-      duration: clip.duration,
+      seconds: phase * playbackDuration(character.project, mode),
+      duration: playbackDuration(character.project, mode),
       frames: 121,
       looping,
     });
@@ -160,9 +162,7 @@ export async function createStudio(
     if (playing) {
       independentSeconds += elapsed * speed;
       const next =
-        phase +
-        (elapsed * speed) /
-          resolveComposition(character.project, mode).duration;
+        phase + (elapsed * speed) / playbackDuration(character.project, mode);
       phase = looping ? next % 1 : Math.min(1, next);
       if (!looping && next >= 1) playing = false;
     }
@@ -192,9 +192,10 @@ export async function createStudio(
       update(0);
     },
     setMode(next) {
+      const preservePhase = sharesMotionClock(character.project, mode, next);
       character.setMode(next);
       mode = next;
-      phase = 0;
+      if (!preservePhase) phase = 0;
       update(0);
     },
     setSuspended(value) {
@@ -221,16 +222,14 @@ export async function createStudio(
           0,
           Math.min(intervals, Math.round(phase * intervals) + direction),
         ) / intervals;
-      independentSeconds =
-        phase * resolveComposition(character.project, mode).duration;
+      independentSeconds = phase * playbackDuration(character.project, mode);
       motion.cancelTransition();
       update(0);
     },
     seek(value) {
       playing = false;
       phase = Math.max(0, Math.min(1, value));
-      independentSeconds =
-        phase * resolveComposition(character.project, mode).duration;
+      independentSeconds = phase * playbackDuration(character.project, mode);
       motion.cancelTransition();
       update(0);
     },

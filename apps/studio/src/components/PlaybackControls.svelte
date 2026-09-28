@@ -73,7 +73,7 @@
         {playback.frames}</output
       >
       <label class="flex items-center gap-2 text-muted"
-        >Speed<select
+        >Animation speed<select
           id="speed"
           class="field compact"
           value={playback.speed}

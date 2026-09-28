@@ -1,3 +1,5 @@
+import { migrateMovement } from './migrate-project';
+import { validateEffect } from '@pets/three-runtime/effects';
 import {
   parseAnimationProject,
   type AnimationProject,
@@ -24,7 +26,7 @@ export function saveAnimationProject(project: AnimationProject) {
   }
 }
 export function parseKernelProject(value: unknown): AnimationProject {
-  const project = parseAnimationProject(value);
+  const project = migrateMovement(parseAnimationProject(value));
   const defaults = catalog;
   const nodes = new Set(
     Object.values(defaults.components)
@@ -36,6 +38,9 @@ export function parseKernelProject(value: unknown): AnimationProject {
       .filter((c) => c.data.source)
       .map((c) => c.data.source),
   );
+  sources.add('running-right');
+  sources.add('running-left');
+  sources.add('move');
   const targets = new Set<string>();
   const props = new Set(
     Object.values(defaults.components)
@@ -60,6 +65,16 @@ export function parseKernelProject(value: unknown): AnimationProject {
       )
         throw new Error(`Invalid or overlapping rig targets: ${id}`);
       for (const node of component.data.nodes as string[]) targets.add(node);
+    } else if (component.kind === 'effect') {
+      if (
+        !Array.isArray(component.data.nodes) ||
+        !component.data.nodes.length ||
+        component.data.nodes.length > 16 ||
+        component.data.nodes.some(
+          (node) => typeof node !== 'string' || !nodes.has(node),
+        )
+      )
+        throw new Error(`Invalid effect attachment: ${id}`);
     } else if (component.kind === 'screen') {
       if (
         typeof component.data.layer !== 'string' ||
@@ -98,6 +113,26 @@ export function parseKernelProject(value: unknown): AnimationProject {
   }
   for (const [id, clip] of Object.entries(project.clips)) {
     const kind = project.components[clip.component].kind;
+    if (clip.data.blendSpace !== undefined) {
+      const points = clip.data.blendSpace as {
+        source: string;
+        heading: number;
+      }[];
+      if (
+        kind !== 'rig' ||
+        !Array.isArray(points) ||
+        points.length < 2 ||
+        points.length > 32 ||
+        points.some(
+          (point) =>
+            !sources.has(point.source) || !Number.isFinite(point.heading),
+        ) ||
+        new Set(points.map((point) => ((point.heading % 360) + 360) % 360))
+          .size !== points.length ||
+        new Set(points.map((point) => point.source)).size !== points.length
+      )
+        throw new Error(`Invalid directional blend space: ${id}`);
+    }
     if (kind === 'rig') {
       if (!sources.has(clip.data.source) && !Array.isArray(clip.data.keyframes))
         throw new Error(`Missing motion source: ${id}`);
@@ -122,6 +157,8 @@ export function parseKernelProject(value: unknown): AnimationProject {
         )
           throw new Error(`Invalid rotation keyframes: ${id}`);
       }
+    } else if (kind === 'effect') {
+      validateEffect(clip.data);
     } else if (kind === 'screen') {
       if (clip.data.frames) {
         const frames = clip.data.frames as unknown[];

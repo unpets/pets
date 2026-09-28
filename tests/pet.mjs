@@ -32,8 +32,12 @@ try {
   );
   for (const mode of [
     'idle',
-    'running-right',
-    'running-left',
+    'move',
+    'flying',
+    'climbing',
+    'climb-rope',
+    'climb-ladder',
+    'climb-border',
     'waving',
     'jumping',
     'failed',

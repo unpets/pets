@@ -9,7 +9,7 @@ import numpy as np
 from .animation import PROJECT, PROPS, prop_visible
 from .emission import sockets, values_at
 from .framing import verify_frame
-from .rig import FRAMES, pose_at
+from .rig import MOTIONS, pose_at
 
 
 def verify(build):
@@ -32,7 +32,7 @@ def verify(build):
             or obj.parent_bone != name
         ):
             raise ValueError(f"Mechanical part is not attached to its bone: {name}")
-    for name in [*FRAMES, "look"]:
+    for name in [*MOTIONS, "look"]:
         action = bpy.data.actions.get(name)
         if not action or not action.slots:
             raise ValueError(f"Missing slotted animation action: {name}")

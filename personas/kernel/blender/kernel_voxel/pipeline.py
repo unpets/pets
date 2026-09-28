@@ -8,7 +8,7 @@ from pets_core import fingerprint as core_fingerprint
 
 from . import __version__
 from .cache import file_hash, fingerprint, read_cache, source_hash, write_cache
-from .rig import DURATIONS, FRAMES, SERVER_PORT, WRIST_PORT, pose_at
+from .rig import DURATIONS, FOREARM_PORT, FRAMES, SERVER_PORT, pose_at
 from .screen import LAYERS, PALETTE_LAYERS, framebuffer
 
 STATES = {**FRAMES, "look": 16}
@@ -29,6 +29,9 @@ def model_key(scale, samples):
             "rig.py",
             "screen.py",
             "animation.py",
+            "outputs.py",
+            "placement.py",
+            "effects.py",
             "scene.py",
             "validation.py",
         ),
@@ -47,6 +50,9 @@ def render_keys(scale, samples):
             "model.py",
             "hands.py",
             "animation.py",
+            "outputs.py",
+            "placement.py",
+            "effects.py",
             "hand_mesh.py",
             "keyboard.py",
             "emission.py",
@@ -60,7 +66,7 @@ def render_keys(scale, samples):
         version("Pillow"),
         scale,
         samples,
-        WRIST_PORT.tolist(),
+        FOREARM_PORT.tolist(),
         SERVER_PORT.tolist(),
     )
     keys = {}
@@ -136,7 +142,16 @@ def export_viewer(source, site_out, record):
     key = fingerprint(
         record["files"][source.name],
         source_hash(
-            "export.py", "scene.py", "screen.py", "animation.py", "emission.py"
+            "export.py",
+            "scene.py",
+            "screen.py",
+            "animation.py",
+            "emission.py",
+            "outputs.py",
+            "placement.py",
+            "character_export.py",
+            "composition.py",
+            "effects.py",
         ),
     )
     site_out.mkdir(parents=True, exist_ok=True)
@@ -154,6 +169,7 @@ def export_viewer(source, site_out, record):
             site_out / "assets" / name
             for name in (
                 "kernel.glb",
+                "kernel-character.glb",
                 "animations.json",
                 "screens.png",
                 *(f"screen-{name}.png" for name in (*LAYERS, *PALETTE_LAYERS)),

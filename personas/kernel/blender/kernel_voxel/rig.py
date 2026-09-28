@@ -20,7 +20,27 @@ FRAMES = {
     "running": 6,
     "review": 6,
 }
+MOTIONS = {
+    name: count for name, count in FRAMES.items() if not name.startswith("running-")
+}
+MOTIONS = {"idle": 6, "move": 8, **{k: v for k, v in MOTIONS.items() if k != "idle"}}
+# Synchronized local-space gait samples for a cyclic directional blend space.
+LOCOMOTION = {
+    "move": 0,
+    "move-forward-right": 45,
+    "sidestep-right": 90,
+    "move-backward-right": 135,
+    "move-backward": 180,
+    "move-backward-left": 225,
+    "sidestep-left": 270,
+    "move-forward-left": 315,
+}
+MOTIONS.update(
+    {"flying": 8, "climbing": 8, "climb-rope": 8, "climb-ladder": 8, "climb-border": 8}
+)
+SOURCE_MOTIONS = {**MOTIONS, **{name: 8 for name in LOCOMOTION}}
 DURATIONS = {
+    **{name: 90 for name in LOCOMOTION},
     "idle": 180,
     "running-right": 90,
     "running-left": 90,
@@ -31,10 +51,16 @@ DURATIONS = {
     "running": 140,
     "review": 170,
     "look": 130,
+    "flying": 160,
+    "climbing": 160,
+    "climb-rope": 180,
+    "climb-ladder": 160,
+    "climb-border": 220,
 }
 TAU = math.tau
-WRIST_PORT = np.array([0, 0.09, 0.055])
-SERVER_PORT = np.array([1.185, -0.427, 0.85])
+FOREARM_PORT = np.array([0, 0.089, 0.235])
+CABLE_RADIUS = 0.012
+SERVER_PORT = np.array([1.185, -0.404, 0.85])
 SHOULDER_PIVOT = np.array([0.60, 0, 1.50])
 HIP_PIVOT = np.array([0.25, 0, 0.865])
 REST_HEIGHT = 0.133
@@ -176,9 +202,18 @@ class RigPose:
     cable_end: np.ndarray
 
 
-def pose_at(state, t):
+def pose_at(state, t, heading=0):
+    # Legacy host intents are resolved at the output boundary.
+    if state in ("running-left", "running-right"):
+        from .outputs import output_instance
+
+        state, properties = output_instance(state)
+        heading = properties["heading"]
+    travel = math.radians(LOCOMOTION.get(state, 0))
+    if state in LOCOMOTION:
+        state = "move"
     t = float(t)
-    if state != "jumping":
+    if state not in ("jumping", "climb-border"):
         t %= 1
     s, c = math.sin(TAU * t), math.cos(TAU * t)
     root_z = REST_HEIGHT + 0.002 * s
@@ -186,26 +221,75 @@ def pose_at(state, t):
     root_x = 0.0
     lean = 0.0
     roll = 0.0
-    yaw = 0.0
+    yaw = math.radians(heading)
     head_yaw = 0.025 * s
     head_pitch = -0.018 * c
     hands = {-1: None, 1: None}
     ankles = {-1: np.array([-0.26, -0.015, 0.17]), 1: np.array([0.26, -0.015, 0.17])}
     feet_pitch = {-1: 0.0, 1: 0.0}
     gaze = (0.0, 0.0)
-    if state.startswith("running-"):
-        yaw = 0.95 if state == "running-right" else -0.95
+    if state == "move":
         root_z = REST_HEIGHT - 0.010 * math.cos(2 * TAU * t)
-        lean = 0.10
+        lean = 0.10 * math.cos(travel)
         root_y = -0.015
-        roll = 0.035 * s
+        roll = 0.035 * s - 0.07 * math.sin(travel)
         for side in (-1, 1):
             phase = t + (0 if side == 1 else 0.5)
             fy, fz, fp = gait_foot(phase)
-            ankles[side] = np.array([side * 0.26, fy, 0.17 + fz])
-            feet_pitch[side] = fp
+            ankles[side] = np.array(
+                [
+                    side * 0.26 - 0.62 * fy * math.sin(travel),
+                    fy * math.cos(travel),
+                    0.17 + fz,
+                ]
+            )
+            feet_pitch[side] = fp * math.cos(travel)
         head_pitch = -0.08
-        head_yaw = -0.10 if yaw > 0 else 0.10
+        head_yaw = 0.0
+    elif state == "flying":
+        lift = 0.32 + 0.018 * s
+        root_z = REST_HEIGHT + lift
+        head_pitch = -0.05
+        for side in (-1, 1):
+            ankles[side] += np.array([side * 0.025, 0.05, lift])
+            hands[side] = np.array([side * (0.82 + 0.02 * c), 0.015, 1.10 + lift])
+            feet_pitch[side] = -0.12
+    elif state in ("climbing", "climb-ladder", "climb-rope", "climb-border"):
+        lean = 0.12
+        root_z = REST_HEIGHT + 0.045 * s
+        head_pitch = -0.18
+        for side in (-1, 1):
+            step = TAU * t + (0 if side == 1 else math.pi)
+            ankles[side] = np.array([side * 0.28, -0.20, 0.26 + 0.08 * math.sin(step)])
+            hands[side] = np.array([side * 0.60, -0.40, 1.72 - 0.14 * math.sin(step)])
+            feet_pitch[side] = 0.24
+            if state == "climb-ladder":
+                contact = (t + (0 if side == 1 else 0.5)) % 1
+                height = (
+                    0.12 - 0.24 * contact / 0.65
+                    if contact < 0.65
+                    else -0.12 + 0.24 * smooth((contact - 0.65) / 0.35)
+                )
+                hands[side] = np.array([side * 0.43, -0.35, 1.82 + height])
+                ankles[side] = np.array([side * 0.25, -0.22, 0.31 - height * 0.65])
+            elif state == "climb-rope":
+                hands[side] = np.array([side * 0.11, -0.22, 1.78 + side * 0.085 * s])
+                ankles[side] = np.array([side * 0.10, -0.08, 0.35 - side * 0.045 * s])
+                feet_pitch[side] = 0.12
+            elif state == "climb-border":
+                lift = 0.24 * smooth(t)
+                root_z = REST_HEIGHT - 0.08 + lift
+                hands[side] = np.array([side * 0.61, -0.43, 1.91])
+                ankles[side] = np.array(
+                    [
+                        side * 0.28,
+                        -0.08 - 0.10 * smooth(t),
+                        0.17
+                        + lift
+                        + (0.05 * math.sin(math.pi * t) if side == 1 else 0),
+                    ]
+                )
+                feet_pitch[side] = 0.14 * math.sin(math.pi * t)
     elif state == "waving":
         hands[1] = np.array([0.94 + 0.09 * s, -0.02, 1.93 + 0.065 * c])
         head_yaw = 0.07
@@ -283,14 +367,14 @@ def pose_at(state, t):
         shoulder = point(body, SHOULDER_PIVOT * (side, 1, 1))
         if hands[side] is None:
             # Rest targets follow the shoulder, independently of planted feet.
-            walking = state.startswith("running-")
+            walking = state == "move"
             swing = side * 0.18 * s if walking else 0.0
             drift = 0.008 * math.sin(TAU * t + side * 1.1)
             hand = point(
                 body,
                 (
-                    side * 0.68,
-                    -0.035 - swing + drift,
+                    side * 0.68 + swing * 0.45 * math.sin(travel),
+                    -0.035 - swing * math.cos(travel) + drift,
                     0.85 + 0.035 * s * s if walking else 0.84,
                 ),
             )
@@ -319,6 +403,10 @@ def pose_at(state, t):
         matrices[f"hand.{name}"] = orient_palm(
             matrices[f"hand.{name}"], -side * body[:3, 0]
         )
+        if state in ("climbing", "climb-ladder", "climb-rope", "climb-border"):
+            matrices[f"hand.{name}"] = orient_palm(
+                matrices[f"hand.{name}"], np.array([0, -1, 0])
+            )
         if state == "running":
             matrices[f"hand.{name}"] = (WORK_HAND if side == 1 else FREE_HAND).copy()
         if state == "waving" and side == 1:
@@ -342,8 +430,8 @@ def pose_at(state, t):
         ]:
             joints[f"{joint}.{name}"] = pos
     matrices.update(hand_matrices(matrices, state, t))
-    # The plug is mounted on the right wrist housing, so its cable follows the rig.
-    cable_start = point(matrices["hand.R"], WRIST_PORT)
+    # The plug is recessed into the right forearm, so its cable follows the rig.
+    cable_start = point(matrices["forearm.R"], FOREARM_PORT)
     cable_end = SERVER_PORT.copy()
     return RigPose(matrices, joints, state, t, gaze, cable_start, cable_end)
 
@@ -353,18 +441,34 @@ def pose_for(state, index):
     return pose_at(state, index / (count - 1 if state == "jumping" else count))
 
 
-def cable_points(pose, count=32):
-    """Cubic slack cable; clears the server lid/front, exact physical plug anchors."""
+def cable_points(pose, count=64):
+    """Arc-length sampled slack curve with continuous tangents at both connectors."""
     a, b = pose.cable_start, pose.cable_end
-    direction = pose.matrices["hand.R"][:3, 1]
-    c1 = a + direction * 0.20
-    c2 = b + np.array([0, -0.36, 0])
-    return np.array(
+    direction = pose.matrices["forearm.R"][:3, 1]
+    controls = np.array(
         [
-            (1 - u) ** 3 * a
-            + 3 * (1 - u) ** 2 * u * c1
-            + 3 * (1 - u) * u * u * c2
-            + u**3 * b
-            for u in np.linspace(0, 1, count)
+            a,
+            a + direction * 0.14,
+            a + direction * 0.26 + (0, -0.12, -0.12),
+            b + (0, -0.28, -0.20),
+            b + (0, -0.14, 0),
+            b,
         ]
+    )
+    parameters = np.linspace(0, 1, 257)
+    raw = np.array(
+        [
+            sum(
+                math.comb(5, i) * (1 - t) ** (5 - i) * t**i * p
+                for i, p in enumerate(controls)
+            )
+            for t in parameters
+        ]
+    )
+    lengths = np.concatenate(
+        ([0], np.cumsum(np.linalg.norm(np.diff(raw, axis=0), axis=1)))
+    )
+    distances = np.linspace(0, lengths[-1], count)
+    return np.column_stack(
+        [np.interp(distances, lengths, raw[:, axis]) for axis in range(3)]
     )

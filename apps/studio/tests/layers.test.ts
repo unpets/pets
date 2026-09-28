@@ -24,7 +24,7 @@ test('posture, either arm and head are disjoint masks that can be reused togethe
   expect(all.length).toBe(44);
   let mixed = project;
   for (const [layer, source] of [
-    ['posture', 'running-left'],
+    ['posture', 'move'],
     ['arm.R', 'waving'],
     ['head', 'look'],
   ]) {

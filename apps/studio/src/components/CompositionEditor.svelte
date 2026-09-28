@@ -114,6 +114,120 @@
         )}
     /></label
   >
+  <label class="field-label mt-3"
+    >Heading (degrees)
+    <input
+      class="field mt-2 w-full"
+      type="number"
+      step="1"
+      aria-label="Composition heading"
+      value={resolved.properties?.heading ?? 0}
+      onchange={(e) =>
+        run(() =>
+          editor.updateComposition(mode, {
+            properties: {
+              ...composition.properties,
+              heading: e.currentTarget.valueAsNumber,
+            },
+          }),
+        )}
+    />
+  </label>
+  <label class="field-label mt-3"
+    >Turn speed (degrees per second)
+    <input
+      class="field mt-2 w-full"
+      type="number"
+      min="1"
+      step="10"
+      aria-label="Composition turn speed"
+      value={resolved.properties?.turnSpeed ?? 240}
+      onchange={(e) =>
+        run(() =>
+          editor.updateComposition(mode, {
+            properties: {
+              ...composition.properties,
+              turnSpeed: e.currentTarget.valueAsNumber,
+            },
+          }),
+        )}
+    />
+  </label>
+  <label class="field-label mt-3"
+    >Travel heading (degrees)
+    <input
+      class="field mt-2 w-full"
+      type="number"
+      step="1"
+      aria-label="Composition travel heading"
+      placeholder="Follow facing"
+      value={resolved.properties?.travelHeading ?? ''}
+      onchange={(e) =>
+        run(() =>
+          editor.updateComposition(mode, {
+            properties: {
+              ...composition.properties,
+              travelHeading:
+                e.currentTarget.value === ''
+                  ? undefined
+                  : e.currentTarget.valueAsNumber,
+            },
+          }),
+        )}
+    />
+  </label>
+  <label class="field-label mt-3"
+    >Animation speed
+    <input
+      class="field mt-2 w-full"
+      type="number"
+      min="0.01"
+      step="0.1"
+      aria-label="Composition animation speed"
+      value={resolved.properties?.animationSpeed ?? 1}
+      onchange={(e) =>
+        run(() =>
+          editor.updateComposition(mode, {
+            properties: {
+              ...composition.properties,
+              animationSpeed: e.currentTarget.valueAsNumber,
+            },
+          }),
+        )}
+    />
+  </label>
+  <label class="field-label mt-3"
+    >Walk speed (metres per second)
+    <input
+      class="field mt-2 w-full"
+      type="number"
+      min="0"
+      step="0.1"
+      aria-label="Composition walk speed"
+      value={resolved.properties?.moveSpeed ?? 0.7}
+      onchange={(e) =>
+        run(() =>
+          editor.updateComposition(mode, {
+            properties: {
+              ...composition.properties,
+              moveSpeed: e.currentTarget.valueAsNumber,
+            },
+          }),
+        )}
+    />
+  </label>
+  <p class="mt-2 text-xs text-muted">
+    Travel independently of facing to sidestep or walk backward. The viewport
+    previews motion in place.
+  </p>
+  {#if composition.properties && Object.keys(composition.properties).length}
+    <button
+      class="button mt-2 w-full"
+      onclick={() => editor.updateComposition(mode, { properties: {} })}
+    >
+      {composition.parent ? 'Inherit placement' : 'Reset placement'}
+    </button>
+  {/if}
   <label class="field-label mt-4"
     >New asset name<input
       class="field mt-2 w-full"

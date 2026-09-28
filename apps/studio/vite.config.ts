@@ -1,9 +1,11 @@
+import { commitTag } from './build-info.js';
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
 export default defineConfig({
+  define: { __PETS_COMMIT_TAG__: JSON.stringify(commitTag()) },
   plugins: [svelte(), tailwindcss(), viteSingleFile()],
   publicDir: false,
   assetsInclude: ['**/*.glb', '**/*.wasm'],

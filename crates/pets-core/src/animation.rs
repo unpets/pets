@@ -17,7 +17,7 @@ pub struct AnimationProject {
     pub clips: BTreeMap<String, Clip>,
     pub compositions: BTreeMap<String, Composition>,
     #[serde(default)]
-    pub exports: BTreeMap<String, BTreeMap<String, String>>,
+    pub exports: BTreeMap<String, BTreeMap<String, ExportBinding>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +41,103 @@ pub struct Clip {
     pub data: Value,
 }
 
+/// Placement is independent of joint animation. Angles are degrees about up.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompositionProperties {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heading: Option<f64>,
+    #[serde(default, rename = "turnSpeed", skip_serializing_if = "Option::is_none")]
+    pub turn_speed: Option<f64>,
+    #[serde(
+        default,
+        rename = "travelHeading",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub travel_heading: Option<f64>,
+    #[serde(
+        default,
+        rename = "animationSpeed",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub animation_speed: Option<f64>,
+    #[serde(default, rename = "moveSpeed", skip_serializing_if = "Option::is_none")]
+    pub move_speed: Option<f64>,
+}
+impl CompositionProperties {
+    fn validate(&self) -> Result<(), AnimationError> {
+        require(
+            self.heading.is_none_or(f64::is_finite)
+                && self.turn_speed.is_none_or(|v| v.is_finite() && v > 0.0)
+                && self.travel_heading.is_none_or(f64::is_finite)
+                && self
+                    .animation_speed
+                    .is_none_or(|v| v.is_finite() && v > 0.0)
+                && self.move_speed.is_none_or(|v| v.is_finite() && v >= 0.0),
+            "Heading must be finite and turn speed positive",
+        )
+    }
+    pub fn inherit(&mut self, source: &Self) {
+        self.heading = source.heading.or(self.heading);
+        self.turn_speed = source.turn_speed.or(self.turn_speed);
+        self.travel_heading = source.travel_heading.or(self.travel_heading);
+        self.animation_speed = source.animation_speed.or(self.animation_speed);
+        self.move_speed = source.move_speed.or(self.move_speed);
+    }
+}
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HeadingSpace {
+    #[default]
+    World,
+    View,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompositionInstance {
+    pub composition: String,
+    #[serde(default)]
+    pub properties: CompositionProperties,
+    #[serde(default)]
+    pub heading_space: HeadingSpace,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ExportBinding {
+    Name(String),
+    Instance(CompositionInstance),
+}
+impl ExportBinding {
+    pub fn composition(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Instance(value) => &value.composition,
+        }
+    }
+    pub fn has_placement(&self) -> bool {
+        matches!(self, Self::Instance(value) if value.properties.heading.is_some()
+            || value.properties.travel_heading.is_some()
+            || value.properties.animation_speed.is_some())
+    }
+    pub fn playback_duration(&self, project: &AnimationProject) -> Result<f64, AnimationError> {
+        let mut composition = project.resolve(self.composition())?;
+        if let Self::Instance(instance) = self {
+            composition.properties.inherit(&instance.properties);
+        }
+        Ok(composition.duration.unwrap() / composition.properties.animation_speed.unwrap_or(1.0))
+    }
+}
+impl From<&str> for ExportBinding {
+    fn from(value: &str) -> Self {
+        Self::Name(value.to_owned())
+    }
+}
+impl From<String> for ExportBinding {
+    fn from(value: String) -> Self {
+        Self::Name(value)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Composition {
@@ -51,6 +148,8 @@ pub struct Composition {
     pub parent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    #[serde(default)]
+    pub properties: CompositionProperties,
     pub bindings: BTreeMap<String, Binding>,
 }
 
@@ -118,7 +217,7 @@ fn identifier(id: &str) -> bool {
 impl AnimationProject {
     pub fn validate(&self) -> Result<(), AnimationError> {
         require(
-            self.format == "pets-animation" && matches!(self.version, 1 | 2),
+            self.format == "pets-animation" && matches!(self.version, 1 | 2 | 3),
             "Unsupported animation project",
         )?;
         require(
@@ -152,6 +251,7 @@ impl AnimationProject {
                         .is_none_or(|duration| duration.is_finite() && duration > 0.0),
                 format!("Invalid composition: {id}"),
             )?;
+            composition.properties.validate()?;
             self.resolve(id)?;
             for (component, binding) in &composition.bindings {
                 let clip = self.clips.get(&binding.clip);
@@ -165,7 +265,11 @@ impl AnimationProject {
             }
         }
         for bindings in self.exports.values() {
-            for composition in bindings.values() {
+            for binding in bindings.values() {
+                let composition = binding.composition();
+                if let ExportBinding::Instance(value) = binding {
+                    value.properties.validate()?;
+                }
                 require(
                     self.compositions.contains_key(composition),
                     format!("Unknown export composition: {composition}"),
@@ -192,8 +296,10 @@ impl AnimationProject {
         let mut result = chain[0].clone();
         result.bindings.clear();
         result.duration = None;
+        result.properties = CompositionProperties::default();
         for composition in chain.into_iter().rev() {
             result.bindings.extend(composition.bindings.clone());
+            result.properties.inherit(&composition.properties);
             result.duration = composition.duration.or(result.duration);
         }
         require(
@@ -201,6 +307,11 @@ impl AnimationProject {
             format!("Composition needs a duration: {id}"),
         )?;
         Ok(result)
+    }
+
+    pub fn playback_duration(&self, id: &str) -> Result<f64, AnimationError> {
+        let composition = self.resolve(id)?;
+        Ok(composition.duration.unwrap() / composition.properties.animation_speed.unwrap_or(1.0))
     }
 
     /// Independent clocks continue across composition changes. Composition clocks
@@ -227,7 +338,10 @@ impl AnimationProject {
                     .ok_or_else(|| AnimationError(format!("Unknown clip: {}", binding.clip)))?;
                 let cycles = match binding.clock {
                     Clock::Independent => independent_seconds / clip.duration,
-                    Clock::Composition => seconds / composition.duration.unwrap(),
+                    Clock::Composition => {
+                        seconds * composition.properties.animation_speed.unwrap_or(1.0)
+                            / composition.duration.unwrap()
+                    }
                 } * binding.speed
                     + binding.offset;
                 let phase = if clip.looping {

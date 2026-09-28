@@ -1,3 +1,5 @@
+import { defaultEffect } from '@pets/three-runtime/effects';
+import { compositionInstance } from '@pets/three-runtime/project';
 import {
   resolveComposition,
   binding,
@@ -141,7 +143,9 @@ export class AnimationEditorState {
       throw new Error('Reparent or detach child compositions first.');
     if (
       Object.values(project.exports).some((map) =>
-        Object.values(map).includes(id),
+        Object.values(map).some(
+          (value) => compositionInstance(value).composition === id,
+        ),
       )
     )
       throw new Error(
@@ -220,7 +224,9 @@ export class AnimationEditorState {
                   [1, 0],
                 ],
               }
-            : { visible: true };
+            : kind === 'effect'
+              ? { ...defaultEffect() }
+              : { visible: true };
     project.clips[id] = {
       label,
       component: this.component,
@@ -231,6 +237,30 @@ export class AnimationEditorState {
     project.compositions[composition].bindings[this.component] = binding(id);
     this.replace(project);
     this.clip = id;
+  }
+  addEffect(label: string, composition: string) {
+    const project = parseKernelProject(this.project);
+    const id = uniqueId(label, project.components);
+    const node = Object.values(project.components).find(
+      (component) => component.kind === 'rig',
+    )?.data.nodes as string[];
+    project.components[id] = {
+      label,
+      kind: 'effect',
+      data: { nodes: [node[0]] },
+    };
+    const clip = uniqueId(`${label}-effect`, project.clips);
+    project.clips[clip] = {
+      label,
+      component: id,
+      duration: 1,
+      looping: true,
+      data: { ...defaultEffect() },
+    };
+    project.compositions[composition].bindings[id] = binding(clip);
+    this.replace(project);
+    this.component = id;
+    this.clip = clip;
   }
   addScreen(label: string, composition: string) {
     const project = parseKernelProject(this.project);

@@ -9,9 +9,10 @@ import bpy
 import numpy as np
 from pets_core import animation_project
 
-from .animation import resolve_composition
+from .animation import playback_duration, resolve_composition
 from .armature import key_pose, linear_keys
 from .composition import apply_composition
+from .effects import key_effects, update_effects
 from .framing import MARGIN, projected_bounds, view_extent
 from .rig import CELL
 from .scene import load_source
@@ -23,6 +24,8 @@ def bake_project(source, document, output, compositions=None, device="auto"):
     if any(name not in project["compositions"] for name in selected):
         raise ValueError("Unknown composition selection")
     model = load_source(source, device)
+    for identifier in selected:
+        update_effects(model, project, identifier, 0)
     scene = bpy.context.scene
     output.mkdir(parents=True, exist_ok=True)
     screens = output / "blend-screens"
@@ -40,7 +43,9 @@ def bake_project(source, document, output, compositions=None, device="auto"):
         action = bpy.data.actions.new(f"composition/{identifier}")
         action.use_fake_user = True
         action.asset_mark()
-        count = max(2, math.ceil(composition["duration"] * scene.render.fps))
+        count = max(
+            2, math.ceil(playback_duration(project, identifier) * scene.render.fps)
+        )
         for index in range(count):
             phase = index / (count - 1)
             image = apply_composition(
@@ -49,6 +54,8 @@ def bake_project(source, document, output, compositions=None, device="auto"):
             for target, time in ((action, index), (preview, frame)):
                 armature.animation_data.action = target
                 key_pose(armature, time)
+            key_effects(model, frame)
+            model["placement"].keyframe_insert("rotation_euler", frame=frame)
             for node in [
                 model["cable"],
                 *(

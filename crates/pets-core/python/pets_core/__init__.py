@@ -45,7 +45,12 @@ def fingerprint():
     digest = hashlib.sha256()
     if root := workspace_root():
         core = root / "crates/pets-core"
-        paths = [root / "Cargo.lock", core / "Cargo.toml", core / "src/persona.rs"]
+        paths = [
+            root / "Cargo.lock",
+            core / "Cargo.toml",
+            core / "src/persona.rs",
+            core / "src/animation.rs",
+        ]
         paths.extend(sorted((core / "src/export").glob("*.rs")))
         paths.extend(sorted((core / "src/bin").glob("*.rs")))
         for path in paths:

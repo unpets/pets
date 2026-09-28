@@ -9,7 +9,7 @@ import {
   parseScreenProject,
   type ScreenProject,
 } from './screen-project';
-import { animationModes } from './types';
+import { screenSourceModes } from './types';
 
 export const screenSources = [
   'eyes',
@@ -119,7 +119,7 @@ export function createScreen(
         const name = specification.data.layer as keyof ScreenProject['layers'];
         const source = project.layers[name]?.source;
         if (source === null || source === undefined) continue;
-        const mode = Object.keys(animationModes)[source];
+        const mode = screenSourceModes[source];
         const binding = animation.compositions[mode]
           ? resolveComposition(animation, mode).bindings[id]
           : undefined;

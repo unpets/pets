@@ -66,7 +66,7 @@ export function parseAssetBundle(value: unknown): AssetBundle {
   const project = parseAnimationProject({
     ...bundle,
     format: 'pets-animation',
-    version: 2,
+    version: 3,
     compositions: Object.keys(bundle.compositions ?? {}).length
       ? bundle.compositions
       : { preview: { label: 'Preview', duration: 1, bindings: {} } },
