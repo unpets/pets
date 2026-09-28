@@ -101,6 +101,9 @@ Renderer adapters interpret component kinds and clip data while the core validat
 ## Composition inheritance
 
 A composition can select a parent and store only its local component overrides.  
+Wave, Look around, Review, and Waiting inherit Idle.  
+Review overrides its right arm, head, and review display layers.  
+Waiting overrides both arms, the head, and mouth while inheriting Idle's posture and blinking.  
 Parent edits propagate through every descendant unless that component is overridden.  
 Children inherit duration unless an explicit duration is entered.  
 A disabled binding is an explicit override that mutes the inherited component.  

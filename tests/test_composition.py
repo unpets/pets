@@ -3,7 +3,12 @@
 import unittest
 
 import numpy as np
-from kernel_voxel.animation import PROJECT, resolve_composition, rig_layer
+from kernel_voxel.animation import (
+    PROJECT,
+    animation_project,
+    resolve_composition,
+    rig_layer,
+)
 from kernel_voxel.emission import sample_curve, values_at
 from kernel_voxel.hands import HAND_BONES, KEYBOARD_DEPTH
 from kernel_voxel.keyboard import KEYBOARDS, TYPING_DIGITS, key_intensity
@@ -13,6 +18,43 @@ from kernel_voxel.transforms import point
 
 
 class CompositionTests(unittest.TestCase):
+    def test_review_and_waiting_reuse_idle_posture_without_changing_motion(self):
+        for state in ("review", "waiting"):
+            child = PROJECT["compositions"][state]
+            self.assertEqual(child["parent"], "idle")
+            for t in np.linspace(0, 1, 41):
+                idle, pose = pose_at("idle", t), pose_at(state, t)
+                for name in idle.matrices:
+                    if rig_layer(name) == "posture" or (
+                        state == "review" and rig_layer(name) == "arm.L"
+                    ):
+                        self.assertNotIn(f"rig/{name}", child["bindings"])
+                        np.testing.assert_allclose(
+                            idle.matrices[name], pose.matrices[name], atol=1e-10
+                        )
+
+    def test_idle_edits_propagate_to_review_and_waiting_with_local_overrides(self):
+        project = animation_project()
+        idle = project["compositions"]["idle"]["bindings"]
+        idle["rig/body"]["speed"] = 0.5
+        idle["screen/background"]["enabled"] = False
+        idle["screen/eyes"]["speed"] = 0.7
+        for state, mouth in (("review", "line"), ("waiting", "open")):
+            resolved = resolve_composition(project, state)
+            bindings = resolved["bindings"]
+            self.assertEqual(bindings["rig/body"], idle["rig/body"])
+            self.assertEqual(bindings["screen/background"], idle["screen/background"])
+            self.assertEqual(bindings["rig/head"]["clip"], f"rig/head/{state}")
+            self.assertEqual(bindings["screen/mouth"]["clip"], f"screen/mouth/{mouth}")
+            self.assertEqual(
+                resolved["duration"], PROJECT["compositions"][state]["duration"]
+            )
+        review = resolve_composition(project, "review")["bindings"]
+        waiting = resolve_composition(project, "waiting")["bindings"]
+        self.assertEqual(review["screen/eyes"]["clip"], "screen/eyes/focused")
+        self.assertEqual(review["screen/activity"]["clip"], "screen/activity/checklist")
+        self.assertEqual(waiting["screen/eyes"], idle["screen/eyes"])
+
     def test_lookaround_reuses_the_idle_body_and_palms(self):
         for t in np.linspace(0, 1, 41):
             idle, look = pose_at("idle", t), pose_at("look", t)

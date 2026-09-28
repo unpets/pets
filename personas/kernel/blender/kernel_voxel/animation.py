@@ -37,7 +37,9 @@ def rig_source(state, name):
     layer = rig_layer(name)
     if state == "look" and layer != "head":
         return "idle"
-    if state == "waving" and layer in ("posture", "arm.L"):
+    if state in ("waving", "review") and layer in ("posture", "arm.L"):
+        return "idle"
+    if state == "waiting" and layer == "posture":
         return "idle"
     return state
 
@@ -201,7 +203,7 @@ def animation_project():
             "duration": count * DURATIONS[state] / 1000,
             "bindings": bindings,
         }
-    for state in ("waving", "look"):
+    for state in ("waving", "look", "review", "waiting"):
         child = project["compositions"][state]
         child["parent"] = "idle"
         child["bindings"] = {

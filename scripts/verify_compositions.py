@@ -16,7 +16,7 @@ from kernel_voxel.scene import load_source, sample_source
 def verify(source):
     model = load_source(source, "auto")
     project = model["project"]
-    for name in ("idle", "waving", "look", "running", "review"):
+    for name in ("idle", "waving", "look", "running", "review", "waiting"):
         for phase in (0, 0.25, 0.75):
             sample_source(model, name, phase)
             expected = {
