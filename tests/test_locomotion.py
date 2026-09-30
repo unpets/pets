@@ -4,6 +4,7 @@ import unittest
 
 import numpy as np
 from kernel_voxel.animation import PROJECT, resolve_composition
+from kernel_voxel.proportions import FOREARM, SHIN, THIGH, UPPER_ARM
 from kernel_voxel.rig import (
     CABLE_RADIUS,
     FOREARM_PORT,
@@ -37,10 +38,10 @@ class LocomotionTests(unittest.TestCase):
                 pose = pose_at(name, t)
                 for side in ("L", "R"):
                     for start, end, length in (
-                        ("shoulder", "elbow", 0.33),
-                        ("elbow", "wrist", 0.34),
-                        ("hip", "knee", 0.42),
-                        ("knee", "ankle", 0.42),
+                        ("shoulder", "elbow", UPPER_ARM),
+                        ("elbow", "wrist", FOREARM),
+                        ("hip", "knee", THIGH),
+                        ("knee", "ankle", SHIN),
                     ):
                         self.assertAlmostEqual(
                             np.linalg.norm(

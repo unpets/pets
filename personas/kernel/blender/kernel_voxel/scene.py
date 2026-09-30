@@ -10,6 +10,7 @@ from . import __version__
 from .animation import PROJECT, PROPS, prop_visible
 from .effects import key_effects, update_effects
 from .emission import apply_values, bake_clips, read_clips
+from .environment import build_environment, update_environment
 from .framing import fit_camera
 from .outputs import output_instance
 from .placement import place
@@ -35,6 +36,7 @@ def save_source(model, out):
 
     from .armature import bake_actions, compose_timeline, key_pose, linear_keys
 
+    build_environment(out)
     bake_actions(model)
     for state in ("flying", "climbing"):
         update_effects(model, PROJECT, state, 0)
@@ -63,6 +65,7 @@ def save_source(model, out):
             scene.frame_set(frame)
             apply_pose(model, p)
             key_pose(armature, frame)
+            update_environment(state, frame)
             update_effects(model, PROJECT, state, p.t)
             key_effects(model, frame)
             apply_values(emission_targets, PROJECT, state, p.t)
@@ -212,6 +215,7 @@ def sample_source(model, state, phase, update_display=True):
         obj.hide_render = not prop_visible(state, prop)
         obj.hide_viewport = obj.hide_render
 
+    update_environment(state)
     apply_values(model["emission"], model["project"], state, phase)
     for vertex, position in zip(
         model["cable"].data.splines[0].points, cable_points(pose)

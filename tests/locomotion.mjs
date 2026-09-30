@@ -18,6 +18,7 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 1050 } });
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 try {
+  await page.clock.install();
   await page.goto(pathToFileURL(resolve('dist/index.html')).href);
   await page.waitForFunction(() => window.kernelViewer?.ready);
   await page.evaluate(() => {
@@ -86,11 +87,16 @@ try {
     await page.waitForTimeout(800);
   }
   async function travelled() {
-    const start = await page.evaluate(() => window.kernelViewer.travelDistance);
-    await page.waitForTimeout(700);
-    return (
-      (await page.evaluate(() => window.kernelViewer.travelDistance)) - start
+    await page.clock.pauseAt(
+      await page.evaluate(() => new Date(Date.now() + 60_000)),
     );
+    const start = await page.evaluate(() => window.kernelViewer.travelDistance);
+    // A delayed frame must account for the entire elapsed interval.
+    await page.clock.fastForward(700);
+    const distance =
+      (await page.evaluate(() => window.kernelViewer.travelDistance)) - start;
+    await page.clock.resume();
+    return distance;
   }
   await walkSpeed(0);
   assert.ok((await travelled()) < 0.02, 'zero walk speed stops translation');

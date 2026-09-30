@@ -164,6 +164,11 @@ impl RenderedPersona {
             .iter()
             .map(|(intent, binding)| {
                 let composition = binding.composition();
+                if !project.compositions[composition].enabled {
+                    return Err(invalid(format!(
+                        "Export composition is disabled: {composition}"
+                    )));
+                }
                 // Placed views must be rendered separately under their output intent.
                 let source = if binding.has_placement() {
                     intent.as_str()

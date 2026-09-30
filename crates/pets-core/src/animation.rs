@@ -123,6 +123,10 @@ impl ExportBinding {
     }
     pub fn playback_duration(&self, project: &AnimationProject) -> Result<f64, AnimationError> {
         let mut composition = project.resolve(self.composition())?;
+        require(
+            composition.enabled,
+            "Cannot export an unsupported composition",
+        )?;
         if let Self::Instance(instance) = self {
             composition.properties.inherit(&instance.properties);
         }
@@ -144,6 +148,8 @@ impl From<String> for ExportBinding {
 #[serde(deny_unknown_fields)]
 pub struct Composition {
     pub label: String,
+    #[serde(default = "enabled")]
+    pub enabled: bool,
     #[serde(default)]
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

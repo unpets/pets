@@ -21,7 +21,12 @@ test('posture, either arm and head are disjoint masks that can be reused togethe
   const layers = motionLayers(project);
   const all = layers.flatMap((layer) => layer.components);
   expect(new Set(all).size).toBe(all.length);
-  expect(all.length).toBe(44);
+  expect(all.length).toBe(4);
+  const nodes = all.flatMap(
+    (id) => project.components[id].data.nodes as string[],
+  );
+  expect(new Set(nodes).size).toBe(44);
+  expect(nodes.length).toBe(44);
   let mixed = project;
   for (const [layer, source] of [
     ['posture', 'move'],
@@ -38,9 +43,9 @@ test('posture, either arm and head are disjoint masks that can be reused togethe
     );
   }
   const bindings = mixed.compositions.idle.bindings;
-  expect(bindings['rig/upper_arm.R'].clip).toBe('rig/upper_arm.R/waving');
-  expect(bindings['rig/upper_arm.L']).toEqual(
-    project.compositions.idle.bindings['rig/upper_arm.L'],
+  expect(bindings['rig/arm.R'].clip).toBe('rig/arm.R/waving');
+  expect(bindings['rig/arm.L']).toEqual(
+    project.compositions.idle.bindings['rig/arm.L'],
   );
   expect(bindings['rig/head'].clip).toBe('rig/head/look');
   expect(bindings['screen/eyes']).toEqual(

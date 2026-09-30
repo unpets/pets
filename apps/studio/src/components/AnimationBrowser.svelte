@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SidebarRename from './SidebarRename.svelte';
   import { Clapperboard } from '@lucide/svelte';
   import { compatibleClip } from '@pets/three-runtime/project';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
@@ -40,6 +41,11 @@
         >{/each}
     </select></label
   >
+  {#if editor.project.components[editor.component]}<SidebarRename
+      subject="component"
+      value={editor.project.components[editor.component].label}
+      onrename={(label) => editor.editComponent({ label })}
+    />{/if}
   <div class="clip-list mt-3">
     {#each clips as [id, clip]}<button
         class="clip-button"
@@ -49,4 +55,11 @@
         ><Clapperboard size={14} /><span>{clip.label}</span></button
       >{/each}
   </div>
+  {#if editor.project.clips[editor.clip]}
+    <SidebarRename
+      subject="clip"
+      value={editor.project.clips[editor.clip].label}
+      onrename={(label) => editor.editClip({ label })}
+    />
+  {/if}
 </aside>

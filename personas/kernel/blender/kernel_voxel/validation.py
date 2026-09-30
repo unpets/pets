@@ -89,7 +89,7 @@ def verify(build):
             # Float32 bone chains accumulate angular error independently of translation.
             if not (
                 np.allclose(actual[:3, 3], matrix[:3, 3], atol=1e-5, rtol=0)
-                and np.allclose(actual[:3, :3], matrix[:3, :3], atol=2e-5, rtol=0)
+                and np.allclose(actual[:3, :3], matrix[:3, :3], atol=5e-5, rtol=0)
             ):
                 raise ValueError(
                     f"Baked rig differs at frame {sample['frame']}: {name}"

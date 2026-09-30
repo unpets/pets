@@ -48,7 +48,7 @@ class CompositionTests(unittest.TestCase):
             resolved["bindings"]["screen/eyes"]["clip"], "screen/eyes/blink"
         )
         self.assertNotIn("screen/mouth", resolved["bindings"])
-        self.assertIn("rig/body", resolved["bindings"])
+        self.assertIn("rig/posture", resolved["bindings"])
 
     def test_review_and_waiting_reuse_idle_posture_without_changing_motion(self):
         for state in ("review", "waiting"):
@@ -60,7 +60,7 @@ class CompositionTests(unittest.TestCase):
                     if rig_layer(name) == "posture" or (
                         state == "review" and rig_layer(name) == "arm.L"
                     ):
-                        self.assertNotIn(f"rig/{name}", child["bindings"])
+                        self.assertNotIn(f"rig/{rig_layer(name)}", child["bindings"])
                         np.testing.assert_allclose(
                             idle.matrices[name], pose.matrices[name], atol=1e-10
                         )
@@ -68,13 +68,13 @@ class CompositionTests(unittest.TestCase):
     def test_idle_edits_propagate_to_review_and_waiting_with_local_overrides(self):
         project = animation_project()
         idle = project["compositions"]["idle"]["bindings"]
-        idle["rig/body"]["speed"] = 0.5
+        idle["rig/posture"]["speed"] = 0.5
         idle["screen/background"]["enabled"] = False
         idle["screen/eyes"]["speed"] = 0.7
         for state, mouth in (("review", "line"), ("waiting", "open")):
             resolved = resolve_composition(project, state)
             bindings = resolved["bindings"]
-            self.assertEqual(bindings["rig/body"], idle["rig/body"])
+            self.assertEqual(bindings["rig/posture"], idle["rig/posture"])
             self.assertEqual(bindings["screen/background"], idle["screen/background"])
             self.assertEqual(bindings["rig/head"]["clip"], f"rig/head/{state}")
             self.assertEqual(bindings["screen/mouth"]["clip"], f"screen/mouth/{mouth}")

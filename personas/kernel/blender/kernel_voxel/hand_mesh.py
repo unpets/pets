@@ -13,7 +13,7 @@ def build_hand(builder, suffix):
     for name, bone in HAND_BONES.items():
         if not name.endswith(f".{suffix}"):
             continue
-        radius = 0.017 if bone.digit == "thumb" else 0.014
+        radius = 0.018 if bone.digit == "thumb" else 0.015
         # Shared pivot centers prevent gaps as the rigid phalanges rotate.
         builder.voxel(
             name,
@@ -39,7 +39,7 @@ def build_hand(builder, suffix):
         builder.voxel(
             name,
             (0, 0, center),
-            (bone.width - 0.008, 0.026, length),
+            (bone.width - 0.008, 0.028, length),
             "shell",
             0.006,
             step=0.005,

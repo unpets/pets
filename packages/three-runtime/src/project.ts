@@ -39,6 +39,7 @@ export function headingRadians(properties: CompositionProperties = {}): number {
 }
 export interface Composition {
   label: string;
+  enabled?: boolean;
   description: string;
   parent?: string;
   screen?: string;
@@ -175,6 +176,8 @@ export function parseAnimationProject(value: unknown): AnimationProject {
       !record(composition) ||
       typeof composition.label !== 'string' ||
       !composition.label.trim() ||
+      (composition.enabled !== undefined &&
+        typeof composition.enabled !== 'boolean') ||
       (composition.duration !== undefined && !positive(composition.duration)) ||
       (composition.parent !== undefined &&
         typeof composition.parent !== 'string') ||
@@ -185,6 +188,8 @@ export function parseAnimationProject(value: unknown): AnimationProject {
     )
       throw new Error(`Invalid composition: ${id}`);
     validateProperties(composition.properties);
+    composition.properties ??= {};
+    composition.enabled ??= true;
     composition.description ??= '';
     for (const [component, source] of Object.entries(composition.bindings)) {
       const b = Object.assign(binding(''), source);

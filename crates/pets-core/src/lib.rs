@@ -2,6 +2,7 @@
 
 pub mod animation;
 pub mod behavior;
+pub mod environment;
 #[cfg(feature = "export")]
 pub mod export;
 pub mod persona;

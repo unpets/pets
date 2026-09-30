@@ -35,7 +35,11 @@ try {
   await page.waitForFunction(
     () => window.kernelViewer.state === 'custom-greeting',
   );
-  await workspace('Components');
+  await workspace('Face');
+  await page
+    .getByRole('navigation', { name: 'Face library' })
+    .getByRole('button', { name: 'Components', exact: true })
+    .click();
   await page.getByLabel('New face asset name').fill('Custom eyes');
   await page
     .getByRole('button', { name: 'New pixel component', exact: true })
@@ -55,7 +59,7 @@ try {
     box.x + (40.5 * box.width) / 96,
     box.y + (25.5 * box.height) / 64,
   );
-  await workspace('Screen');
+  await workspace('Face');
   await page
     .getByRole('button', { name: 'Duplicate screen', exact: true })
     .click();
@@ -106,7 +110,7 @@ try {
     [255, 136, 0, 255],
     'Independent eye clock must survive a composition switch',
   );
-  await workspace('Screen');
+  await workspace('Face');
   await page
     .locator('.face-slot')
     .filter({ has: page.locator('summary', { hasText: 'Eyes' }) })
@@ -121,7 +125,11 @@ try {
         .getImageData(40, 25, 1, 1).data[0] === 79,
   );
   assert.deepEqual(await pixel(), [79, 239, 243, 255]);
-  await workspace('Components');
+  await workspace('Face');
+  await page
+    .getByRole('navigation', { name: 'Face library' })
+    .getByRole('button', { name: 'Components', exact: true })
+    .click();
   await page.getByLabel('New face asset name').fill('Badge');
   await page
     .getByRole('button', { name: 'New custom layer', exact: true })
@@ -152,10 +160,10 @@ try {
   await page.getByLabel('Head movement motion').selectOption('look');
   await page.getByLabel('Head movement speed').fill('0.5');
   await page.getByLabel('Head movement speed').press('Tab');
-  await page.getByLabel('Animation component').selectOption('rig/hand.R');
+  await page.getByLabel('Animation component').selectOption('rig/arm.R');
   assert.equal(
     await page.getByLabel('Component clip').inputValue(),
-    'rig/hand.R/waving',
+    'rig/arm.R/waving',
   );
   assert.equal(
     await page.getByLabel('Component clock').inputValue(),

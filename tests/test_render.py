@@ -3,6 +3,7 @@
 import unittest
 
 import numpy as np
+from kernel_voxel.proportions import FOREARM, SHIN, THIGH, UPPER_ARM
 from kernel_voxel.render import alpha_downsample
 from kernel_voxel.rig import FRAMES, cable_points, pose_at, pose_for
 from kernel_voxel.screen import draw_clip, framebuffer
@@ -38,7 +39,9 @@ class RigTests(unittest.TestCase):
             pose = pose_at("jumping", t)
             first = pose.joints["knee.R"] - pose.joints["hip.R"]
             second = pose.joints["ankle.R"] - pose.joints["knee.R"]
-            bend = np.degrees(np.arccos(np.clip(first @ second / 0.42**2, -1, 1)))
+            bend = np.degrees(
+                np.arccos(np.clip(first @ second / (THIGH * SHIN), -1, 1))
+            )
             self.assertGreater(bend, 60)
         for t in np.linspace(0.22, 0.34, 25):
             foot = pose_at("jumping", t).matrices["foot.R"]
@@ -111,10 +114,10 @@ class RigTests(unittest.TestCase):
                 pose = pose_at(state, t)
                 for side in ["L", "R"]:
                     for a, b, length in [
-                        ("hip", "knee", 0.42),
-                        ("knee", "ankle", 0.42),
-                        ("shoulder", "elbow", 0.33),
-                        ("elbow", "wrist", 0.34),
+                        ("hip", "knee", THIGH),
+                        ("knee", "ankle", SHIN),
+                        ("shoulder", "elbow", UPPER_ARM),
+                        ("elbow", "wrist", FOREARM),
                     ]:
                         self.assertAlmostEqual(
                             np.linalg.norm(
@@ -137,8 +140,8 @@ class RigTests(unittest.TestCase):
                 pose = pose_at(state, t)
                 for side in ["L", "R"]:
                     for upper, lower, length in [
-                        ("thigh", "shin", 0.42),
-                        ("upper_arm", "forearm", 0.33),
+                        ("thigh", "shin", THIGH),
+                        ("upper_arm", "forearm", UPPER_ARM),
                     ]:
                         first = pose.matrices[f"{upper}.{side}"]
                         second = pose.matrices[f"{lower}.{side}"]

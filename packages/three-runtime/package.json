@@ -1,9 +1,12 @@
 {
   "name": "@pets/three-runtime",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "private": true,
   "type": "module",
   "exports": {
+    "./default-motions": "./src/default-motions.ts",
+    "./environment": "./src/environment.ts",
+    "./environment-scene": "./src/environment-scene.ts",
     "./motion": "./src/motion.ts",
     "./project": "./src/project.ts",
     "./layers": "./src/layers.ts",

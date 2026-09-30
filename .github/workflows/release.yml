@@ -67,12 +67,14 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: |
+            build/environment.blend
+            build/environment.json
             build/kernel.blend
             build/blend-screens/
             build/timeline.json
             build/blend-check.json
             build/model-cache.json
-          key: kernel-source-${{ runner.os }}-${{ hashFiles('personas/kernel/blender/**', 'uv.lock', 'pyproject.toml') }}
+          key: kernel-source-${{ runner.os }}-${{ hashFiles('resources/environment.json', 'personas/kernel/blender/**', 'uv.lock', 'pyproject.toml') }}
           restore-keys: kernel-source-${{ runner.os }}-
       - name: Build and verify the canonical Blender source
         run: uv run kernel-render --model-only --output build
@@ -89,6 +91,8 @@ jobs:
         with:
           name: kernel-source
           path: |
+            build/environment.blend
+            build/environment.json
             build/kernel.blend
             build/blend-screens/
             build/timeline.json
@@ -127,7 +131,7 @@ jobs:
             build/frames/${{ matrix.state }}/
             build/masters/${{ matrix.state }}/
             build/render-${{ matrix.state }}.json
-          key: kernel-frames-${{ runner.os }}-${{ matrix.state }}-${{ hashFiles('personas/kernel/blender/**', 'uv.lock', 'pyproject.toml') }}
+          key: kernel-frames-${{ runner.os }}-${{ matrix.state }}-${{ hashFiles('resources/environment.json', 'personas/kernel/blender/**', 'uv.lock', 'pyproject.toml') }}
           restore-keys: kernel-frames-${{ runner.os }}-${{ matrix.state }}-
       - name: Render state from the Blender model
         env:
@@ -204,6 +208,7 @@ jobs:
           bun run test:personas
           bun run test:gaze
           bun run test:studio-ui
+          bun run test:environment
           bun run test:locomotion
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Package versioned downloads

@@ -10,6 +10,9 @@ use std::collections::BTreeMap;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
 enum Request {
+    Environment {
+        environment: crate::environment::Environment,
+    },
     Project {
         project: AnimationProject,
     },
@@ -27,6 +30,10 @@ enum Request {
 }
 fn dispatch(input: &[u8]) -> Result<Value, Box<dyn std::error::Error>> {
     match serde_json::from_slice::<Request>(input)? {
+        Request::Environment { environment } => {
+            environment.validate()?;
+            Ok(serde_json::to_value(environment)?)
+        }
         Request::Project { project } => {
             project.validate()?;
             Ok(serde_json::to_value(project)?)

@@ -105,6 +105,7 @@ def bundle(build, site, destination, version, assets, shimeji, desktop, pet_site
         "blender": (
             build,
             required[:2]
+            + [build / "environment.blend", build / "environment.json"]
             + files_under(build / "blend-screens")
             + [build / "blend-check.json", build / "model-cache.json"],
         ),

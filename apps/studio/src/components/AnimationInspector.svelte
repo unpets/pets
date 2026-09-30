@@ -9,6 +9,7 @@
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
   let { editor }: { editor: AnimationEditorState } = $props();
   let label = $state('New animation');
+  let joint = $state('');
   let error = $state('');
   let input = $state<HTMLInputElement>();
   let source = $state('');
@@ -75,15 +76,30 @@
 <InspectorSection open
   >{#snippet heading()}Target{/snippet}
   <div class="inspector-section">
-    <label class="field-label"
-      >Component name<input
-        class="field mt-2 w-full"
-        aria-label="Component name"
-        value={component.label}
-        onchange={(event) =>
-          editor.editComponent({ label: event.currentTarget.value })}
-      /></label
-    >
+    {#if component.kind === 'rig' && (component.data.nodes as string[]).length > 1}
+      <details class="mt-3">
+        <summary class="field-label">Individual joint authoring</summary>
+        <label class="field-label mt-3"
+          >Joint<select
+            class="field mt-2 w-full"
+            aria-label="Extract joint"
+            bind:value={joint}
+            ><option value="">Select a joint</option
+            >{#each component.data.nodes as string[] as node}<option
+                value={node}>{node}</option
+              >{/each}</select
+          ></label
+        >
+        <button
+          class="button mt-3"
+          disabled={!(component.data.nodes as string[]).includes(joint)}
+          onclick={() => {
+            editor.extractJoint(joint);
+            joint = '';
+          }}>Extract joint layer</button
+        >
+      </details>
+    {/if}
     <p class="mt-3 text-xs text-muted">
       Edit reusable clips here. Assemble and assign them in Composition.
     </p>
@@ -154,14 +170,6 @@
       ><Plus size={13} />Add FX layer</button
     >
     {#if clip}
-      <label class="field-label mt-3"
-        >Clip name<input
-          class="field mt-2 w-full"
-          aria-label="Clip name"
-          value={clip.label}
-          onchange={(e) => editor.editClip({ label: e.currentTarget.value })}
-        /></label
-      >
       <button
         class="button mt-2 w-full"
         onclick={() =>

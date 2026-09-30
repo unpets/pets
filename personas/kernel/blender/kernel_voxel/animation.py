@@ -1,7 +1,7 @@
 """Kernel's reusable clip catalog and explicit composition bindings."""
 
 from .keyboard import KEY_MATERIALS, key_intensity
-from .rig import DURATIONS, FRAMES, LOCOMOTION, MOTIONS, PARENTS, SOURCE_MOTIONS
+from .rig import DURATIONS, FRAMES, LOCOMOTION, MOTIONS, PARENTS
 
 LABELS = {
     "idle": "Idle",
@@ -38,7 +38,15 @@ def rig_layer(name):
 
 
 def rig_source(state, name):
-    layer = rig_layer(name)
+    layer = name if name in RIG_LAYERS else rig_layer(name)
+    if layer == "head" and state in (
+        "flying",
+        "climbing",
+        "climb-rope",
+        "climb-ladder",
+        "climb-border",
+    ):
+        return "waiting"
     if state == "look" and layer != "head":
         return "idle"
     if state in ("waving", "review") and layer in ("posture", "arm.L"):
@@ -88,25 +96,34 @@ def animation_project():
     }
     components, clips = project["components"], project["clips"]
     states = {**MOTIONS, "look": 16}
-    for name in PARENTS:
+    for name, label in RIG_LAYERS.items():
         component = f"rig/{name}"
         components[component] = {
-            "label": name.replace("_", " "),
+            "label": label,
             "kind": "rig",
             "data": {
-                "nodes": [name],
-                "layer": rig_layer(name),
-                "layerLabel": RIG_LAYERS[rig_layer(name)],
+                "nodes": [node for node in PARENTS if rig_layer(node) == name],
+                "layer": name,
+                "layerLabel": label,
             },
         }
-        for state, count in {**SOURCE_MOTIONS, "look": 16}.items():
+        for state in sorted({rig_source(state, name) for state in states}):
+            count = states[state]
             clips[f"{component}/{state}"] = {
-                "label": LABELS.get(state, state.replace("-", " ").capitalize()),
+                "label": "Attend"
+                if name == "head" and state == "waiting"
+                else LABELS.get(state, state.replace("-", " ").capitalize()),
                 "component": component,
                 "duration": count * DURATIONS[state] / 1000,
                 "looping": state not in ("jumping", "climb-border"),
                 "data": {
                     "source": state,
+                    **(
+                        {"rootMotion": [0, 0, 0.28]}
+                        if name == "posture"
+                        and state in ("climbing", "climb-rope", "climb-ladder")
+                        else {}
+                    ),
                     **(
                         {
                             "blendSpace": [
@@ -227,7 +244,7 @@ def animation_project():
             f"rig/{name}": binding(
                 f"rig/{name}/{rig_source(state, name)}", "composition"
             )
-            for name in PARENTS
+            for name in RIG_LAYERS
         }
         eye = {
             "running": "empty",
@@ -266,6 +283,7 @@ def animation_project():
         project["compositions"][state] = {
             "label": LABELS.get(state, state.replace("-", " ").capitalize()),
             "description": "",
+            "enabled": True,
             "duration": count * DURATIONS[state] / 1000,
             "bindings": bindings,
         }

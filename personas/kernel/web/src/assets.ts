@@ -1,3 +1,7 @@
+import {
+  parseEnvironment,
+  type Environment,
+} from '@pets/three-runtime/environment';
 import { compatibleMotionClips } from './legacy-motion';
 import { ImageLoader } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -26,6 +30,7 @@ function modelBuffer(url: string) {
 
 export interface CharacterAssets {
   model: string;
+  environmentAssets?: Environment;
   characterModel?: string;
   screens: string[];
   data: AnimationData;
@@ -81,6 +86,7 @@ export function parseAssets(value: unknown): CharacterAssets {
       assets.data.ports.radius > 0.1)
   )
     throw new Error('Invalid cable radius.');
+  if (assets.environmentAssets) parseEnvironment(assets.environmentAssets);
   return structuredClone(assets);
 }
 export async function loadAssets(assets = defaultAssets()) {

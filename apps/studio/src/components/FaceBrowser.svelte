@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SidebarRename from './SidebarRename.svelte';
   import { Shapes } from '@lucide/svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
   let {
@@ -47,4 +48,11 @@
         ><Shapes size={14} /><span>{clip.label}</span></button
       >{/each}
   </div>
+  {#if editor.project.clips[editor.clip]}
+    <SidebarRename
+      subject="clip"
+      value={editor.project.clips[editor.clip].label}
+      onrename={(label) => editor.editClip({ label })}
+    />
+  {/if}
 </aside>

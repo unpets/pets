@@ -10,7 +10,7 @@
     title: string;
     label: string;
     value: string;
-    onsubmit: (name: string) => void;
+    onsubmit: (name: string) => void | Promise<void>;
     onclose: () => void;
   } = $props();
   let dialog: HTMLDialogElement;
@@ -29,10 +29,10 @@
 
 <dialog bind:this={dialog} class="studio-dialog" aria-label={title} {onclose}>
   <form
-    onsubmit={(event) => {
+    onsubmit={async (event) => {
       event.preventDefault();
       try {
-        onsubmit(name.trim());
+        await onsubmit(name.trim());
         dialog.close();
       } catch (reason) {
         error = String(reason);

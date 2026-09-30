@@ -9,6 +9,7 @@ from mathutils import Matrix, Vector
 from .animation import PROPS, prop_visible
 from .hand_mesh import build_hand
 from .keyboard import KEY_MATERIALS, build_keyboards
+from .proportions import FOREARM, SHIN, THIGH, UPPER_ARM
 from .rig import (
     CABLE_RADIUS,
     FOREARM_PORT,
@@ -269,18 +270,18 @@ def build_model():
             cut=lambda p: p[2] < HIP_PIVOT[2],
         )
         for part, length, width in [
-            (f"thigh.{n}", 0.42, 0.235),
-            (f"shin.{n}", 0.42, 0.22),
-            (f"upper_arm.{n}", 0.33, 0.205),
-            (f"forearm.{n}", 0.34, 0.215),
+            (f"thigh.{n}", THIGH, 0.235),
+            (f"shin.{n}", SHIN, 0.22),
+            (f"upper_arm.{n}", UPPER_ARM, 0.205),
+            (f"forearm.{n}", FOREARM, 0.215),
         ]:
             shoulder = part.startswith("upper_arm.")
             arm = shoulder or part.startswith("forearm.")
             depth = 0.16 if arm else 0.23
             b.voxel(
                 part,
-                (0, 0, 0.185 if shoulder else length * 0.50),
-                (width, depth, 0.175 if shoulder else length - 0.14),
+                (0, 0, length * 0.50),
+                (width, depth, length - 0.14),
                 "shell",
                 0.045,
                 step=0.025,
@@ -313,25 +314,30 @@ def build_model():
             )
         b.voxel(
             f"forearm.{n}",
-            (0, 0, 0.275),
+            (0, 0, FOREARM - 0.065),
             (0.10, 0.10, 0.10),
             "metal",
             0.05,
             step=0.005,
-            cut=lambda p: p[2] < 0.275,
+            cut=lambda p: p[2] < FOREARM - 0.065,
         )
         build_hand(b, n)
         b.voxel(
             f"shin.{n}",
-            (0, 0, 0.42),
+            (0, 0, SHIN),
             (0.19, 0.19, 0.19),
             "joint",
             0.095,
             step=0.010,
-            cut=lambda p: p[2] < 0.42,
+            cut=lambda p: p[2] < SHIN,
         )
         b.voxel(
-            f"shin.{n}", (0, 0, 0.37), (0.115, 0.115, 0.12), "dark", 0.025, step=0.010
+            f"shin.{n}",
+            (0, 0, SHIN - 0.05),
+            (0.115, 0.115, 0.12),
+            "dark",
+            0.025,
+            step=0.010,
         )
         b.voxel(
             f"foot.{n}",

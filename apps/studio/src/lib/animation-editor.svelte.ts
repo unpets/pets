@@ -1,3 +1,4 @@
+import { isDefaultMotion } from '@pets/three-runtime/default-motions';
 import { defaultLookAt } from '@pets/kernel/look-at';
 import { defaultEffect } from '@pets/three-runtime/effects';
 import { compositionInstance } from '@pets/three-runtime/project';
@@ -229,6 +230,8 @@ export class AnimationEditorState {
     update: Partial<AnimationProject['compositions'][string]>,
   ) {
     const project = parseKernelProject(this.project);
+    if (isDefaultMotion(id) && update.label !== undefined)
+      throw new Error('Default motion names cannot be changed.');
     Object.assign(project.compositions[id], update);
     this.replace(project);
   }
@@ -255,6 +258,10 @@ export class AnimationEditorState {
     this.replace(project);
   }
   deleteComposition(id: string) {
+    if (isDefaultMotion(id))
+      throw new Error(
+        'Disable unsupported default motions instead of deleting them.',
+      );
     const project = parseKernelProject(this.project);
     if (Object.keys(project.compositions).length === 1)
       throw new Error('Keep at least one composition.');
@@ -302,6 +309,36 @@ export class AnimationEditorState {
       throw new Error('Unassign this clip before deleting it.');
     delete project.clips[this.clip];
     this.replace(project);
+  }
+  extractJoint(node: string) {
+    const project = parseKernelProject(this.project);
+    const component = project.components[this.component];
+    const nodes = component.data.nodes as string[];
+    if (component.kind !== 'rig' || nodes.length < 2 || !nodes.includes(node))
+      throw new Error('Select a joint in a motion group.');
+    const id = uniqueId(`rig-${node}`, project.components);
+    project.components[id] = {
+      ...structuredClone(component),
+      label: node,
+      data: { ...component.data, nodes: [node] },
+    };
+    component.data.nodes = nodes.filter((value) => value !== node);
+    const clips = new Map<string, string>();
+    for (const [source, clip] of Object.entries(project.clips)) {
+      if (clip.component !== this.component) continue;
+      const target = uniqueId(`${id}-${clip.label}`, project.clips);
+      project.clips[target] = { ...structuredClone(clip), component: id };
+      clips.set(source, target);
+    }
+    for (const composition of Object.values(project.compositions)) {
+      const source = composition.bindings[this.component];
+      if (source)
+        composition.bindings[id] = { ...source, clip: clips.get(source.clip)! };
+    }
+    const clip = clips.get(this.clip) ?? [...clips.values()][0];
+    this.replace(project);
+    this.component = id;
+    this.clip = clip;
   }
   editComponent(update: Partial<AnimationProject['components'][string]>) {
     const project = parseKernelProject(this.project);

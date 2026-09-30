@@ -255,6 +255,32 @@ export async function createCharacter(
         ),
         ((locomotion.angle - heading.angle) * 180) / Math.PI,
       );
+      const composition = resolveComposition(project, mode);
+      for (const [id, sample] of Object.entries(samples)) {
+        const clip = project.clips[sample.clip];
+        const displacement = clip.data.rootMotion as
+          [number, number, number] | undefined;
+        if (
+          !clip.looping ||
+          !displacement ||
+          !(
+            project.components[id].data.nodes as string[] | undefined
+          )?.includes('body')
+        )
+          continue;
+        const binding = composition.bindings[id];
+        const cycles =
+          (binding.clock === 'composition'
+            ? phase
+            : independentSeconds / clip.duration) *
+            binding.speed +
+          binding.offset;
+        joints.body.position.addScaledVector(
+          new Vector3(...displacement),
+          Math.floor(cycles),
+        );
+      }
+      model.updateMatrixWorld(true);
       lookSettings = Object.entries(samples)
         .map(([id, sample]) =>
           project.components[id].kind === 'rig'

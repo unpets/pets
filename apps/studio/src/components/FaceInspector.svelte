@@ -24,15 +24,6 @@
 {#if clip}<InspectorSection open>
     {#snippet heading()}Asset{/snippet}
     <div class="inspector-section">
-      <label class="field-label"
-        >Name<input
-          class="field mt-2 w-full"
-          aria-label="Face asset name"
-          value={clip.label}
-          onchange={(event) =>
-            run(() => editor.editClip({ label: event.currentTarget.value }))}
-        /></label
-      >
       <p class="mt-3 text-xs text-muted">
         This asset is shared by every screen that references it.
       </p>

@@ -38,7 +38,9 @@ async function save() {
 async function nameAction(action, name) {
   await button(action).click();
   await page.getByLabel('Persona name', { exact: true }).fill(name);
-  await button('Save persona').click();
+  await button(
+    action === 'Rename persona' ? 'Save name' : 'Save persona',
+  ).click();
   await settled();
   await page.getByRole('form').count();
 }
@@ -62,8 +64,18 @@ try {
   );
   await workspace('Composition');
   await page.locator('[data-state="idle"]').click();
-  await page.getByLabel('Composition name', { exact: true }).fill('Copy idle');
-  await page.getByLabel('Composition name', { exact: true }).press('Tab');
+  assert.equal(
+    await page
+      .getByRole('button', { name: 'Rename composition', exact: true })
+      .isDisabled(),
+    true,
+  );
+  await page
+    .getByLabel('Composition description', { exact: true })
+    .fill('Copy idle');
+  await page
+    .getByLabel('Composition description', { exact: true })
+    .press('Tab');
   const before = await save();
   await workspace('Animation');
   assert.equal(
@@ -142,9 +154,9 @@ try {
     .click();
   await settled();
   const copy = await save();
-  assert.equal(copy.animations.compositions.idle.label, 'Copy idle');
+  assert.equal(copy.animations.compositions.idle.description, 'Copy idle');
   assert.ok(copy.animations.clips['independent-test']);
-  for (const name of ['Scene', 'Screen', 'Animation', 'Composition']) {
+  for (const name of ['Face', 'Animation', 'Composition', 'Scene']) {
     await workspace(name);
     const bounds = await page.evaluate(() => {
       const aside = document

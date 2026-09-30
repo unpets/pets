@@ -71,7 +71,7 @@ try {
     1,
   );
   assert.equal(await page.locator('#viewport').isVisible(), false);
-  await workspace('Screen');
+  await workspace('Face');
   assert.equal(
     await page
       .getByRole('complementary', { name: 'Compositions library' })
@@ -98,7 +98,11 @@ try {
   await page.getByRole('button', { name: 'Save name', exact: true }).click();
   await page.getByLabel('Eye layout').selectOption('mirrored');
   assert.equal(await page.getByLabel('Right eye asset').isDisabled(), true);
-  await workspace('Components');
+  await workspace('Face');
+  await page
+    .getByRole('navigation', { name: 'Face library' })
+    .getByRole('button', { name: 'Components', exact: true })
+    .click();
   await page.getByLabel('New face asset name').fill('Shared eye');
   await page
     .getByRole('button', { name: 'New pixel component', exact: true })
@@ -111,7 +115,7 @@ try {
     box.x + (20.5 * box.width) / 96,
     box.y + (30.5 * box.height) / 64,
   );
-  await workspace('Screen');
+  await workspace('Face');
   await page
     .locator('.face-slot')
     .filter({ has: page.locator('summary', { hasText: 'Left eye' }) })
@@ -165,7 +169,7 @@ try {
   await page
     .getByLabel('Composition screen', { exact: true })
     .selectOption(screenId);
-  await workspace('Screen');
+  await workspace('Face');
   const project = await save('File', 'Save complete project');
   assert.equal(project.animations.compositions.idle.screen, screenId);
   assert.equal(project.animations.compositions.review.screen, screenId);

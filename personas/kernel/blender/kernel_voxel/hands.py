@@ -34,6 +34,10 @@ DIGITS = {
     "little": ((0.045, 0.034, 0.028), 0.072, 0.034),
     "thumb": ((0.048, 0.042, 0.034), -0.110, 0.044),
 }
+DIGITS = {
+    digit: (tuple(length * 1.18 for length in lengths), x, width * 1.08)
+    for digit, (lengths, x, width) in DIGITS.items()
+}
 HAND_BONES = {}
 for side, suffix in ((-1, "L"), (1, "R")):
     for digit, (lengths, x, width) in DIGITS.items():
@@ -70,17 +74,56 @@ def fingertip(digit, curls):
 
 
 @cache
-def typing_press(digit):
-    """Calibrate each finger's press to the same virtual keyboard surface."""
+def surface_press(digit, depth):
+    """Calibrate each fingertip pad against a plane in palm coordinates."""
     ratio = np.array([1.0, 1.4, 0.7])
     low, high = 0.0, 0.8
     for _ in range(40):
         bend = (low + high) / 2
-        if fingertip(digit, ratio * bend)[1] > -KEYBOARD_DEPTH:
+        if fingertip(digit, ratio * bend)[1] > -depth:
             low = bend
         else:
             high = bend
     return ratio * ((low + high) / 2)
+
+
+def typing_press(digit):
+    return surface_press(digit, KEYBOARD_DEPTH)
+
+
+@cache
+def grip_press(digit, radius):
+    """Fit pads to a cylindrical grip without changing finger lengths."""
+    middle, distal = np.meshgrid(
+        np.linspace(0.65, 1.65, 41), np.linspace(0.35, 1.2, 25)
+    )
+    middle, distal = middle.ravel(), distal.ravel()
+    lengths = np.asarray(DIGITS[digit][0])
+
+    def pads(first):
+        angles = np.array([first, first + middle, first + middle + distal])
+        segments = lengths.copy()
+        segments[-1] -= 0.012
+        y = -(segments[:, None] * np.sin(angles)).sum(axis=0) - 0.017 * np.cos(
+            angles[-1]
+        )
+        z = (
+            FINGER_BASE
+            + (segments[:, None] * np.cos(angles)).sum(axis=0)
+            - 0.017 * np.sin(angles[-1])
+        )
+        return y, z
+
+    low, high = np.full_like(middle, 0.1), np.full_like(middle, 1.45)
+    for _ in range(24):
+        first = (low + high) / 2
+        above = pads(first)[0] > -0.11
+        low, high = np.where(above, first, low), np.where(above, high, first)
+    first = (low + high) / 2
+    y, z = pads(first)
+    error = abs(np.hypot(y + 0.11, z - 0.225) - radius - 0.002)
+    selected = int(np.argmin(error))
+    return np.array([first[selected], middle[selected], distal[selected]])
 
 
 def typing_phase(t, digit, side=1):
@@ -111,20 +154,21 @@ def digit_angles(state, t, digit, side):
     if state == "move" or state.startswith("running-"):
         curl = np.array([0.38, 0.54, 0.32]) * (1 + 0.08 * math.sin(phase + side))
     elif state in ("climbing", "climb-rope", "climb-ladder", "climb-border"):
-        amount = 0.75 if state == "climb-rope" else 0.58
-        if state != "climb-border":
+        if state == "climb-border":
+            start = 0.56 if side == 1 else 0.65
+            release = np.clip((t - start) / 0.10, 0, 1)
+            release = release * release * (3 - 2 * release)
+            curl = surface_press(digit, 0.066) * (1 - release) + curl * release
+        else:
             contact = (t + (0 if side == 1 else 0.5)) % 1
             recovery = math.sin(math.pi * max(0, (contact - 0.65) / 0.35)) ** 2
-            amount *= 1 - 0.65 * recovery
-        curl = np.array([amount, amount * 0.9, amount * 0.65])
-        spread = 0.02
+            curl = (
+                grip_press(digit, 0.04 if state == "climb-rope" else 0.03)
+                * (1 - recovery)
+                + curl * recovery
+            )
+        spread = 0
         opposition = 0.65 if digit == "thumb" else 0
-        if state == "climb-border":
-            start = 0.48 if side == 1 else 0.58
-            release = np.clip((t - start) / 0.16, 0, 1)
-            release = release * release * (3 - 2 * release)
-            curl = curl * (1 - release) + np.array([0.16, 0.25, 0.13]) * release
-            opposition = opposition * (1 - release) + 0.25 * release
     elif state == "waving" and side == 1:
         follow = 0.025 * (1 + math.sin(phase - index * 0.25))
         curl = np.array([0.025, 0.035, 0.020]) + follow

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isDefaultMotion } from '@pets/three-runtime/default-motions';
   import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { Plus, Copy, Unlink, Trash2 } from '@lucide/svelte';
   import { resolveComposition } from '@pets/three-runtime/project';
@@ -45,15 +46,15 @@
 <InspectorSection open>
   {#snippet heading()}Composition{/snippet}
   <div class="inspector-section">
-    <label class="field-label"
-      >Name<input
-        class="field mt-2 w-full"
-        aria-label="Composition name"
-        value={composition.label}
-        onchange={(e) =>
-          run(() =>
-            editor.updateComposition(mode, { label: e.currentTarget.value }),
-          )}
+    <label class="toggle-row"
+      ><span>Supported motion</span><input
+        type="checkbox"
+        aria-label="Supported motion"
+        checked={composition.enabled !== false}
+        onchange={(event) =>
+          editor.updateComposition(mode, {
+            enabled: event.currentTarget.checked,
+          })}
       /></label
     >
     <label class="field-label mt-3"
@@ -290,6 +291,7 @@
         ><Unlink size={13} />Detach</button
       ><button
         class="button flex-1"
+        disabled={isDefaultMotion(mode)}
         onclick={() =>
           run(() => {
             editor.deleteComposition(mode);

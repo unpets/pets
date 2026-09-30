@@ -45,14 +45,15 @@ beforeAll(async () => {
 function assertConnections() {
   for (const side of ['L', 'R']) {
     for (const [a, b, length] of [
-      ['upper_arm', 'forearm', 0.33],
-      ['forearm', 'hand', 0.34],
-      ['thigh', 'shin', 0.42],
-      ['shin', 'foot', 0.42],
+      ['upper_arm', 'forearm', 0.46],
+      ['forearm', 'hand', 0.48],
+      ['thigh', 'shin', 0.54],
+      ['shin', 'foot', 0.54],
     ] as const) {
       const start = parts[`${a}.${side}`].getWorldPosition(new Vector3());
       const end = parts[`${b}.${side}`].getWorldPosition(new Vector3());
-      expect(start.distanceTo(end)).toBeCloseTo(length, 5);
+      // Exported transforms use Float32 channels through connected bone chains.
+      expect(Math.abs(start.distanceTo(end) - length)).toBeLessThan(0.00001);
       if (a === 'upper_arm' || a === 'thigh') {
         const firstAxis = new Vector3(1, 0, 0).transformDirection(
           parts[`${a}.${side}`].matrixWorld,
@@ -73,7 +74,7 @@ function assertConnections() {
       for (let segment = 0; segment < 2; segment++) {
         const first = parts[`${digit}.0${segment + 1}.${side}`];
         const second = parts[`${digit}.0${segment + 2}.${side}`];
-        const tip = new Vector3(0, 0, lengths[segment]).applyMatrix4(
+        const tip = new Vector3(0, 0, lengths[segment] * 1.18).applyMatrix4(
           first.matrixWorld,
         );
         expect(

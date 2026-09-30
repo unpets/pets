@@ -1,4 +1,9 @@
 import {
+  defaultEnvironment,
+  type Environment,
+} from '@pets/three-runtime/environment';
+import { createEnvironmentScene } from '@pets/three-runtime/environment-scene';
+import {
   binding,
   type AnimationProject,
   playbackDuration,
@@ -99,7 +104,13 @@ export async function createStudio(
   grid.position.z = -0.026;
   grid.material.transparent = true;
   grid.material.opacity = 0.36;
-  scene.add(grid, model);
+  scene.add(grid);
+  const placement = new Group();
+  placement.matrixAutoUpdate = false;
+  placement.add(model);
+  scene.add(placement);
+  let environment = createEnvironmentScene(defaultEnvironment());
+  scene.add(environment.root);
 
   scene.add(cable.mesh);
   const markers = new Group();
@@ -150,6 +161,8 @@ export async function createStudio(
   let looping = true;
   let animationFrame = 0;
   let previousTime = performance.now();
+  const resetClock = () => (previousTime = performance.now());
+  document.addEventListener('visibilitychange', resetClock);
   let destroyed = false;
   let suspended = false;
   let previewTravel = true;
@@ -210,6 +223,13 @@ export async function createStudio(
       travel.advance(character.velocity, elapsed);
       if (cable.mesh.visible) cable.update();
     }
+    placement.matrix.copy(
+      environment.update(
+        activeMode(),
+        (id) => character.project.compositions[id]?.parent,
+      ),
+    );
+    placement.updateMatrixWorld(true);
     rootFraming.update(previewTravel);
     targetMarker.visible = !!character.lookTarget;
     if (character.lookTarget) targetMarker.position.copy(character.lookTarget);
@@ -218,10 +238,12 @@ export async function createStudio(
     );
     onPlayback({
       mode,
-      phase,
+      phase: looping ? phase % 1 : phase,
       playing,
       speed,
-      seconds: phase * playbackDuration(character.project, activeMode()),
+      seconds:
+        (looping ? phase % 1 : phase) *
+        playbackDuration(character.project, activeMode()),
       duration: playbackDuration(character.project, activeMode()),
       frames: 121,
       looping,
@@ -240,9 +262,9 @@ export async function createStudio(
 
   function animate(now: number) {
     if (destroyed) return;
-    const elapsed = Math.max(0, Math.min((now - previousTime) / 1000, 0.05));
+    const elapsed = Math.max(0, (now - previousTime) / 1000);
     previousTime = now;
-    if (suspended) {
+    if (suspended || document.hidden) {
       animationFrame = requestAnimationFrame(animate);
       return;
     }
@@ -251,7 +273,7 @@ export async function createStudio(
       const next =
         phase +
         (elapsed * speed) / playbackDuration(character.project, activeMode());
-      phase = looping ? next % 1 : Math.min(1, next);
+      phase = looping ? next : Math.min(1, next);
       if (!looping && next >= 1) playing = false;
     }
     update(elapsed);
@@ -273,6 +295,12 @@ export async function createStudio(
   }
 
   return {
+    setEnvironment(document: Environment) {
+      environment.dispose();
+      environment = createEnvironmentScene(document);
+      scene.add(environment.root);
+      update(0, true);
+    },
     setAnimationProject(project) {
       sourceProject = project;
       applyProject();
@@ -304,10 +332,12 @@ export async function createStudio(
     },
     setSuspended(value) {
       suspended = value;
+      resetClock();
     },
     setPlaying(value) {
-      if (value && phase >= 1) phase = 0;
+      if (value && !looping && phase >= 1) phase = 0;
       playing = value;
+      resetClock();
       update(0);
     },
     setSpeed(value) {
@@ -324,7 +354,10 @@ export async function createStudio(
       phase =
         Math.max(
           0,
-          Math.min(intervals, Math.round(phase * intervals) + direction),
+          Math.min(
+            intervals,
+            Math.round((looping ? phase % 1 : phase) * intervals) + direction,
+          ),
         ) / intervals;
       independentSeconds =
         phase * playbackDuration(character.project, activeMode());
@@ -368,8 +401,10 @@ export async function createStudio(
       camera.updateProjectionMatrix();
     },
     destroy() {
+      environment.dispose();
       destroyed = true;
       cancelAnimationFrame(animationFrame);
+      document.removeEventListener('visibilitychange', resetClock);
       observer.disconnect();
       renderer.domElement.removeEventListener('pointermove', pointerMove);
       renderer.domElement.removeEventListener('pointerleave', pointerLeave);

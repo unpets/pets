@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NameDialog from './NameDialog.svelte';
   import {
     Box,
     Fingerprint,
@@ -138,16 +139,22 @@
         >
       </div>
     </div>
-    {#if action}
+    {#if action === 'rename'}
+      <NameDialog
+        title="Rename persona"
+        label="Persona name"
+        value={persona.name}
+        onsubmit={onrename}
+        onclose={() => (action = undefined)}
+      />
+    {:else if action}
       <form class="persona-form" onsubmit={submit}>
         <h4 class="mb-3 text-sm font-medium">
           {action === 'create'
             ? 'Create persona'
             : action === 'duplicate'
               ? 'Duplicate persona'
-              : action === 'rename'
-                ? 'Rename persona'
-                : 'Delete persona'}
+              : 'Delete persona'}
         </h4>
         {#if action === 'delete'}
           <p class="mb-4 text-sm text-muted">

@@ -1,3 +1,4 @@
+import { ensureDefaultMotions } from '@pets/three-runtime/default-motions';
 import { defaultLookAt, parseLookAt } from './look-at';
 import { migrateMovement } from './migrate-project';
 import { migrateScreens } from './screen-library';
@@ -48,6 +49,7 @@ export function saveAnimationProject(project: AnimationProject) {
 }
 export function parseKernelProject(value: unknown): AnimationProject {
   const project = migrateScreens(migrateMovement(parseAnimationProject(value)));
+  ensureDefaultMotions(project);
   for (const screen of Object.values(project.screens ?? {})) {
     const raw = screen.data as unknown as ScreenProject;
     for (const [id, binding] of Object.entries(screen.bindings)) {
@@ -89,7 +91,12 @@ export function parseKernelProject(value: unknown): AnimationProject {
   const sources = new Set(
     Object.values(defaults.clips)
       .filter((c) => c.data.source)
-      .map((c) => c.data.source),
+      .flatMap((c) => [
+        c.data.source,
+        ...((c.data.blendSpace as { source: string }[] | undefined) ?? []).map(
+          (point) => point.source,
+        ),
+      ]),
   );
   sources.add('running-right');
   sources.add('running-left');
@@ -187,6 +194,13 @@ export function parseKernelProject(value: unknown): AnimationProject {
         throw new Error(`Invalid directional blend space: ${id}`);
     }
     if (kind === 'rig') {
+      if (
+        clip.data.rootMotion !== undefined &&
+        (!Array.isArray(clip.data.rootMotion) ||
+          clip.data.rootMotion.length !== 3 ||
+          !clip.data.rootMotion.every(Number.isFinite))
+      )
+        throw new Error('Invalid root motion displacement.');
       if (clip.data.lookAt) {
         parseLookAt(clip.data.lookAt);
         if (

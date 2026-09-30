@@ -140,3 +140,25 @@ Menus support arrow keys, Enter, and Escape.
 Use **Assets > Download 3D model** for the skeletal character GLB.  
 Use **Assets > Animation data** for source motion data and the edited project.  
 See [Character exports](animation.md#character-exports) for engine integration and Blender baking.  
+
+## Environment assets
+
+Environment files use the `pets-environment` format.  
+Assets contain reusable geometry; scene objects reference assets with independent position, rotation, scale, and visibility.  
+Composition bindings choose an interaction object and its authored contact origin.  
+Environment settings persist independently of the selected persona and are included in project exports.  
+Personas may supply optional environment assets without owning the scene.  
+
+Import or export an environment from the Scene inspector.  
+Duplicate an object to reuse its asset with another placement.  
+The Blender source links its environment instances from `environment.blend`.  
+
+## Motion availability
+
+Default motion slots have fixed names.  
+Disable **Supported motion** when a persona cannot supply a motion.  
+Duplicate a default or create a child composition to name a custom variation.  
+Rename library entries with the dialog opened by the sidebar rename button.  
+
+Drag panel dividers or inspector section dividers to resize the workspace.  
+Focused dividers also support arrow keys.  

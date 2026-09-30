@@ -51,15 +51,9 @@
       ><Fingerprint size={15} />Persona</button
     >
     <button
-      class:active={workspace === 'screen'}
-      aria-pressed={workspace === 'screen'}
-      onclick={() => onworkspace('screen')}><Monitor size={15} />Screen</button
-    >
-    <button
-      class:active={workspace === 'components'}
-      aria-pressed={workspace === 'components'}
-      onclick={() => onworkspace('components')}
-      ><Smile size={15} />Components</button
+      class:active={workspace === 'screen' || workspace === 'components'}
+      aria-pressed={workspace === 'screen' || workspace === 'components'}
+      onclick={() => onworkspace('screen')}><Smile size={15} />Face</button
     >
     <button
       class:active={workspace === 'animation'}

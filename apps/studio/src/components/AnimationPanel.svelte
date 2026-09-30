@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SidebarRename from './SidebarRename.svelte';
+  import { isDefaultMotion } from '@pets/three-runtime/default-motions';
   import {
     Activity,
     ArrowRight,
@@ -18,10 +20,12 @@
     playback,
     studio,
     project,
+    onrename,
   }: {
     playback: PlaybackState;
     studio?: StudioController;
     project: AnimationProject;
+    onrename: (name: string) => void;
   } = $props();
   const icons: Record<string, typeof Activity> = {
     idle: Activity,
@@ -59,7 +63,7 @@
         onclick={() => studio?.setMode(id)}
       >
         <Icon size={15} /><span class="min-w-0 flex-1 text-left"
-          >{mode.label}</span
+          >{mode.label}{mode.enabled === false ? ' (disabled)' : ''}</span
         >
         {#if playback.mode === id}<ChevronRight size={13} />{:else}<span
             class="text-[10px] tabular-nums opacity-40"
@@ -68,4 +72,10 @@
       </button>
     {/each}
   </div>
+  <SidebarRename
+    subject="composition"
+    value={project.compositions[playback.mode].label}
+    disabled={isDefaultMotion(playback.mode)}
+    {onrename}
+  />
 </aside>

@@ -3,6 +3,7 @@
 import argparse
 import json
 import math
+import shutil
 from pathlib import Path
 
 import bpy
@@ -55,6 +56,9 @@ def bake_project(source, document, output, compositions=None, device="auto"):
                 armature.animation_data.action = target
                 key_pose(armature, time)
             key_effects(model, frame)
+            from .environment import update_environment
+
+            update_environment(identifier, frame)
             model["placement"].keyframe_insert("rotation_euler", frame=frame)
             for node in [
                 model["cable"],
@@ -107,6 +111,12 @@ def bake_project(source, document, output, compositions=None, device="auto"):
     scene.frame_end = frame - 1
     scene.frame_set(1)
     bpy.context.preferences.filepaths.save_version = 0
+    for library in bpy.data.libraries:
+        source = Path(bpy.path.abspath(library.filepath)).resolve()
+        destination = (output / source.name).resolve()
+        if source != destination:
+            shutil.copy2(source, destination)
+        library.filepath = str(destination)
     path = (output / "kernel.blend").resolve()
     bpy.ops.wm.save_as_mainfile(filepath=str(path))
     bpy.ops.file.make_paths_relative()

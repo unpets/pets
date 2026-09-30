@@ -37,6 +37,9 @@ export interface PlaybackState {
   looping: boolean;
 }
 export interface StudioController {
+  setEnvironment(
+    document: import('@pets/three-runtime/environment').Environment,
+  ): void;
   setScreenProject(project: ScreenProject): void;
   setScreenPreview(
     id?: string,

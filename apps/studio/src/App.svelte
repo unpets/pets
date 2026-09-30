@@ -1,4 +1,32 @@
 <script lang="ts">
+  import PanelResize from './components/PanelResize.svelte';
+  import EnvironmentEditor from './components/EnvironmentEditor.svelte';
+  import {
+    defaultEnvironment,
+    parseEnvironment,
+  } from '@pets/three-runtime/environment';
+  let environment = $state.raw(defaultEnvironment());
+  $effect(() => {
+    const supplied = assets.environmentAssets;
+    if (!supplied) return;
+    const previous = untrack(() => environment);
+    environment = parseEnvironment({
+      ...previous,
+      assets: { ...supplied.assets, ...previous.assets },
+    });
+  });
+  onMount(() => {
+    try {
+      const saved = localStorage.getItem('pets-environment');
+      if (saved) environment = parseEnvironment(JSON.parse(saved));
+    } catch {}
+  });
+  $effect(() => {
+    studio?.setEnvironment(environment);
+    try {
+      localStorage.setItem('pets-environment', JSON.stringify(environment));
+    } catch {}
+  });
   import { version } from '../package.json';
   const buildLabel = `${version}${__PETS_COMMIT_SHA__ ? ` [${__PETS_COMMIT_SHA__}]` : ''}${import.meta.env.DEV ? ' (dev)' : ''}`;
   import ExportProgress from './components/ExportProgress.svelte';
@@ -77,6 +105,7 @@
   let disposed = false;
   function snapshot(): StudioProject {
     return {
+      environment: $state.snapshot(environment),
       format: 'pets-studio',
       version: 1,
       persona: $state.snapshot(persona),
@@ -455,6 +484,8 @@
     link.click();
   }
   async function openProject(project: StudioProject) {
+    if (project.environment)
+      environment = parseEnvironment(project.environment);
     if (!viewport || !canvas) return;
     const sameAssets =
       studio &&
@@ -723,15 +754,30 @@
         onworkspace={setWorkspace}
       />{/if}
     <div class="studio-layout" class:workspace-hidden={workspace === 'persona'}>
-      {#if workspace === 'screen'}<ScreenBrowser
-          editor={animations}
-          selected={selectedScreen}
-          onselect={(id) => (selectedScreen = id)}
-        />
-      {:else if workspace === 'components'}<FaceBrowser
-          editor={animations}
-          bind:kind={faceKind}
-        />
+      <PanelResize side="left" /><PanelResize side="right" />
+      {#if workspace === 'screen' || workspace === 'components'}<div
+          class="face-library"
+        >
+          <nav class="face-categories" aria-label="Face library">
+            <button
+              class:active={workspace === 'screen'}
+              onclick={() => setWorkspace('screen')}>Faces</button
+            ><button
+              class:active={workspace === 'components'}
+              onclick={() => setWorkspace('components')}>Components</button
+            >
+          </nav>
+          {#if workspace === 'screen'}<ScreenBrowser
+              editor={animations}
+              selected={selectedScreen}
+              onselect={(id) => (selectedScreen = id)}
+            />
+          {:else if workspace === 'components'}<FaceBrowser
+              editor={animations}
+              bind:kind={faceKind}
+            />
+          {/if}
+        </div>
       {:else if workspace === 'animation'}<AnimationBrowser
           editor={animations}
         />
@@ -739,6 +785,8 @@
           {playback}
           {studio}
           project={animations.project}
+          onrename={(label) =>
+            animations.updateComposition(playback.mode, { label })}
         />{/if}
       <div class="studio-center">
         <div
@@ -830,6 +878,10 @@
             {settings}
             onchange={(value) => (settings = value)}
             {studio}
+          /><EnvironmentEditor
+            composition={playback.mode}
+            document={environment}
+            onchange={(value) => (environment = value)}
           />{/if}
       </aside>
     </div>

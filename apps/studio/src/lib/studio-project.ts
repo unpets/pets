@@ -1,4 +1,8 @@
 import {
+  parseEnvironment,
+  type Environment,
+} from '@pets/three-runtime/environment';
+import {
   parseKernelProject,
   defaultAnimationProject,
 } from '@pets/kernel/animation-project';
@@ -20,6 +24,7 @@ import {
   resolveComposition,
 } from '@pets/three-runtime/project';
 export interface StudioProject {
+  environment?: Environment;
   format: 'pets-studio';
   version: 1;
   persona: { id: string; name: string };
@@ -46,6 +51,7 @@ export function parseStudioProject(value: unknown): StudioProject {
     !project.persona.name?.trim()
   )
     throw new Error('Invalid Studio project.');
+  if (project.environment) parseEnvironment(project.environment);
   const animations = parseKernelProject(project.animations);
   const screen = parseScreenProject(project.screen);
   if (!project.animations.screens) {

@@ -59,6 +59,8 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: |
+            build/environment.blend
+            build/environment.json
             build/kernel.blend
             build/blend-screens/
             build/timeline.json
@@ -66,7 +68,7 @@ jobs:
             build/model-cache.json
             personas/kernel/generated/assets/
             personas/kernel/generated/site-cache.json
-          key: kernel-studio-${{ runner.os }}-${{ hashFiles('personas/kernel/blender/**', 'uv.lock', 'pyproject.toml') }}
+          key: kernel-studio-${{ runner.os }}-${{ hashFiles('resources/environment.json', 'personas/kernel/blender/**', 'uv.lock', 'pyproject.toml') }}
           restore-keys: kernel-studio-${{ runner.os }}-
       - name: Generate model and animation assets
         run: bun run generate
@@ -94,6 +96,7 @@ jobs:
           bun run test:personas
           bun run test:gaze
           bun run test:studio-ui
+          bun run test:environment
           bun run test:locomotion
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Save generated site

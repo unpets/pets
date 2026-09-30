@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.0
+
+- Lengthen limb chains and fingers while retaining palm dimensions.
+- Correct ledge palm-to-fingertip contact and add separate climbing environments.
+- Add portable environment assets, independent scene settings, and Blender asset libraries.
+- Protect default motion names and let creators disable unsupported motions.
+- Open library rename dialogs from sidebars.
+- Group reusable motion clips by posture, arms, and head.
+- Nest face components under Face and add resizable panels and inspector stacks.
+- Align core project normalization and preserve travel time on slow frames.
+
 ## 0.12.1
 
 - Place Scene last in the Studio workspace tabs.

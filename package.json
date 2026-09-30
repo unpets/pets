@@ -1,6 +1,6 @@
 {
   "name": "pets",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",
@@ -34,6 +34,7 @@
     "build:core": "bun scripts/build-core.ts",
     "test:studio": "bun tests/studio-project.mjs",
     "test:studio-ui": "bun tests/studio-ui.mjs",
+    "test:environment": "bun tests/environment.mjs",
     "test:locomotion": "bun tests/locomotion.mjs",
     "test:build-core": "bun tests/core-build.mjs",
     "test:personas": "bun tests/personas.mjs",

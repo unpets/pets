@@ -712,3 +712,62 @@
 .studio-dialog::backdrop {
   background: #0008;
 }
+
+.face-library {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-panel);
+}
+.face-library > .animation-browser {
+  flex: 1;
+}
+.studio-layout {
+  position: relative;
+}
+.panel-resize {
+  display: none;
+}
+.stack-resize {
+  flex: 0 0 4px;
+  height: 4px;
+  cursor: row-resize;
+  touch-action: none;
+  background: transparent;
+}
+.stack-resize:hover,
+.stack-resize:focus-visible,
+.panel-resize:hover,
+.panel-resize:focus-visible {
+  background: var(--color-accent);
+}
+.inspector-stack {
+  overflow: hidden;
+}
+.inspector-stack:not(.expanded) {
+  flex-basis: 34px;
+}
+@media (min-width: 1100px) {
+  .studio-layout {
+    grid-template-columns: var(--library-width, 208px) minmax(0, 1fr) var(
+        --inspector-width,
+        304px
+      );
+  }
+  .panel-resize {
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    touch-action: none;
+    z-index: 5;
+  }
+  .panel-resize.left {
+    left: calc(var(--library-width, 208px) - 3px);
+  }
+  .panel-resize.right {
+    right: calc(var(--inspector-width, 304px) - 3px);
+  }
+}

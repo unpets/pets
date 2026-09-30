@@ -98,6 +98,8 @@ export class PersonaLibrary {
     return project;
   }
   save(key: string, project: StudioProject): Promise<void> {
+    project = { ...project };
+    delete project.environment;
     return this.serialize(async () => {
       const { assets, ...document } = project;
       const knownAsset = this.assetKeys.get(assets);

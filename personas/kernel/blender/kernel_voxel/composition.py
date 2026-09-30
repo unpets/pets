@@ -294,6 +294,21 @@ def apply_composition(model, project, identifier, phase, screen=None, context=Tr
             for name in specification["data"]["nodes"]:
                 location, _, scale = rest[name].decompose()
                 targets[name] = Matrix.LocRotScale(location, rotation, scale)
+    for component, (clip, _) in samples.items():
+        displacement = clip["data"].get("rootMotion")
+        if (
+            not displacement
+            or not clip["looping"]
+            or "body" not in project["components"][component]["data"].get("nodes", [])
+        ):
+            continue
+        binding = composition["bindings"][component]
+        cycles = (
+            phase
+            if binding["clock"] == "composition"
+            else phase * duration / clip["duration"]
+        ) * binding["speed"] + binding["offset"]
+        targets["body"].translation += Vector(displacement) * math.floor(cycles)
     armature = model["armature"]
     armature.animation_data.action = None
     world = {}
@@ -311,9 +326,14 @@ def apply_composition(model, project, identifier, phase, screen=None, context=Tr
         bone.matrix_basis = bone.bone.convert_local_to_pose(
             world[name], bone.bone.matrix_local, invert=True, **args
         )
+        if bone.bone.use_connect:
+            bone.location = (0, 0, 0)
     bpy.context.view_layer.update()
     if not context:
         return None
+    from .environment import update_environment
+
+    update_environment(identifier)
     for node in [
         model["cable"],
         *(model["nodes"][name] for name in ("server", "keyboard", "keyboard.L")),

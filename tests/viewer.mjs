@@ -211,7 +211,7 @@ try {
     await page.getByRole('button', { name: 'Loop animation' }).click();
     await page.evaluate(() => window.kernelViewer.seek(0.25));
 
-    await page.getByRole('button', { name: 'Screen', exact: true }).click();
+    await page.getByRole('button', { name: 'Face', exact: true }).click();
     await page
       .getByLabel('Screen canvas', { exact: true })
       .waitFor({ state: 'visible' });

@@ -95,6 +95,8 @@ export async function createPetScene(
   let disposed = false;
   let frame = 0;
   let previous = performance.now();
+  const resetClock = () => (previous = performance.now());
+  document.addEventListener('visibilitychange', resetClock);
   character.setMode(mode);
   const observer = new ResizeObserver(() => {
     const width = Math.max(1, viewport.clientWidth);
@@ -109,7 +111,7 @@ export async function createPetScene(
     if (disposed) return;
     frame = requestAnimationFrame(animate);
     if (now - previous < 1000 / 30) return;
-    const elapsed = Math.min(0.1, (now - previous) / 1000);
+    const elapsed = Math.max(0, (now - previous) / 1000);
     previous = now;
     if (document.hidden) return;
     if (playing) {
@@ -117,7 +119,7 @@ export async function createPetScene(
       const next =
         phase +
         (elapsed * animationSpeed) / playbackDuration(character.project, mode);
-      phase = looping ? next % 1 : Math.min(1, next);
+      phase = looping ? next : Math.min(1, next);
     }
     if (tracking && cursor.valid) {
       ray.setFromCamera(
@@ -165,12 +167,27 @@ export async function createPetScene(
   frame = requestAnimationFrame(animate);
   return {
     get compositions() {
-      return character.project.compositions;
+      return Object.fromEntries(
+        Object.entries(character.project.compositions).filter(
+          ([, motion]) => motion.enabled !== false,
+        ),
+      );
     },
     setAnimationProject(project: AnimationProject) {
       character.setProject(project);
-      if (!project.compositions[mode])
-        mode = Object.keys(project.compositions)[0];
+      if (
+        !project.compositions[mode] ||
+        project.compositions[mode].enabled === false
+      ) {
+        const supported = Object.keys(project.compositions).find(
+          (id) => project.compositions[id].enabled !== false,
+        );
+        if (!supported) {
+          playing = false;
+          return;
+        }
+        mode = supported;
+      }
       character.setMode(mode);
       looping = compositionLoops(character.project, mode);
     },
@@ -220,8 +237,16 @@ export async function createPetScene(
         value + (space === 'view' ? (cameraYaw * 180) / Math.PI : 0);
     },
     setMode(next: AnimationMode) {
-      if (!character.project.compositions[next])
-        next = Object.keys(character.project.compositions)[0];
+      if (
+        !character.project.compositions[next] ||
+        character.project.compositions[next].enabled === false
+      ) {
+        const supported = Object.keys(character.project.compositions).find(
+          (id) => character.project.compositions[id].enabled !== false,
+        );
+        if (!supported) return;
+        next = supported;
+      }
       if (next === mode && next === 'move') return;
       const preservePhase = sharesMotionClock(character.project, mode, next);
       character.setMode(next);
@@ -232,6 +257,7 @@ export async function createPetScene(
     },
     setPlaying(value: boolean) {
       playing = value;
+      resetClock();
     },
     setTracking(value: boolean) {
       tracking = value;
@@ -266,6 +292,7 @@ export async function createPetScene(
     destroy() {
       disposed = true;
       cancelAnimationFrame(frame);
+      document.removeEventListener('visibilitychange', resetClock);
       observer.disconnect();
       character.dispose();
       renderer.dispose();

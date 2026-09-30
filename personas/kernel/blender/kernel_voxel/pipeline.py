@@ -17,6 +17,10 @@ STATES = {**FRAMES, "look": 16}
 def model_key(scale, samples):
     return fingerprint(
         source_hash(
+            "proportions.py",
+            "climbing.py",
+            "environment.py",
+            "../../../../resources/environment.json",
             "model.py",
             "hands.py",
             "hand_mesh.py",
@@ -47,6 +51,10 @@ def model_key(scale, samples):
 def render_keys(scale, samples):
     common = fingerprint(
         source_hash(
+            "proportions.py",
+            "climbing.py",
+            "environment.py",
+            "../../../../resources/environment.json",
             "model.py",
             "hands.py",
             "animation.py",
@@ -99,7 +107,14 @@ def ensure_source(out, scale, samples):
 
     metadata = build_source(out, scale, samples)
     files = [
-        out / name for name in ("kernel.blend", "timeline.json", "blend-check.json")
+        out / name
+        for name in (
+            "kernel.blend",
+            "environment.blend",
+            "environment.json",
+            "timeline.json",
+            "blend-check.json",
+        )
     ]
     files.extend(sorted((out / "blend-screens").glob("*.png")))
     return write_cache(

@@ -7,6 +7,7 @@ from bpy_extras.anim_utils import action_ensure_channelbag_for_slot
 from mathutils import Matrix
 
 from .hands import HAND_BONES
+from .proportions import LENGTHS
 from .rig import DURATIONS, MOTIONS, PARENTS, SOURCE_MOTIONS, pose_at
 
 BONE_BASIS = Matrix.Rotation(math.pi / 2, 4, "X")
@@ -29,12 +30,7 @@ def create_armature(model):
         bone.length = (
             HAND_BONES[name].length
             if name in HAND_BONES
-            else {
-                "upper_arm": 0.33,
-                "forearm": 0.34,
-                "thigh": 0.42,
-                "shin": 0.42,
-            }.get(name.split(".")[0], 0.2)
+            else LENGTHS.get(name.split(".")[0], 0.2)
         )
         if parent:
             bone.parent = data.edit_bones[parent]
@@ -82,6 +78,8 @@ def apply_armature_pose(model, pose):
         bone.matrix_basis = bone.bone.convert_local_to_pose(
             targets[name], bone.bone.matrix_local, invert=True, **parent_args
         )
+        if bone.bone.use_connect:
+            bone.location = (0, 0, 0)
         bone.scale = (1, 1, 1)
         bone.rotation_quaternion.normalize()
     bpy.context.view_layer.update()
@@ -167,38 +165,40 @@ def bake_actions(model):
 
 def component_actions(actions):
     """Expose each joint clip as a reusable slotted Blender action asset."""
-    for state, source in actions.items():
-        curves = source.layers[0].strips[0].channelbags[0].fcurves
-        for name in PARENTS:
-            action = bpy.data.actions.new(f"rig/{name}/{state}")
-            action.use_fake_user = True
-            action["pets_component"] = f"rig/{name}"
-            action["pets_clip"] = f"rig/{name}/{state}"
-            action.asset_mark()
-            action.asset_data.description = f"{name} local motion from {state}"
-            slot = action.slots.new(id_type="OBJECT", name="Kernel rig")
-            bag = action_ensure_channelbag_for_slot(action, slot)
-            prefix = f'pose.bones["{name}"]'
-            for curve in curves:
-                if not curve.data_path.startswith(prefix):
-                    continue
-                target = bag.fcurves.new(
-                    curve.data_path, index=curve.array_index, group_name=name
-                )
-                target.keyframe_points.add(len(curve.keyframe_points))
-                for original, copied in zip(
-                    curve.keyframe_points, target.keyframe_points
-                ):
-                    copied.co = original.co
-                    copied.interpolation = original.interpolation
+    from .animation import PROJECT
+
+    for identifier, clip in PROJECT["clips"].items():
+        component = PROJECT["components"][clip["component"]]
+        if component["kind"] != "rig" or "source" not in clip["data"]:
+            continue
+        source = actions[clip["data"]["source"]]
+        action = bpy.data.actions.new(identifier)
+        action.use_fake_user = True
+        action["pets_component"] = clip["component"]
+        action["pets_clip"] = identifier
+        action.asset_mark()
+        action.asset_data.description = f"{component['label']}: {clip['label']}"
+        slot = action.slots.new(id_type="OBJECT", name="Kernel rig")
+        bag = action_ensure_channelbag_for_slot(action, slot)
+        prefixes = tuple(f'pose.bones["{name}"]' for name in component["data"]["nodes"])
+        for curve in source.layers[0].strips[0].channelbags[0].fcurves:
+            if not curve.data_path.startswith(prefixes):
+                continue
+            target = bag.fcurves.new(curve.data_path, index=curve.array_index)
+            target.keyframe_points.add(len(curve.keyframe_points))
+            for original, copied in zip(curve.keyframe_points, target.keyframe_points):
+                copied.co = original.co
+                copied.interpolation = original.interpolation
 
 
 def layer_actions(actions):
     """Create masked action assets for posture, either arm and head movement."""
-    from .animation import RIG_LAYERS, rig_layer
+    from .animation import RIG_LAYERS, rig_layer, rig_source
 
     for layer, label in RIG_LAYERS.items():
         for state, source in actions.items():
+            if state not in {rig_source(mode, layer) for mode in [*MOTIONS, "look"]}:
+                continue
             action = bpy.data.actions.new(f"layer/{layer}/{state}")
             action.use_fake_user = True
             action["pets_layer"] = layer
