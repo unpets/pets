@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MeshLayerEditor from './MeshLayerEditor.svelte';
   import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { Smile, Plus, Copy, Trash2 } from '@lucide/svelte';
   import type { AnimationEditorState } from '../lib/animation-editor.svelte';
@@ -50,7 +51,9 @@
             editor.editClip({ looping: event.currentTarget.checked })}
         /></label
       >
-      {#if !clip.data.frames}<p class="mt-3 text-xs text-muted">
+      {#if component.kind === 'screen' && !clip.data.frames}<p
+          class="mt-3 text-xs text-muted"
+        >
           Atlas animation. Create a pixel component to draw custom frames.
         </p>{/if}
       <button
@@ -60,6 +63,12 @@
       >
     </div>
   </InspectorSection>{/if}
+{#if component.kind === 'face-mesh' && clip}<InspectorSection open
+    >{#snippet heading()}Mesh design{/snippet}
+    <div class="inspector-section">
+      <MeshLayerEditor {editor} />
+    </div></InspectorSection
+  >{/if}
 <InspectorSection open>
   {#snippet heading()}Library{/snippet}
   <div class="inspector-section">
@@ -69,6 +78,14 @@
         aria-label="New face asset name"
         bind:value={label}
       /></label
+    >
+    <button
+      class="button mt-3 w-full"
+      disabled={!label.trim()}
+      onclick={() => {
+        editor.addMesh(label.trim());
+        oncustom();
+      }}>New mesh component</button
     >
     <button
       class="button mt-3 w-full"

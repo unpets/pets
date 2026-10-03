@@ -19,6 +19,8 @@ def model_key(scale, samples):
         source_hash(
             "proportions.py",
             "climbing.py",
+            "mesh_layers.py",
+            "../../../../resources/kernel-rope-grips.json",
             "environment.py",
             "../../../../resources/environment.json",
             "model.py",
@@ -53,6 +55,8 @@ def render_keys(scale, samples):
         source_hash(
             "proportions.py",
             "climbing.py",
+            "mesh_layers.py",
+            "../../../../resources/kernel-rope-grips.json",
             "environment.py",
             "../../../../resources/environment.json",
             "model.py",
@@ -158,6 +162,7 @@ def export_viewer(source, site_out, record):
         record["files"][source.name],
         source_hash(
             "export.py",
+            "mesh_layers.py",
             "scene.py",
             "screen.py",
             "animation.py",

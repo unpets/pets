@@ -1,3 +1,10 @@
+import {
+  isFaceComponent,
+  validateMesh,
+  validateMeshFrames,
+  validateSurface,
+  type FaceSurface,
+} from './face';
 export interface Component {
   label: string;
   kind: string;
@@ -48,6 +55,7 @@ export interface Composition {
   bindings: Record<string, Binding>;
 }
 export interface ScreenAsset {
+  surface?: FaceSurface;
   label: string;
   data: Record<string, unknown>;
   bindings: Record<string, Binding>;
@@ -156,6 +164,21 @@ export function parseAnimationProject(value: unknown): AnimationProject {
     )
       throw new Error(`Invalid component: ${id}`);
     component.data ??= {};
+    if (!record(component.data))
+      throw new Error(`Invalid component data: ${id}`);
+    if (['face-mesh', 'attachment'].includes(component.kind)) {
+      validateMesh(component.data);
+      if (
+        component.kind === 'attachment' &&
+        (typeof component.data.node !== 'string' ||
+          !identifier(component.data.node) ||
+          !Array.isArray(component.data.hides) ||
+          component.data.hides.some(
+            (v) => typeof v !== 'string' || !identifier(v),
+          ))
+      )
+        throw new Error(`Invalid attachment: ${id}`);
+    }
   }
   for (const [id, clip] of Object.entries(project.clips)) {
     if (
@@ -169,6 +192,12 @@ export function parseAnimationProject(value: unknown): AnimationProject {
     )
       throw new Error(`Invalid clip: ${id}`);
     clip.data ??= {};
+    if (
+      ['face-mesh', 'attachment'].includes(
+        project.components[clip.component].kind,
+      )
+    )
+      validateMeshFrames(clip.data, clip.duration);
   }
   for (const [id, composition] of Object.entries(project.compositions)) {
     if (
@@ -218,10 +247,12 @@ export function parseAnimationProject(value: unknown): AnimationProject {
         !record(screen.bindings)
       )
         throw new Error(`Invalid screen: ${id}`);
+      if (screen.surface !== undefined)
+        validateSurface(screen.surface, project.components);
       for (const [component, source] of Object.entries(screen.bindings)) {
         const b = Object.assign(binding(''), source);
         if (
-          project.components[component]?.kind !== 'screen' ||
+          !isFaceComponent(project.components[component]?.kind ?? '') ||
           !compatibleClip(project, component, b.clip) ||
           !['independent', 'composition'].includes(b.clock) ||
           !Number.isFinite(b.speed) ||
@@ -289,7 +320,7 @@ export function resolveComposition(
       screen = composition.screen;
       applyScreenBindings(project, bindings, screen);
       for (const component of Object.keys(origins))
-        if (project.components[component].kind === 'screen')
+        if (isFaceComponent(project.components[component].kind))
           delete origins[component];
       for (const component of Object.keys(project.screens![screen].bindings))
         origins[component] = entry;
@@ -321,7 +352,7 @@ function applyScreenBindings(
   const screen = project.screens?.[id];
   if (!screen) throw new Error(`Unknown screen: ${id}`);
   for (const component of Object.keys(bindings))
-    if (project.components[component].kind === 'screen')
+    if (isFaceComponent(project.components[component].kind))
       delete bindings[component];
   Object.assign(bindings, structuredClone(screen.bindings));
 }
@@ -353,7 +384,7 @@ export function sampleComposition(
     applyScreenBindings(project, composition.bindings, screenOverride);
   if (overrides) {
     for (const component of Object.keys(composition.bindings))
-      if (project.components[component].kind === 'screen')
+      if (isFaceComponent(project.components[component].kind))
         delete composition.bindings[component];
     Object.assign(composition.bindings, overrides);
   }

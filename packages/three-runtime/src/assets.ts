@@ -54,6 +54,8 @@ export function exportAsset(
     const value = project.screens?.[name];
     if (!value) throw new Error(`Unknown screen: ${name}`);
     result.screens![name] = value;
+    for (const id of Object.keys(value.surface?.placements ?? {}))
+      component(id);
     for (const [target, source] of Object.entries(value.bindings)) {
       component(target);
       clip(source.clip);
@@ -147,7 +149,12 @@ export function importAsset(
         existing.kind === value.kind &&
         JSON.stringify(existing.data) === JSON.stringify(value.data),
     );
-    if (match && conflicts === 'rename') maps.component[id] = match[0];
+    if (
+      match &&
+      !['face-mesh', 'attachment'].includes(value.kind) &&
+      conflicts === 'rename'
+    )
+      maps.component[id] = match[0];
   }
   const clips = Object.fromEntries(
     Object.entries(bundle.clips).map(([id, clip]) => [
@@ -168,6 +175,18 @@ export function importAsset(
         id,
         {
           ...screen,
+          ...(screen.surface
+            ? {
+                surface: {
+                  ...screen.surface,
+                  placements: Object.fromEntries(
+                    Object.entries(screen.surface.placements).map(
+                      ([id, placement]) => [maps.component[id], placement],
+                    ),
+                  ),
+                },
+              }
+            : {}),
           bindings: Object.fromEntries(
             Object.entries(screen.bindings).map(([component, binding]) => [
               maps.component[component],

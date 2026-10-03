@@ -10,6 +10,33 @@ from kernel_voxel.transforms import point
 
 
 class ClimbingTests(unittest.TestCase):
+    def test_mantle_keeps_knees_forward_without_pole_flips(self):
+        previous = {}
+        for t in np.linspace(0, 1, 1001):
+            pose = pose_at("climb-border", t)
+            for side in ("L", "R"):
+                hip, knee, ankle = (
+                    pose.joints[f"{joint}.{side}"] for joint in ("hip", "knee", "ankle")
+                )
+                self.assertLess(knee[1], hip[1] + 0.025, (t, side))
+                self.assertAlmostEqual(knee[0], (hip[0] + ankle[0]) / 2, places=7)
+                direction = (knee - hip) / np.linalg.norm(knee - hip)
+                if side in previous:
+                    angle = np.arccos(np.clip(direction @ previous[side], -1, 1))
+                    self.assertLess(angle, 0.06, (t, side, angle))
+                previous[side] = direction
+
+    def test_rope_feet_hold_contacts_while_the_body_rises(self):
+        for side in ("L", "R"):
+            phases = (0.05, 0.20) if side == "L" else (0.55, 0.65)
+            first, second = (pose_at("climb-rope", t) for t in phases)
+            np.testing.assert_allclose(
+                first.joints[f"ankle.{side}"], second.joints[f"ankle.{side}"], atol=1e-8
+            )
+            self.assertGreater(
+                second.matrices["body"][2, 3], first.matrices["body"][2, 3]
+            )
+
     def test_rope_grip_tracks_the_independent_asset_surface(self):
         for phase in (0.05, 0.2, 0.5):
             pose = pose_at("climb-rope", phase)

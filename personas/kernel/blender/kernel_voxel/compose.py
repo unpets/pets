@@ -25,6 +25,7 @@ def bake_project(source, document, output, compositions=None, device="auto"):
     if any(name not in project["compositions"] for name in selected):
         raise ValueError("Unknown composition selection")
     model = load_source(source, device)
+    model["project"] = project
     for identifier in selected:
         update_effects(model, project, identifier, 0)
     scene = bpy.context.scene
@@ -56,6 +57,9 @@ def bake_project(source, document, output, compositions=None, device="auto"):
                 armature.animation_data.action = target
                 key_pose(armature, time)
             key_effects(model, frame)
+            from .mesh_layers import key_mesh_layers
+
+            key_mesh_layers(model, frame)
             from .environment import update_environment
 
             update_environment(identifier, frame)

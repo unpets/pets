@@ -7,6 +7,7 @@ import bpy
 import numpy as np
 
 from .animation import PROJECT, PROPS, prop_visible
+from .armature import part_matrix
 from .emission import sockets, values_at
 from .framing import verify_frame
 from .rig import MOTIONS, pose_at
@@ -85,7 +86,11 @@ def verify(build):
                 )
         pose = pose_at(sample["state"], sample["t"])
         for name, matrix in pose.matrices.items():
-            actual = np.asarray(parts[name].matrix_world)
+            actual = np.asarray(
+                part_matrix(armature, name)
+                if parts[name].hide_viewport
+                else parts[name].matrix_world
+            )
             # Float32 bone chains accumulate angular error independently of translation.
             if not (
                 np.allclose(actual[:3, 3], matrix[:3, 3], atol=1e-5, rtol=0)

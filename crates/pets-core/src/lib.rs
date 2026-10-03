@@ -12,3 +12,5 @@ pub use persona::{ExportTarget, Persona, PersonaError, Representation};
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 mod web;
+
+pub mod face;

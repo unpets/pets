@@ -1,6 +1,6 @@
 {
   "name": "@pets/three-runtime",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,7 +13,9 @@
     "./assets": "./src/assets.ts",
     "./heading": "./src/heading.ts",
     "./locomotion": "./src/locomotion.ts",
-    "./effects": "./src/effects.ts"
+    "./effects": "./src/effects.ts",
+    "./face": "./src/face.ts",
+    "./face-scene": "./src/face-scene.ts"
   },
   "dependencies": {
     "three": "0.186.1"

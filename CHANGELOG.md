@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.0
+
+- Fix repeated climbing root displacement during stationary animation samples.
+- Keep border climbing knees forward through continuous sagittal articulation.
+- Add independent mesh face components and mixed canvas/mesh face authoring.
+- Preserve face placements and mesh animations in portable asset exports.
+- Add replaceable robotic rope grips with separate animated jaws.
+- Bake mesh faces and accessories into editable Blender compositions.
+
 ## 0.13.0
 
 - Lengthen limb chains and fingers while retaining palm dimensions.

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import FaceTransformEditor from './FaceTransformEditor.svelte';
+  import { identityTransform } from '@pets/three-runtime/face';
   import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { Monitor, Trash2 } from '@lucide/svelte';
   import { compatibleClip, type Binding } from '@pets/three-runtime/project';
@@ -23,15 +25,16 @@
     ...Object.entries(editor.project.components)
       .filter(
         ([, component]) =>
-          component.kind === 'screen' &&
-          ![
-            'eyes',
-            'eyeLeft',
-            'eyeRight',
-            'mouth',
-            'background',
-            'activity',
-          ].includes(String(component.data.layer)),
+          component.kind === 'face-mesh' ||
+          (component.kind === 'screen' &&
+            ![
+              'eyes',
+              'eyeLeft',
+              'eyeRight',
+              'mouth',
+              'background',
+              'activity',
+            ].includes(String(component.data.layer))),
       )
       .map(([id]) => id),
   ]);
@@ -52,6 +55,18 @@
 <InspectorSection open>
   {#snippet heading()}Screen{/snippet}
   <div class="inspector-section">
+    <label class="toggle-row"
+      ><span>Canvas surface</span><input
+        type="checkbox"
+        aria-label="Canvas surface"
+        checked={screen.surface?.canvas ?? true}
+        onchange={(event) =>
+          editor.updateFaceSurface(selected, {
+            canvas: event.currentTarget.checked,
+            placements: screen.surface?.placements ?? {},
+          })}
+      /></label
+    >
     <p class="mt-3 text-xs text-muted">
       Changes apply to every composition using this screen.
     </p>
@@ -168,6 +183,23 @@
                 /></label
               >{/each}
           </div>
+          {#if editor.project.components[id].kind === 'face-mesh'}
+            <div class="mt-4">
+              <FaceTransformEditor
+                value={screen.surface?.placements[id] ?? identityTransform()}
+                onchange={(value) =>
+                  editor.updateFaceSurface(selected, {
+                    canvas: screen.surface?.canvas ?? true,
+                    placements: { ...screen.surface?.placements, [id]: value },
+                  })}
+              />
+            </div>
+          {/if}
+          <button
+            class="button mt-3 w-full"
+            onclick={() => editor.unbindScreen(selected, id)}
+            >Unassign asset</button
+          >
           <button class="button mt-3 w-full" onclick={() => oncomponents(id)}
             >Edit {label.toLowerCase()} asset</button
           >

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isFaceComponent } from '@pets/three-runtime/face';
   import SidebarRename from './SidebarRename.svelte';
   import { Clapperboard } from '@lucide/svelte';
   import { compatibleClip } from '@pets/three-runtime/project';
@@ -6,7 +7,7 @@
   let { editor }: { editor: AnimationEditorState } = $props();
   const components = $derived(
     Object.entries(editor.project.components).filter(
-      ([, value]) => value.kind !== 'screen',
+      ([, value]) => !isFaceComponent(value.kind),
     ),
   );
   const clips = $derived(

@@ -150,6 +150,7 @@ export function createMotion(
       }
       mixer.update(0);
       model.updateMatrixWorld(true);
+      return transitionWeight;
     },
     cancelTransition() {
       const clip = transition?.action.getClip();

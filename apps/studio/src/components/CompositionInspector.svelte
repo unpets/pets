@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isFaceComponent } from '@pets/three-runtime/face';
   import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import { Layers3 } from '@lucide/svelte';
   import {
@@ -24,10 +25,12 @@
   const composition = $derived(resolveComposition(editor.project, mode));
   const selected = $derived(composition.bindings[editor.component]);
   $effect(() => {
-    if (editor.project.components[editor.component]?.kind === 'screen')
+    if (
+      isFaceComponent(editor.project.components[editor.component]?.kind ?? '')
+    )
       selectComponent(
         Object.keys(editor.project.components).find(
-          (id) => editor.project.components[id].kind !== 'screen',
+          (id) => !isFaceComponent(editor.project.components[id].kind),
         )!,
       );
   });
@@ -62,7 +65,7 @@
         aria-label="Animation component"
         value={editor.component}
         onchange={(event) => selectComponent(event.currentTarget.value)}
-        >{#each Object.entries(editor.project.components).filter(([, c]) => c.kind !== 'screen') as [id, c]}<option
+        >{#each Object.entries(editor.project.components).filter(([, c]) => !isFaceComponent(c.kind)) as [id, c]}<option
             value={id}>{c.label} ({c.kind})</option
           >{/each}</select
       ></label

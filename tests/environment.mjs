@@ -144,6 +144,27 @@ try {
     after > before,
     `Climbing carries root travel across cycles: ${before} to ${after}`,
   );
+  for (const mode of ['climbing', 'climb-ladder']) {
+    await page.evaluate((mode) => {
+      window.kernelViewer.setPlaying(false);
+      window.kernelViewer.setMode(mode);
+      window.kernelViewer.seek(0.999);
+    }, mode);
+    const baseline = await page.evaluate(
+      () => window.kernelViewer.parts.body.matrixWorld.elements[14],
+    );
+    await page.evaluate(() => window.kernelViewer.setPlaying(true));
+    for (let frame = 0; frame < 24; frame++) {
+      await page.clock.runFor(16);
+      const height = await page.evaluate(
+        () => window.kernelViewer.parts.body.matrixWorld.elements[14],
+      );
+      assert.ok(
+        height >= baseline - 0.01 && height <= baseline + 0.16,
+        `${mode} loop frame ${frame}: ${baseline} to ${height}`,
+      );
+    }
+  }
   await page.clock.resume();
   await page.evaluate(() => window.kernelViewer.setPlaying(false));
   await mkdir('build/review', { recursive: true });

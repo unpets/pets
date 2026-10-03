@@ -35,9 +35,9 @@ Changes are saved locally in browser storage.
 Export a complete project to transfer it between browsers or devices.  
 The viewport stays loaded when changing pages.  
 
-## Screen editor
+## Face editor
 
-The Screen workspace provides a reusable screen library, an enlarged display canvas, and collapsible inspector sections.  
+The Face workspace provides a reusable screen library, an enlarged display canvas, and collapsible inspector sections.  
 Create, duplicate, rename, and export screens independently of compositions.  
 Rename a screen from the left sidebar to open its name dialog.  
 Assign a screen in the Composition workspace with **Composition screen**.  
@@ -162,3 +162,29 @@ Rename library entries with the dialog opened by the sidebar rename button.
 
 Drag panel dividers or inspector section dividers to resize the workspace.  
 Focused dividers also support arrow keys.  
+
+### Mesh components
+
+Open **Face > Components** and select **New mesh component** to create a reusable 3D face layer.  
+Choose a primitive or supply indexed triangle geometry.  
+Edit color, transform keyframes, and opacity in the mesh inspector.  
+Positions use face widths, rotations use degrees, and scales use ratios.  
+Positive Y points upward and positive Z points out of the display.  
+
+Assign mesh clips to a face in **Face > Faces**.  
+Each face stores its own component placements.  
+Negative scale values mirror mesh components.  
+Disable **Canvas surface** for a mesh-only face or keep it enabled for mixed canvas and mesh layers.  
+Assign the finished face from the Composition workspace.  
+Project and reusable asset exports preserve geometry, placements, and animations.  
+
+### Robotic accessories
+
+Accessories are independent mesh components attached to rig parts.  
+Create them in Animation with **New accessory**.  
+The inspector defines geometry, color, the rig anchor, replaced parts, and transform keyframes.  
+Accessory positions use metres in the attached part's local frame.  
+Select clips and enable accessories in Composition.  
+Replaced parts become visible again when their accessory binding is disabled or removed.  
+Kernel supplies separate rope grip housings and animated jaws for both hands and feet.  
+The rope remains an independent environment asset.  

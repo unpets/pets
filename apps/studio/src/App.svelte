@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isFaceComponent } from '@pets/three-runtime/face';
   import PanelResize from './components/PanelResize.svelte';
   import EnvironmentEditor from './components/EnvironmentEditor.svelte';
   import {
@@ -216,7 +217,8 @@
   }
   function faceCategory() {
     const component = animations.project.components[animations.component];
-    if (component?.kind !== 'screen') return 'eyes';
+    if (component?.kind === 'face-mesh') return 'mesh';
+    if (!isFaceComponent(component?.kind ?? '')) return 'eyes';
     const name = String(component.data.family ?? component.data.layer);
     return ['eyes', 'mouth', 'background', 'activity'].includes(name)
       ? name
@@ -226,12 +228,14 @@
     workspace = value;
     if (value === 'animation' || value === 'composition') {
       if (
-        animations.project.components[animations.component]?.kind === 'screen'
+        isFaceComponent(
+          animations.project.components[animations.component]?.kind ?? '',
+        )
       ) {
         animations.component = animations.project.components['rig/head']
           ? 'rig/head'
           : Object.keys(animations.project.components).find(
-              (id) => animations.project.components[id].kind !== 'screen',
+              (id) => !isFaceComponent(animations.project.components[id].kind),
             )!;
         animations.clip =
           Object.keys(animations.project.clips).find(
@@ -329,7 +333,9 @@
   $effect(() => {
     const face =
       workspace === 'components' &&
-      animations.project.components[animations.component]?.kind === 'screen' &&
+      isFaceComponent(
+        animations.project.components[animations.component]?.kind ?? '',
+      ) &&
       animations.clip
         ? { [animations.component]: binding(animations.clip) }
         : undefined;
@@ -597,7 +603,7 @@
           if (result.selection.kind !== 'screen') {
             const component = project.components[animations.component];
             workspace =
-              component.kind === 'screen' &&
+              isFaceComponent(component.kind) &&
               result.selection.kind !== 'composition'
                 ? 'components'
                 : result.selection.kind === 'composition'
@@ -842,7 +848,7 @@
             editor={animations}
           />{:else if workspace === 'components'}<FaceInspector
             editor={animations}
-            oncustom={() => (faceKind = 'custom')}
+            oncustom={() => (faceKind = faceCategory())}
           />
         {:else if workspace === 'screen'}<ScreenComposition
             editor={animations}

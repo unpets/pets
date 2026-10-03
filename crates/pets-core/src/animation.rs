@@ -166,6 +166,8 @@ pub struct Composition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScreenAsset {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<crate::face::Surface>,
     pub label: String,
     pub data: Value,
     pub bindings: BTreeMap<String, Binding>,
@@ -250,6 +252,18 @@ impl AnimationProject {
                     && !component.kind.trim().is_empty(),
                 format!("Invalid component: {id}"),
             )?;
+            if matches!(component.kind.as_str(), "face-mesh" | "attachment") {
+                crate::face::validate_mesh(&component.data)?;
+                if component.kind == "attachment" {
+                    require(
+                        component.data["node"].as_str().is_some_and(identifier)
+                            && component.data["hides"].as_array().is_some_and(|parts| {
+                                parts.iter().all(|v| v.as_str().is_some_and(identifier))
+                            }),
+                        "Invalid attachment anchor",
+                    )?;
+                }
+            }
         }
         for (id, clip) in &self.clips {
             require(
@@ -260,17 +274,34 @@ impl AnimationProject {
                     && clip.duration > 0.0,
                 format!("Invalid clip: {id}"),
             )?;
+            if matches!(
+                self.components[&clip.component].kind.as_str(),
+                "face-mesh" | "attachment"
+            ) {
+                crate::face::validate_frames(&clip.data, clip.duration)?;
+            }
         }
         for (id, screen) in &self.screens {
             require(
                 identifier(id) && !screen.label.trim().is_empty() && screen.data.is_object(),
                 format!("Invalid screen: {id}"),
             )?;
+            if let Some(surface) = &screen.surface {
+                for (component, placement) in &surface.placements {
+                    require(
+                        self.components
+                            .get(component)
+                            .is_some_and(|v| v.kind == "face-mesh"),
+                        "Unknown mesh face placement",
+                    )?;
+                    placement.validate()?;
+                }
+            }
             for (component, binding) in &screen.bindings {
                 require(
                     self.components
                         .get(component)
-                        .is_some_and(|value| value.kind == "screen"),
+                        .is_some_and(|value| matches!(value.kind.as_str(), "screen" | "face-mesh")),
                     format!("Invalid screen component: {component}"),
                 )?;
                 self.validate_binding(id, component, binding)?;
@@ -368,7 +399,7 @@ impl AnimationProject {
                 result.bindings.retain(|component, _| {
                     self.components
                         .get(component)
-                        .is_none_or(|value| value.kind != "screen")
+                        .is_none_or(|value| !matches!(value.kind.as_str(), "screen" | "face-mesh"))
                 });
                 result.bindings.extend(screen.bindings.clone());
                 result.screen = Some(id.clone());

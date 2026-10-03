@@ -288,7 +288,7 @@ def pose_at(state, t, heading=0):
             hands[side], ankles[side], hand_rotations[side] = climbing_targets(
                 state, t, side
             )
-            feet_pitch[side] = 0.10
+            feet_pitch[side] = 0.0 if state == "climb-rope" else 0.10
     elif state == "climb-border":
         # Mantle: load the grip, pull, plant one foot, transfer support, then stand.
         ledge = LEDGE_HEIGHT
@@ -297,8 +297,8 @@ def pose_at(state, t, heading=0):
             [
                 (0, 0),
                 (0.16, -0.04),
-                (0.43, 0.48),
-                (0.62, 0.59),
+                (0.43, 0.52),
+                (0.62, 0.68),
                 (0.80, 1.14),
                 (1, ledge),
             ],
@@ -306,11 +306,16 @@ def pose_at(state, t, heading=0):
         root_y = curve(
             t, [(0, 0), (0.35, -0.08), (0.58, -0.38), (0.78, -0.95), (1, -1.07)]
         )
-        lean = curve(t, [(0, 0.10), (0.4, 0.18), (0.58, 0.28), (0.82, 0.08), (1, 0)])
+        lean = curve(t, [(0, 0.10), (0.4, 0.36), (0.58, 0.42), (0.82, 0.08), (1, 0)])
+        lead_plant = smooth(np.clip((t - 0.545) / 0.135, 0, 1))
+        lead_y = -0.42 * (1 - lead_plant) - 1.07 * lead_plant
+        clearance = lead_y + 0.25 + math.sin(lean) * HIP_PIVOT[2]
+        support = curve(t, [(0, 0), (0.25, 0), (0.38, 1), (0.72, 1), (0.82, 0), (1, 0)])
+        root_y += max(0, clearance - root_y) * support
         head_pitch = -0.10 * (1 - smooth(t))
         for side in (-1, 1):
-            foot_start = 0.30 if side == 1 else 0.47
-            foot_end = 0.58 if side == 1 else 0.73
+            foot_start = 0.38 if side == 1 else 0.55
+            foot_end = 0.68 if side == 1 else 0.83
             transfer = foot_start + 0.55 * (foot_end - foot_start)
             plant = smooth(np.clip((t - transfer) / (foot_end - transfer), 0, 1))
             lift = curve(
@@ -319,7 +324,7 @@ def pose_at(state, t, heading=0):
                     (0, 0),
                     (0.20, 0.08),
                     (foot_start, 0.38),
-                    (transfer, ledge + 0.10),
+                    (transfer, ledge + 0.04),
                     (foot_end, ledge),
                     (1, ledge),
                 ],
@@ -327,7 +332,9 @@ def pose_at(state, t, heading=0):
             ankles[side] = np.array(
                 [
                     side * 0.28,
-                    -0.10 + (-1.07 + 0.10) * plant,
+                    curve(t, [(0, -0.10), (foot_start, -0.42), (transfer, -0.42)])
+                    * (1 - plant)
+                    - 1.07 * plant,
                     0.17 + lift + 0.08 * math.sin(math.pi * plant),
                 ]
             )
@@ -407,7 +414,10 @@ def pose_at(state, t, heading=0):
         hip = point(tilted, HIP_PIVOT * (side, 1, 1))
         offset = hip[:2] - ankles[side][:2]
         height = math.sqrt(LEG_REACH**2 - float(offset @ offset))
-        root_z = min(root_z, ankles[side][2] + height - hip[2])
+        if state == "climb-border":
+            ankles[side][2] = max(ankles[side][2], root_z + hip[2] - height)
+        else:
+            root_z = min(root_z, ankles[side][2] + height - hip[2])
     body = heading @ transform((root_x, root_y, root_z), (lean, roll, 0))
     matrices = {
         "body": body,
@@ -418,7 +428,8 @@ def pose_at(state, t, heading=0):
         name = "L" if side == -1 else "R"
         hip = point(body, HIP_PIVOT * (side, 1, 1))
         ankle = point(heading, ankles[side])
-        knee = two_bone(hip, ankle, THIGH, SHIN, point(heading, (0, -1, 0)))
+        knee_pole = np.cross(ankle - hip, heading[:3, 0])
+        knee = two_bone(hip, ankle, THIGH, SHIN, knee_pole)
         shoulder = point(body, SHOULDER_PIVOT * (side, 1, 1))
         if hands[side] is None:
             # Rest targets follow the shoulder, independently of planted feet.

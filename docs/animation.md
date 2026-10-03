@@ -111,3 +111,24 @@ Eye layers can follow the evaluated head direction while keeping their own expre
 Climbing uses forward reach targets and outward elbow guides to clear the head and torso.  
 Border climbing transfers support from the hands to the feet and ends in a standing pose.  
 The final border frame is included in Blender playback and exports.  
+
+## Mesh layers
+
+The `face-mesh` adapter defines a reusable 3D face component.  
+The `attachment` adapter defines a reusable accessory attached to a rig part.  
+Both store `geometry` and a hexadecimal `color` in component data.  
+Geometry supports `sphere`, `box`, `plane`, or indexed triangle meshes with `positions` and `indices`.  
+Mesh clips store ordered `keyframes` with `time`, `position`, `rotation`, `scale`, and `opacity`.  
+Rotation uses XYZ Euler angles in degrees and shortest-arc quaternion interpolation.  
+
+A face asset can include `surface: { canvas, placements }`.  
+Canvas defaults to enabled for existing projects.  
+Placements map mesh component identifiers to position, rotation, and scale transforms.  
+Face coordinates use one face width, positive Y upward, and positive Z outward.  
+Clip transforms are applied after per-face placement.  
+Assigning a child face replaces inherited canvas and mesh face bindings together.  
+
+Accessory data adds `node` for the rig anchor and `hides` for the replaced parts.  
+Accessory coordinates use metres in the part's local frame.  
+Visibility changes last only while an enabled accessory clip is bound.  
+Geometry and transform channels are portable across Studio, Blender composition baking, and project exports.  

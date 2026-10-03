@@ -102,6 +102,53 @@ def verify(source):
 
         forward = relative.to_quaternion() @ Vector((0, -1, 0))
         assert forward.x * x > 0.5, "Baked Lookat must face its scene target"
+    for phase in (0.05, 0.20, 0.75):
+        apply_composition(model, project, "climb-rope", phase)
+        visible = [obj for obj in model["mesh_layers"].values() if not obj.hide_render]
+        assert len(visible) == 12
+        assert model["nodes"]["hand.R"].hide_render
+        assert model["nodes"]["foot.R"].hide_render
+    apply_composition(model, project, "idle", 0.2)
+    assert not model["nodes"]["hand.R"].hide_render
+    assert not model["nodes"]["foot.R"].hide_render
+    project["components"]["mesh-eye"] = {
+        "label": "Mesh eye",
+        "kind": "face-mesh",
+        "data": {"geometry": {"type": "sphere"}, "color": "#55e9eb"},
+    }
+    identity = {
+        "position": [0, 0, 0.04],
+        "rotation": [0, 0, 0],
+        "scale": [0.15, 0.15, 0.05],
+    }
+    project["clips"]["mesh-eye"] = {
+        "label": "Mesh eye",
+        "component": "mesh-eye",
+        "duration": 1,
+        "looping": True,
+        "data": {"keyframes": [{"time": t, "opacity": 1, **identity} for t in (0, 1)]},
+    }
+    project["screens"]["custom"]["surface"] = {
+        "canvas": False,
+        "placements": {
+            "mesh-eye": {
+                "position": [0.2, 0, 0],
+                "rotation": [0, 0, 0],
+                "scale": [1, 1, 1],
+            }
+        },
+    }
+    project["screens"]["custom"]["bindings"]["mesh-eye"] = {
+        "clip": "mesh-eye",
+        "clock": "independent",
+        "speed": 1,
+        "offset": 0,
+        "enabled": True,
+    }
+    apply_composition(model, project, "child", 0.2)
+    assert model["display"].hide_render
+    assert not model["mesh_layers"]["mesh-eye"].hide_render
+    assert model["mesh_layers"]["mesh-eye"].constraints[0].subtarget == "head"
     with TemporaryDirectory(prefix="pets-compositions-") as directory:
         output = Path(directory)
         path = bake_project(source, project, output, ["child", "target"], "auto")
@@ -111,6 +158,20 @@ def verify(source):
         assert "composition/target" in bpy.data.actions
         embedded = json.loads(bpy.data.texts["pets-animation.json"].as_string())
         assert embedded["compositions"]["child"]["parent"] == "idle"
+        assert embedded["screens"]["custom"]["surface"]["canvas"] is False
+        bpy.context.scene.frame_set(1)
+        assert next(
+            obj for obj in bpy.context.scene.objects if obj.get("is_display")
+        ).hide_render
+        assert not next(
+            obj
+            for obj in bpy.context.scene.objects
+            if obj.get("pets_mesh_component") == "mesh-eye"
+        ).hide_render
+        bpy.context.scene.frame_set(13)
+        assert not next(
+            obj for obj in bpy.context.scene.objects if obj.get("is_display")
+        ).hide_render
         assert (output / "blend-screens/screen-0012.png").is_file()
     print("Authored joint transforms and child composition baking passed.")
 

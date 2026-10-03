@@ -209,6 +209,7 @@ jobs:
           bun run test:gaze
           bun run test:studio-ui
           bun run test:environment
+          bun run test:face
           bun run test:locomotion
           xvfb-run -a env PLAYWRIGHT_BROWSER=firefox bun run test:viewer
       - name: Package versioned downloads

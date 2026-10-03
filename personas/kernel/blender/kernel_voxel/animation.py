@@ -315,6 +315,17 @@ def animation_project():
         target: {state: output_binding(state) for state in [*FRAMES, "look"]}
         for target in ("codex", "shimeji")
     }
+    import json
+    from pathlib import Path
+
+    grips = json.loads(
+        (
+            Path(__file__).resolve().parents[4] / "resources/kernel-rope-grips.json"
+        ).read_text()
+    )
+    project["components"].update(grips["components"])
+    project["clips"].update(grips["clips"])
+    project["compositions"]["climb-rope"]["bindings"].update(grips["bindings"])
     return project
 
 
@@ -342,7 +353,8 @@ def resolve_composition(project, identifier):
             result["bindings"] = {
                 component: binding
                 for component, binding in result["bindings"].items()
-                if project["components"][component]["kind"] != "screen"
+                if project["components"][component]["kind"]
+                not in ("screen", "face-mesh")
             }
             result["bindings"].update(project["screens"][screen]["bindings"])
             result["screen"] = screen

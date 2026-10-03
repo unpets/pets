@@ -135,6 +135,14 @@ export function parseKernelProject(value: unknown): AnimationProject {
         )
       )
         throw new Error(`Invalid effect attachment: ${id}`);
+    } else if (component.kind === 'attachment') {
+      if (
+        !nodes.has(component.data.node as string) ||
+        (component.data.hides as string[]).some((node) => !nodes.has(node))
+      )
+        throw new Error(`Unknown attachment anchor: ${id}`);
+    } else if (component.kind === 'face-mesh') {
+      // Shared project validation checks portable geometry and transforms.
     } else if (component.kind === 'screen') {
       if (
         typeof component.data.layer !== 'string' ||
@@ -235,6 +243,8 @@ export function parseKernelProject(value: unknown): AnimationProject {
         )
           throw new Error(`Invalid rotation keyframes: ${id}`);
       }
+    } else if (kind === 'face-mesh' || kind === 'attachment') {
+      // Mesh channels use the shared transform contract.
     } else if (kind === 'effect') {
       validateEffect(clip.data);
     } else if (kind === 'screen') {

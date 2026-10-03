@@ -1,3 +1,8 @@
+import {
+  identityFrame,
+  isFaceComponent,
+  type FaceSurface,
+} from '@pets/three-runtime/face';
 import { isDefaultMotion } from '@pets/three-runtime/default-motions';
 import { defaultLookAt } from '@pets/kernel/look-at';
 import { defaultEffect } from '@pets/three-runtime/effects';
@@ -61,10 +66,76 @@ export class AnimationEditorState {
           component: this.component,
           duration: 1,
           looping: true,
-          data: { frames: [[]] },
+          data:
+            this.project.components[this.component].kind === 'face-mesh'
+              ? { keyframes: [identityFrame(0), identityFrame(1)] }
+              : { frames: [[]] },
         };
+    if (
+      source &&
+      project.components[project.clips[source].component].kind === 'face-mesh'
+    ) {
+      const component = uniqueId(label, project.components);
+      project.components[component] = {
+        ...structuredClone(project.components[project.clips[source].component]),
+        label,
+      };
+      project.clips[id].component = component;
+    }
     this.replace(project);
+    this.component = project.clips[id].component;
     this.clip = id;
+  }
+  addMesh(label: string, kind: 'face-mesh' | 'attachment' = 'face-mesh') {
+    const project = parseKernelProject(this.project);
+    const id = uniqueId(label, project.components),
+      clip = uniqueId(`${label}-clip`, project.clips);
+    project.components[id] = {
+      label,
+      kind,
+      data: {
+        geometry: { type: 'sphere' },
+        color: '#55e9eb',
+        ...(kind === 'attachment' ? { node: 'hand.R', hides: [] } : {}),
+      },
+    };
+    const frames = [identityFrame(0), identityFrame(1)];
+    for (const f of frames) {
+      f.scale = kind === 'attachment' ? [0.1, 0.1, 0.1] : [0.15, 0.15, 0.05];
+      f.position = kind === 'attachment' ? [0, 0, 0] : [0, 0, 0.04];
+    }
+    project.clips[clip] = {
+      label,
+      component: id,
+      duration: 1,
+      looping: true,
+      data: { keyframes: frames },
+    };
+    this.replace(project);
+    this.component = id;
+    this.clip = clip;
+  }
+  updateFaceSurface(id: string, surface: FaceSurface) {
+    this.replace({
+      ...this.project,
+      screens: {
+        ...this.project.screens,
+        [id]: { ...this.project.screens![id], surface },
+      },
+    });
+  }
+  unbindScreen(id: string, component: string) {
+    const screen = structuredClone(this.project.screens![id]);
+    delete screen.bindings[component];
+    if (
+      component === 'screen/eyeLeft' &&
+      parseScreenProject(screen.data).eyeMode === 'mirrored'
+    )
+      delete screen.bindings['screen/eyeRight'];
+    this.replace({
+      ...this.project,
+      screens: { ...this.project.screens, [id]: screen },
+    });
   }
   updateScreen(id: string, data: ScreenProject, group?: string) {
     this.replace(
@@ -205,7 +276,7 @@ export class AnimationEditorState {
     } = resolveComposition(project, source);
     for (const component of Object.keys(resolved.bindings))
       if (
-        project.components[component].kind === 'screen' &&
+        isFaceComponent(project.components[component].kind) &&
         !project.compositions[origins[component]].bindings[component]
       )
         delete resolved.bindings[component];
@@ -250,7 +321,7 @@ export class AnimationEditorState {
     const project = parseKernelProject(this.project);
     for (const component of Object.keys(resolved.bindings))
       if (
-        project.components[component].kind === 'screen' &&
+        isFaceComponent(project.components[component].kind) &&
         !project.compositions[origins[component]].bindings[component]
       )
         delete resolved.bindings[component];
@@ -386,26 +457,28 @@ export class AnimationEditorState {
     const id = uniqueId(label, project.clips);
     const kind = project.components[this.component].kind;
     const data =
-      kind === 'screen'
-        ? { frames: [[]] }
-        : kind === 'rig'
-          ? {
-              keyframes: [
-                { time: 0, rotation: [0, 0, 0] },
-                { time: 1, rotation: [0, 0, 0] },
-              ],
-            }
-          : kind === 'emission'
+      kind === 'face-mesh' || kind === 'attachment'
+        ? { keyframes: [identityFrame(0), identityFrame(1)] }
+        : kind === 'screen'
+          ? { frames: [[]] }
+          : kind === 'rig'
             ? {
                 keyframes: [
-                  [0, 0],
-                  [0.5, 4],
-                  [1, 0],
+                  { time: 0, rotation: [0, 0, 0] },
+                  { time: 1, rotation: [0, 0, 0] },
                 ],
               }
-            : kind === 'effect'
-              ? { ...defaultEffect() }
-              : { visible: true };
+            : kind === 'emission'
+              ? {
+                  keyframes: [
+                    [0, 0],
+                    [0.5, 4],
+                    [1, 0],
+                  ],
+                }
+              : kind === 'effect'
+                ? { ...defaultEffect() }
+                : { visible: true };
     project.clips[id] = {
       label,
       component: this.component,

@@ -13,6 +13,13 @@ from .rig import DURATIONS, MOTIONS, PARENTS, SOURCE_MOTIONS, pose_at
 BONE_BASIS = Matrix.Rotation(math.pi / 2, 4, "X")
 
 
+def part_matrix(armature, name):
+    """Read canonical transforms even when a replacement hides the mesh."""
+    return (
+        armature.matrix_world @ armature.pose.bones[name].matrix @ BONE_BASIS.inverted()
+    )
+
+
 def create_armature(model):
     rest = pose_at("idle", 0)
     data = bpy.data.armatures.new("Kernel mechanical rig")

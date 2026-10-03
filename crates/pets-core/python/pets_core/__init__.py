@@ -50,6 +50,7 @@ def fingerprint():
             core / "Cargo.toml",
             core / "src/persona.rs",
             core / "src/animation.rs",
+            core / "src/face.rs",
         ]
         paths.extend(sorted((core / "src/export").glob("*.rs")))
         paths.extend(sorted((core / "src/bin").glob("*.rs")))

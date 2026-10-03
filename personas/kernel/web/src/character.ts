@@ -1,3 +1,7 @@
+import {
+  createFaceAnchor,
+  createMeshLayers,
+} from '@pets/three-runtime/face-scene';
 import { createLookAt, headGaze, type LookAtSettings } from './look-at';
 import { createEffects } from '@pets/three-runtime/effects';
 import {
@@ -59,6 +63,27 @@ export async function createCharacter(
     map: screen.texture,
     toneMapped: false,
   });
+  const faceAnchor = createFaceAnchor(display);
+  const faceMeshes = createMeshLayers(faceAnchor, 'face-mesh');
+  const attachmentAnchors = Object.fromEntries(
+    Object.entries(parts)
+      .filter(([, part]) => part.parent)
+      .map(([id, part]) => {
+        const anchor = new Object3D();
+        anchor.name = `attachment-anchor:${id}`;
+        anchor.matrixAutoUpdate = false;
+        part.updateMatrix();
+        anchor.matrix.copy(part.matrix);
+        part.parent!.add(anchor);
+        return [id, anchor];
+      }),
+  );
+  const attachments = createMeshLayers(
+    model,
+    'attachment',
+    parts,
+    attachmentAnchors,
+  );
   const effects = createEffects(parts);
   const motion = createMotion(model, clips, 'running');
   const updateEmission = createEmission(model, data.project);
@@ -75,6 +100,7 @@ export async function createCharacter(
     const direction = headGaze(parts.head, parts.body);
     screen.setHeadGaze(direction.x, direction.y);
   }
+  const rootOffset = new Vector3();
   let velocity = { x: 0, y: 0, z: 0 };
   const heading = createHeading(model.rotation.z);
   let samples: ReturnType<typeof sampleComposition> = {};
@@ -248,7 +274,10 @@ export async function createCharacter(
         screen.setProject(parseScreenProject(settings));
         activeSettings = settings;
       }
-      motion.update(
+      // Restore the mixer sample before adding the procedural climb displacement.
+      joints.body.position.sub(rootOffset);
+      rootOffset.set(0, 0, 0);
+      const motionWeight = motion.update(
         elapsed,
         Object.fromEntries(
           Object.entries(samples).map(([id, sample]) => [id, sample.phase]),
@@ -275,11 +304,12 @@ export async function createCharacter(
             : independentSeconds / clip.duration) *
             binding.speed +
           binding.offset;
-        joints.body.position.addScaledVector(
+        rootOffset.addScaledVector(
           new Vector3(...displacement),
-          Math.floor(cycles),
+          Math.floor(cycles) * motionWeight,
         );
       }
+      joints.body.position.add(rootOffset);
       model.updateMatrixWorld(true);
       lookSettings = Object.entries(samples)
         .map(([id, sample]) =>
@@ -316,9 +346,24 @@ export async function createCharacter(
       if (cable.mesh.visible) cable.update();
       updateEmission(project, samples);
       effects.update(project, samples);
+      const surface = screenId
+        ? project.screens?.[screenId]?.surface
+        : undefined;
+      display!.visible = previewBindings
+        ? !Object.keys(previewBindings).some(
+            (id) => project.components[id].kind === 'face-mesh',
+          )
+        : (surface?.canvas ?? true);
+      faceMeshes.update(project, samples, surface);
+      attachments.update(project, samples);
       screen.update(project, samples, screenSeconds);
     },
     dispose() {
+      faceMeshes.dispose();
+      attachments.dispose();
+      for (const anchor of Object.values(attachmentAnchors))
+        anchor.removeFromParent();
+      faceAnchor.removeFromParent();
       effects.dispose();
       motion.dispose();
       cable.dispose();

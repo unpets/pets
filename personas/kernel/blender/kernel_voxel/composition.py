@@ -9,7 +9,7 @@ from mathutils import Euler, Matrix, Vector
 from PIL import Image, ImageColor
 
 from .animation import resolve_composition
-from .armature import BONE_BASIS
+from .armature import BONE_BASIS, part_matrix
 from .emission import sample_curve
 from .placement import place
 from .rig import PARENTS, RigPose, cable_points, point
@@ -354,7 +354,8 @@ def apply_composition(model, project, identifier, phase, screen=None, context=Tr
                 clip["data"]["keyframes"], position * clip["duration"]
             )
     matrices = {
-        name: np.asarray(model["nodes"][name].matrix_world).copy() for name in PARENTS
+        name: np.asarray(part_matrix(model["armature"], name)).copy()
+        for name in PARENTS
     }
     ports = model["metadata"]["ports"]
     pose = RigPose(
@@ -388,5 +389,8 @@ def apply_composition(model, project, identifier, phase, screen=None, context=Tr
     from .effects import update_effects
 
     update_effects(model, project, identifier, phase)
+    from .mesh_layers import update_mesh_layers
+
+    update_mesh_layers(model, project, identifier, phase)
     place(model, composition["properties"].get("heading", 0))
     return image

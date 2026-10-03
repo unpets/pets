@@ -41,11 +41,12 @@ def climbing_targets(state, t, side):
                 2.04 + (0.14 if side < 0 else 0) + rise,
             ]
         )
+        foot_rise, foot_release = contact_cycle(t, -side)
         ankle = np.array(
             [
                 side * 0.12,
-                -0.48,
-                0.34 + STRIDE * t - side * 0.035 * math.sin(math.tau * t),
+                -0.48 + 0.08 * foot_release,
+                0.50 + foot_rise + 0.06 * foot_release,
             ]
         )
         rotation = (0, -side * math.pi / 2, 0)

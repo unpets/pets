@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MeshLayerEditor from './MeshLayerEditor.svelte';
   import LookAtEditor from './LookAtEditor.svelte';
   import InspectorSection from '@pets/kernel/components/InspectorSection.svelte';
   import EffectEditor from './EffectEditor.svelte';
@@ -105,6 +106,11 @@
     </p>
     <button
       class="button mt-3 w-full"
+      onclick={() => editor.addMesh(label.trim() || 'Accessory', 'attachment')}
+      >New accessory</button
+    >
+    <button
+      class="button mt-3 w-full"
       onclick={() => {
         try {
           editor.deleteComponent();
@@ -120,7 +126,9 @@
     {editor}
   />{:else if clip && component.kind === 'effect'}<EffectEditor
     {editor}
-  />{:else if clip}<KeyframeEditor {editor} />{/if}
+  />{:else if clip && component.kind !== 'attachment'}<KeyframeEditor
+    {editor}
+  />{/if}
 
 <InspectorSection open>
   {#snippet heading()}Clip library{/snippet}
@@ -244,3 +252,10 @@
       </p>{/if}
   </div>
 </InspectorSection>
+
+{#if component.kind === 'attachment' && clip}<InspectorSection open
+    >{#snippet heading()}Accessory design{/snippet}
+    <div class="inspector-section">
+      <MeshLayerEditor {editor} />
+    </div></InspectorSection
+  >{/if}

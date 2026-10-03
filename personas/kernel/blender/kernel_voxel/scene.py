@@ -8,10 +8,12 @@ import numpy as np
 
 from . import __version__
 from .animation import PROJECT, PROPS, prop_visible
+from .armature import part_matrix
 from .effects import key_effects, update_effects
 from .emission import apply_values, bake_clips, read_clips
 from .environment import build_environment, update_environment
 from .framing import fit_camera
+from .mesh_layers import key_mesh_layers, update_mesh_layers
 from .outputs import output_instance
 from .placement import place
 from .rig import (
@@ -41,6 +43,8 @@ def save_source(model, out):
     for state in ("flying", "climbing"):
         update_effects(model, PROJECT, state, 0)
     update_effects(model, PROJECT, "idle", 0)
+    update_mesh_layers(model, PROJECT, "climb-rope", 0)
+    update_mesh_layers(model, PROJECT, "idle", 0)
     emission_targets = bake_clips(PROJECT)
     from .model import apply_pose
 
@@ -68,6 +72,8 @@ def save_source(model, out):
             update_environment(state, frame)
             update_effects(model, PROJECT, state, p.t)
             key_effects(model, frame)
+            update_mesh_layers(model, PROJECT, state, p.t)
+            key_mesh_layers(model, frame)
             apply_values(emission_targets, PROJECT, state, p.t)
             for socket in emission_targets.values():
                 socket.keyframe_insert("default_value", frame=frame)
@@ -197,7 +203,8 @@ def sample_source(model, state, phase, update_display=True):
     frame = start + phase * (end - start)
     bpy.context.scene.frame_set(math.floor(frame), subframe=frame % 1)
     matrices = {
-        name: np.asarray(model["nodes"][name].matrix_world).copy() for name in PARENTS
+        name: np.asarray(part_matrix(model["armature"], name)).copy()
+        for name in PARENTS
     }
     gaze = gaze_at(state, phase)
     ports = model["metadata"]["ports"]
@@ -231,6 +238,7 @@ def sample_source(model, state, phase, update_display=True):
         model["texture"].pixels.foreach_set(np.flipud(pixels).flatten())
         model["texture"].update()
     update_effects(model, model["project"], state, phase)
+    update_mesh_layers(model, model["project"], state, phase)
     heading = properties.get("heading", 0)
     placement = np.asarray(place(model, heading))
     if heading:
